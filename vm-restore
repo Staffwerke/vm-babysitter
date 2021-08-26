@@ -46,7 +46,7 @@ if [[ $action_mode == "restore" ]]; then
 fi
 
 # Runs Docker!
-    docker run --rm $bind_mounts $src_image virtnbdrestore -i $full_backup_path -a $action_mode -o $full_restoration_path $options
+    docker run --rm --name vm-$action_name $docker_name $bind_mounts $src_image virtnbdrestore -i $full_backup_path -a $action_mode -o $full_restoration_path $options
 
 }
 

@@ -35,7 +35,7 @@ local bind_mounts=" -v $backup_path:$backup_path -v /var/tmp:/var/tmp"
 echo "INFO: Starting incremental backup of $target_domain"
 
 # Runs Docker!
-    docker run --rm $bind_mounts $src_image virtnbdbackup -d $target_domain -l $backup_mode -o $backup_path/$target_domain $options
+    docker run --rm --name vm-$backup_mode-backup $bind_mounts $src_image virtnbdbackup -d $target_domain -l $backup_mode -o $backup_path/$target_domain $options
 
 }
 
