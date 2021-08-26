@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# VM to be patched:
+target_domain=$1
+working_path="/tmp"
+
+# Verifies for target_domain, in first instance:
+# (Attempts to match " exact " case)
+domain_exists=`virsh list --all | grep -w " $target_domain "`
+
+# Main Program:
+# -----------------------------------------------------------------------------
+
+if [[ ! -z $domain_exists ]]; then
+
+    # Domain state (changes require restart the VM if this is not off):
+    domain_state=`echo $domain_exists | grep -ow "shut off"`
+
+    # Expected match on non-patched VMs:
+    original_pattern="<domain type='kvm'>"
+
+    # Expected match on manually modified VMs (e.g. with 'virsh edit $target_domain')
+    modified_pattern="<domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>"
+
+    # Dumps current VMs XML file to a temporal location:
+    virsh dumpxml --inactive --security-info $target_domain > $working_path/$target_domain.xml
+
+    # Checks if <domain> header was previously modified with QEMU capabilities.
+    # (doesn't check deeper and it is assumed no faulty manual edition has been made)
+    match=`grep -e "$original_pattern" -e "$modified_pattern" $working_path/$target_domain.xml`
+
+    if [[ $match == $original_pattern ]]; then
+
+        # Main header in original state, or was reverted by another instance (e.g. UnRaid VM Settings).
+
+        #Modifies the XML file with sed, adding parameters as of virtnbdbackup documentation:
+        sed -i -e "s|<domain type='kvm'>|<domain type='kvm' id='1' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>|" -e "/<\/domain>/i \ \ <qemu:capabilities>\n      <qemu:add capability='incremental-backup'\/>\n  <\/qemu:capabilities>" $working_path/$target_domain.xml
+
+        # Silently defines the VM:
+        > /dev/null virsh define $working_path/$target_domain.xml
+
+        message="INFO: $target_domain patched successfully."
+
+        # If server is NOT off, Notifies the user about restart the need of a server restart to apply these changes:
+        [[ -z $domain_state ]] &&  message+=" (Note: Changes will be applied after next VM restart)"
+        status=0
+
+    elif [[ $match == $modified_pattern ]]; then
+
+        # Patch header corresponds with correct parameter on VM.
+        message="INFO: $target_domain is correctly patched. Nothing to do. Exited."
+        status=0
+
+    else
+        message="ERROR: Inconsistent settings for $target_domain. If this isn't expected, Run 'virsh edit $target_domain' or use your Graphic UI to verify that VM settings are OK. Aborted."
+        status=1
+    fi
+
+    # Deletes the temporal file:
+    rm $working_path/$target_domain.xml
+
+else
+        message="ERROR: $target_domain does not exist. Aborted."
+        status=1
+fi
+
+echo $message
+exit $status

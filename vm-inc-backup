@@ -1,0 +1,86 @@
+#!/bin/bash
+
+# Creates an incremental backup of a given VM at determined path
+# Only proceeds when VM is running, and has previous backups at such location
+# Will skip (prompting the user) if no backups are found.
+
+# -----------------------------------------------------------------------------
+# VM name as of registered in libvirt/qemu:
+target_domain=$1
+
+# Backup location
+backup_path=$2
+
+# Runs a volatile container that executes virtnbdbackup with specific options:
+# -----------------------------------------------------------------------------
+virtnbdbackup_docker_inc_backup()
+{
+
+# Docker source image:
+local src_image="adrianparilli/virtnbdbackup-docker:latest"
+
+# Backup Mode:
+local backup_mode="inc"
+
+# Extra options passed to virtnbdbackup:
+local options=" --compress"
+
+# Common bind mounts for all Operating Systems:
+local bind_mounts=" -v $backup_path:$backup_path -v /var/tmp:/var/tmp"
+
+# Filters kernel with matching string "Unraid" and pass specific mount points. By now, all other Operating systems are mounted in the same way:
+[[ -n `uname  -r | grep -e "-Unraid$"` ]] && bind_mounts+=" -v /var/run:/run -v /var/lock:/run/lock" || bind_mounts+=" -v /run:/run"
+
+# Notifies the user about the ongoing process:
+echo "INFO: Starting incremental backup of $target_domain"
+
+# Runs Docker!
+    docker run --rm $bind_mounts $src_image virtnbdbackup -d $target_domain -l $backup_mode -o $backup_path/$target_domain $options
+
+}
+
+# Main execution:
+# -----------------------------------------------------------------------------
+
+# Verifies for target_domain, in first instance:
+# (Attempts to match " exact " case)
+domain_exists=`virsh list --all | grep -w " $target_domain "`
+
+# Verifies domain state (avoiding to create unnecessary folders and write logs on $backup_path):
+domain_state=$(echo `virsh list --all | grep $target_domain| rev | cut -d' ' -f1 | rev`)
+
+# Will change to 0 only when operation compeltes successfully:
+status=1
+
+if [[ ! -z $domain_exists ]]; then
+
+    # Verifies if $target_domain is running:
+    domain_state=`echo $domain_exists | grep -ow "running"`
+
+    if [[ $domain_state == "running" ]]; then
+
+        # Virtnbdbackup will only work if folder exists and has a backup chain
+        # (Actually it only look for non-empty folder):
+        if [[ -d $backup_path/$target_domain ]] && [[ ! -z `ls -a $backup_path/$target_domain` ]]; then
+
+            # Runs virtnbdbackup:
+            virtnbdbackup_docker_inc_backup
+            status=$?
+            [[ $? == 0 ]] && message="INFO: virtnbdbackup finished successfully." || message="ERROR: virtnbdbackup exited with status $?. Read the logs above to determine the problem."
+
+        else
+            message="WARNING: $backup_path/$target_domain doesn't exist or no backups were found. Skipped."
+        fi
+
+    else
+        # $target_domain state is anything rather than "running"
+        message="ERROR: $target_domain isn't running. Backup jobs only apply for running VMs. Skipped"
+    fi
+
+else
+    # VM does not exist:
+    message="ERROR: $target_domain doesn't exist. Skipped."
+fi
+
+echo $message
+exit $status

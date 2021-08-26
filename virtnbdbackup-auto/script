@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# UnRaid's User Script plugin Setup (no need for edition:
+
+#name=virtnbdbackup-auto
+#description=Runs manual or scheduled incremental backups of VMs declared inside this script by using virtnbdbackup-docker and vm-inc-backup
+#arrayStarted=true
+#noParity=true
+
+# Only edit parameters within this section:
+###############################################################################
+
+# Single quoted and space separated list of VMs that will be backed up regularly:
+# (NOTE: VMs must have been initialized with both vm-init-xml and vm-full-backup, or won't be processed at scheduled time)
+domain_list=('test-vm' 'windows-test')
+
+# Absolute path to the backup folder where all VMs will be backed up:
+backup_folder="/mnt/user/Backups"
+
+# Absolute path to vm-inc-backup script (must be an executable Shell one):
+script_path="/mnt/user/Backups/virtnbdbackup-docker-scripts/vm-inc-backup"
+
+# End of user parameters. (DO NOT edit below this line)
+###############################################################################
+
+if [[ ! -z $script_path ]] && [[ -x $script_path ]]; then
+
+    echo "Starting scheduled incremental backup for the following VMs: ${domain_list[@]}"
+    success=()
+    failed=()
+    for domain in ${domain_list[@]}; do
+        echo "---------------------------------------------------------------------"
+        $script_path $domain $backup_folder
+        [[ $? == 0 ]] && success=(${success[@]} $domain) || failed=(${failed[@]} $domain)
+    done
+    [[ ! $success ]] && success=("None")
+    [[ ! $failed ]] && { failed=("None"); status=0; } || { warning_mesasage="WARNING: At least one scheduled backups wasn't successful! Read the logs above for more detailed info and re-check script parameters."; status=1; }
+    echo "---------------------------------------------------------------------"
+    echo "Scheduled incremental backup summary:
+    Successful Backups: ${success[@]}
+    Failed Backups:     ${failed[@]}"
+    [[ -n $warning_message ]] && echo $warning_mesasage || echo "All VMs were backed up!"
+    echo "---------------------------------------------------------------------"
+    exit $status
+else
+    echo "ERROR: Incemental Backup script not found, or not an executable file. Aborted."
+    exit 1
+fi
