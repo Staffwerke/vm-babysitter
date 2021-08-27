@@ -14,35 +14,84 @@
 # (NOTE: VMs must have been initialized with both vm-init-xml and vm-full-backup, or won't be processed at scheduled time)
 domain_list=('test-vm' 'windows-test')
 
-# Absolute path to the backup folder where all VMs will be backed up:
+# Absolute path to the local backup folder where all VMs will be backed up:
 backup_folder="/mnt/user/Backups"
 
-# Absolute path to vm-inc-backup script (must be an executable Shell one):
-script_path="/mnt/user/Backups/virtnbdbackup-docker-scripts/vm-inc-backup"
+# Path to SSH or Rsync location where backup chain should be synced after every local_successful incremental backup:
+# Leave blank ("") to disable remote syncing.
+# Notes: - You need to set RSA/DSA authentication on this (client), and the remote host (server)
+#        - Path must exist on remote host (or rsync will fail)
+remote_folder="root@192.168.88.10:/mnt/user/Backups/UnNuc/vm-backups"
 
-# End of user parameters. (DO NOT edit below this line)
+# Absolute path to 'vm-inc-backup' script. Leave blank ("") if installed locally:
+script_path="/root/virtnbdbackup-docker-scripts"
+
+# End of user parameters. (DO NOT edit below this line!)
 ###############################################################################
 
+status=1
 if [[ ! -z $script_path ]] && [[ -x $script_path ]]; then
-
+    # Lists of successful vs failed operations on VMs.
+    # Local Backups:                 # Remote Backups
+    local_success=(); local_fail=(); remote_success=(); remote_fail=()
     echo "Starting scheduled incremental backup for the following VMs: ${domain_list[@]}"
-    success=()
-    failed=()
     for domain in ${domain_list[@]}; do
-        echo "---------------------------------------------------------------------"
-        $script_path $domain $backup_folder
-        [[ $? == 0 ]] && success=(${success[@]} $domain) || failed=(${failed[@]} $domain)
+        echo "___________________________________________________________________________________________________"
+        [[ ! -z $script_path ]] && script="$script_path/vm-inc-backup" || script="vm-inc-backup"
+        # Performs the incremental backup!
+        $script $domain $backup_folder
+        if [[ $? == 0 ]]; then
+            # When incremena backup exited normally, adds the VM to #local_success list
+            local_success=(${local_success[@]} $domain)
+            if [[ ! -z $remote_folder ]]; then
+                # When $remote folder is set, attempts to transfer changes via rsync:
+                echo "Syncing backup chain of $domain to the configured remote endpoint..."
+                rsync -a --delete $backup_folder/$domain/ $remote_folder/$domain/
+                # Depending on success with rsync, will add the VM to $remote_success or $remote_fail
+                if [[ $? == 0 ]]; then
+                    # When rsync exited normally, adds the VM to $remote_success list
+                    remote_success=(${remote_success[@]} $domain)
+                    echo "Remote synchronization was successful!"
+                else
+                    # Otherwise, adds the VM to $remote_fail list
+                    remote_fail=(${remote_fail[@]} $domain)
+                    echo "Remote synchronization failed!"
+                fi
+            fi
+        else
+            # Otherwise, adds the VM to $local_fail list
+            local_fail=(${local_fail[@]} $domain)
+            echo "Remote synchronization of backup chain for $domain shall not be performed."
+        fi
     done
-    [[ ! $success ]] && success=("None")
-    [[ ! $failed ]] && { failed=("None"); status=0; } || { warning_mesasage="WARNING: At least one scheduled backups wasn't successful! Read the logs above for more detailed info and re-check script parameters."; status=1; }
-    echo "---------------------------------------------------------------------"
-    echo "Scheduled incremental backup summary:
-    Successful Backups: ${success[@]}
-    Failed Backups:     ${failed[@]}"
-    [[ -n $warning_message ]] && echo $warning_mesasage || echo "All VMs were backed up!"
-    echo "---------------------------------------------------------------------"
-    exit $status
+    # Displays for Total success or fail in local backup:
+    [[ ! $local_fail ]] && local_fail=("None")
+    [[ ! $local_success ]] && local_success=("None")
+    # Shows local summary:
+    echo "___________________________________________________________________________________________________"
+    echo "Incremental Backup Summary:
+    Successful Backups: ${local_success[@]}
+    Failed Backups:     ${local_fail[@]}
+    Backups Destination: $backup_folder"
+    if [[ ! -z $remote_folder ]]; then
+        # Displays Total success ro fail in rsync operations:
+        [[ ! $remote_fail ]] && remote_fail=("None")
+        [[ ! $remote_success ]] && remote_success=("None")
+        # Shows remote summary:
+        echo ""
+        echo "Rsync Transfer Summary:
+        Successful Transfers: ${remote_success[@]}
+        Failed Transfers:     ${remote_fail[@]}
+        Remote transfers destination: $remote_folder"
+    fi
+    echo "___________________________________________________________________________________________________"
+    if [[ $local_fail != "None" ]] || [[ $remote_fail != "None" ]]; then
+        echo "WARNING: At least one of the scheduled tasks wasn't successful! Read the logs for more info."
+    else
+        echo "All VMs were backed up!"
+        status=0
+    fi
 else
     echo "ERROR: Incemental Backup script not found, or not an executable file. Aborted."
-    exit 1
 fi
+exit $status
