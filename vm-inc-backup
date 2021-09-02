@@ -66,7 +66,7 @@ if [[ ! -z $domain_exists ]]; then
             # Runs virtnbdbackup:
             virtnbdbackup_docker_inc_backup
             status=$?
-            [[ $? == 0 ]] && message="INFO: virtnbdbackup finished successfully." || message="ERROR: virtnbdbackup exited with status $?. Read the logs above to determine the problem."
+            [[ $status == 0 ]] && message="INFO: virtnbdbackup finished successfully." || message="ERROR: virtnbdbackup exited with status $?. Read the logs above to determine the problem."
 
         else
             message="WARNING: $backup_path/$target_domain doesn't exist or no backups were found. Skipped."
