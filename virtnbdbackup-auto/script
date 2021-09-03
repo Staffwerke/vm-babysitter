@@ -21,7 +21,7 @@ backup_folder=""
 # Leave blank ("") to disable remote syncing.
 # Notes: - You need to set RSA/DSA authentication on this (client), and the remote host (server)
 #        - Path must exist on remote host (or rsync will fail)
-remote_folder="root@192.168.88.10:/mnt/user/Backups/UnNuc/vm-backups"
+remote_folder="root@192.168.88.10:/mnt/user/Backups/<server-name>/vm-backups"
 
 # Absolute path to 'vm-inc-backup' script. Leave blank ("") if installed locally:
 script_path="/root/virtnbdbackup-docker-scripts"
@@ -46,13 +46,13 @@ max_attempts=5
 status=1
 
 # Non existing $script_path points the tool is already installed (e.g. /usr/local/bin)
-[[ ! -z $script_path ]] && { inc_script="$script_path/vm-inc-backup"; patch_script="$script_path/vm-patch"; } || { inc_script="vm-inc-backup"; patch_script="vm-patch"; ]
+[[ ! -z $script_path ]] && { inc_script="$script_path/vm-inc-backup"; patch_script="$script_path/vm-patch"; } || { inc_script="vm-inc-backup"; patch_script="vm-patch"; }
 
-if [[ -x $inc_script ]] && [[ -x $patch_script ]]; then;
+if [[ -x $inc_script ]] && [[ -x $patch_script ]]; then
 
     if [[ -d $backup_folder ]]; then
 
-        if [[ ! -z $domain_list ]]; then;
+        if [[ ! -z $domain_list ]]; then
 
             # Converts commas to spaces in $domain_list and turns it into an array:
             domain_list=(${domain_list//,/ })
@@ -209,6 +209,7 @@ if [[ -x $inc_script ]] && [[ -x $patch_script ]]; then;
             fi
         else
             echo "ERROR: List of domains is empty. You must specify which domains have to be backed up regularly. Aborted."
+        fi
 
     else
         echo "ERROR: $backup_folder not found. You must specify a valid folder.Aborted"
@@ -216,4 +217,5 @@ if [[ -x $inc_script ]] && [[ -x $patch_script ]]; then;
 else
     echo "ERROR: Either $inc_script or $patch_script weren't found, or one isn't an executable file. Aborted."
 fi
+
 exit $status
