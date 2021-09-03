@@ -94,7 +94,7 @@ if [[ ! -z $domain_exists ]]; then
             # Runs virtnbdbackup:
             virtnbdbackup_docker_full_backup
             status=$?
-            [[ $status == 0 ]] && message="INFO: virtnbdbackup finished successfully and $target_domain can be backed up with incremental backups at $backup_path/$target_domain" || message="ERROR: virtnbdbackup exited with status $status. Read the logs above to determine the problem."
+            [[ $status -eq 0 ]] && message="INFO: virtnbdbackup finished successfully and $target_domain can be backed up with incremental backups at $backup_path/$target_domain" || message="ERROR: virtnbdbackup exited with status $status. Read the logs above to determine the problem."
         fi
 
     else

@@ -64,7 +64,7 @@ if [[ -d $full_backup_path ]] || [[ ! -z `ls -a $full_backup_path` ]]; then
         virtnbdbackup_docker_restore "dump"
 
         status=$?
-        if [[ $status == 0 ]];then
+        if [[ $status -eq 0 ]];then
 
             # Asks for confirmation
             read -p "Do you want to RESTORE this backup at $full_restoration_path [yes/no]?: " key

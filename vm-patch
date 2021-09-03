@@ -11,6 +11,8 @@ domain_exists=`virsh list --all | grep -w " $target_domain "`
 # Main Program:
 # -----------------------------------------------------------------------------
 
+status=1
+
 if [[ ! -z $domain_exists ]]; then
 
     # Domain state (changes require restart the VM if this is not off):
@@ -53,7 +55,6 @@ if [[ ! -z $domain_exists ]]; then
 
     else
         message="ERROR: Inconsistent settings for $target_domain. If this isn't expected, Run 'virsh edit $target_domain' or use your Graphic UI to verify that VM settings are OK. Aborted."
-        status=1
     fi
 
     # Deletes the temporal file:
@@ -61,7 +62,6 @@ if [[ ! -z $domain_exists ]]; then
 
 else
         message="ERROR: $target_domain does not exist. Aborted."
-        status=1
 fi
 
 echo $message
