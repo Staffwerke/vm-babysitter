@@ -1,0 +1,238 @@
+#!/bin/bash
+
+###############################################################################
+# UnRaid's User Script plugin Setup:
+
+#name=virtnbdbackup-auto
+#description=Runs manual or scheduled incremental backups of VMs declared inside this script by using virtnbdbackup-docker and vm-inc-backup
+#arrayStarted=true
+#noParity=true
+
+###############################################################################
+# User Parameters:
+
+#______________________________________________________________________________
+# Mandatory parameters:
+
+# Commma separated list of VMs that will be backed up regularly.
+# They must have been initialized with both vm-init-xml and vm-full-backup:
+domains_list=""
+
+# Absolute path to the local backup folder where all VMs will be backed up:
+backup_folder=""
+
+#______________________________________________________________________________
+# Optional parameters (leave blank to disable):
+
+# Path to SSH or Rsync location where backup chain should be synced after every successful incremental backup.
+# You need RSA/DSA authentication setup on both this, and the destination host:
+remote_folder=""
+
+#______________________________________________________________________________
+# Additional parameters for fine tunning.
+
+# Only adjustment when VM delays too much much into get started:
+
+# Temporal max amount of RAM (in KiB) to set on a powered off VM to: Start >  do incremental backup > shut down:
+# Examples: 1048576 (1 GiB) | 2097152 (2 GiB) | 4194304 (4 GiB) | 8388608 (8 GiB):
+max_allowed_memory=8388608
+
+# Time (in secs) to await until look for QEMU Agent inside VMs:
+wait_time=15
+
+# Number of attempts until give up looking for QEMU Agent (will proceed without freeze guest Filesystem):
+max_attempts=5
+
+#______________________________________________________________________________
+# Scripts location. This parameter is set automatically during install time
+# When unused, scripts are assumed to be system wide available (e.g. /usr/local/bin)
+# Only change this parameter if you know what you're doing:
+script_completion=""
+
+###############################################################################
+# End of user parameters. (DO NOT edit below this line!)
+###############################################################################
+
+if [[ -z $1 ]] then
+
+    status=1
+    # Non existing script_completion points the tools are system wide installed:
+    [[ ! -z $script_completion ]] && { inc_script="$script_completion/vm-inc-backup"; patch_script="$script_completion/vm-patch"; } || { inc_script="vm-inc-backup"; patch_script="vm-patch"; }
+
+    if [[ -d $backup_folder ]]; then
+
+        if [[ ! -z $domains_list ]]; then
+
+            # Converts commas to spaces in $domains_list and turns it into an array:
+            domains_list=(${domains_list//,/ })
+
+            # Lists of successful vs failed operations on VMs.
+            # Local Backups:                 # Remote Backups
+            local_success=(); local_fail=(); remote_success=(); remote_fail=()
+
+            echo "Starting scheduled incremental backup for the following VMs: ${domains_list[@]}"
+            for target_domain in ${domains_list[@]}; do
+
+                echo "___________________________________________________________________________________________________"
+
+                if [[ ! -z `virsh list --all | grep -w " $target_domain "| grep -ow "shut off"` ]]; then
+
+                    # Domain is inactive.
+                    # Checks for VM defined RAM:
+                    orig_max_memory=`virsh dominfo $target_domain | grep -e "Max memory:" | rev | cut -d ' ' -f2 | rev`
+                    orig_used_memory=`virsh dominfo $target_domain | grep -e "Used memory:" | rev | cut -d ' ' -f2 | rev`
+
+                    if [[ $orig_max_memory -gt $max_allowed_memory ]] && [[ ! -z $max_allowed_memory ]]; then
+
+                        # Marks $target_domain as running with limited memory:
+                        temporal_mem_limit_enabled=1
+
+                        echo "INFO: $target_domain assigned RAM is $orig_max_memory KiB. This amount will be limited to $max_allowed_memory KiB for this task."
+
+                        # Sets temporal parameters of RAM to be used.
+                        > /dev/null virsh setmaxmem $target_domain $max_allowed_memory --config
+                        > /dev/null virsh setmem $target_domain $max_allowed_memory --config
+                    fi
+
+                    # Ensures the VM is correctly patched:
+                    $patch_script $target_domain
+
+                    echo "INFO: VM $target_domain is off. Attempting to power on..."
+                    # Starts the VM if is powered off:
+                    virsh start $target_domain
+
+                    attempt=0
+                    while (( $attempt < $max_attempts )); do
+                        ((attempt++))
+                        # Awaits for the VM (qemu guest service, actually) for being on
+                        sleep $wait_time
+
+                        # Gets $target_domain output about its qemu agent:
+                        > /dev/null virsh guestinfo $target_domain
+                        agent_status=$?
+
+                        if  [[ $agent_status -ne 0 ]] && [[ $attempt -lt $max_attempts ]]; then
+
+                            echo "Waiting for QEMU agent in $target_domain to begin.. ($attempt/$max_attempts)"
+                        else
+
+                            [[ $agent_status -eq 0 ]] && echo "INFO: Connected to QEMU agent."
+                            [[ $attempt -eq $max_attempts ]] && echo "WARNING: Gave up waiting for QEMU agent after $attempt attempts. It will try anyway. (Hint: You might want to slightly increase 'wait_time' and 'max_attempts' values, if VM takes long until QEMU agent service is started.)"
+
+                            # Performs the incremental backup!
+                            $inc_script $target_domain $backup_folder
+                            backup_status=$?
+                            break
+                        fi
+                    done
+
+                    if [[ $temporal_mem_limit_enabled -eq 1 ]]; then
+
+                        echo "Reverting $target_domain assigned ram to its original value ($orig_max_memory KiB)"
+
+                        # Changes wull have effect on next boot:
+                        > /dev/null virsh setmaxmem $target_domain $orig_max_memory --config
+                        > /dev/null virsh setmem $target_domain $orig_used_memory --config
+
+                        # Unsets the variable for further iterations:
+                        unset temporal_mem_limit_enabled
+                    fi
+
+                    # Shuts down the domain
+                    virsh shutdown $target_domain
+
+                else
+                    # Domain is active.
+                    # Performs the incremental backup!
+                    $inc_script $target_domain $backup_folder
+                    backup_status=$?
+                fi
+
+                if [[ $backup_status -eq 0 ]]; then
+
+                    # When incremental backup exited normally, adds the VM to #local_success list
+                    local_success=(${local_success[@]} $target_domain)
+
+                    if [[ ! -z $remote_folder ]]; then
+
+                        # When $remote folder is set, attempts to transfer changes via rsync:
+                        echo "Syncing backup chain of $target_domain to the configured remote endpoint..."
+                        rsync -a --delete $backup_folder/$target_domain/ $remote_folder/$target_domain/
+                        rsync_status=$?
+                        # Depending on success with rsync, will add the VM to $remote_success or $remote_fail
+                        if [[ $rsync_status -eq 0 ]]; then
+
+                            # When rsync exited normally, adds the VM to $remote_success list
+                            remote_success=(${remote_success[@]} $target_domain)
+                            echo "Remote synchronization was successful!"
+                        else
+
+                            # Otherwise, adds the VM to $remote_fail list
+                            remote_fail=(${remote_fail[@]} $target_domain)
+                            echo "Remote synchronization failed!"
+                        fi
+                    fi
+                else
+
+                    # Otherwise, adds the VM to $local_fail list
+                    local_fail=(${local_fail[@]} $target_domain)
+                    echo "Remote synchronization of backup chain for $target_domain shall not be performed."
+                fi
+            done
+
+            # Displays for Total success or fail in local backup:
+            [[ ! $local_fail ]] && local_fail=("None")
+            [[ ! $local_success ]] && local_success=("None")
+
+            # Shows local summary:
+            echo "___________________________________________________________________________________________________"
+            echo "Incremental Backup Summary:
+            Successful Backups: ${local_success[@]}
+            Failed Backups:     ${local_fail[@]}
+            Backups Destination: $backup_folder"
+
+            if [[ ! -z $remote_folder ]]; then
+
+                # Displays Total success ro fail in rsync operations:
+                [[ ! $remote_fail ]] && remote_fail=("None")
+                [[ ! $remote_success ]] && remote_success=("None")
+
+                # Shows remote summary:
+                echo ""
+                echo "Rsync Transfer Summary:
+                Successful Transfers: ${remote_success[@]}
+                Failed Transfers:     ${remote_fail[@]}
+                Remote transfers destination: $remote_folder"
+            fi
+
+            echo "___________________________________________________________________________________________________"
+
+            if [[ $local_fail != "None" ]] || [[ $remote_fail != "None" ]]; then
+
+                echo "WARNING: At least one of the scheduled tasks wasn't successful! Read the logs for more info."
+
+            else
+
+                echo "All VMs were backed up!"
+                status=0
+            fi
+        else
+            echo "ERROR: List of domains is empty. You must specify which domains do you want to backup regularly. Aborted."
+        fi
+
+    else
+        echo "ERROR: $backup_folder not found. You must specify a valid folder. Aborted"
+    fi
+
+elif [[ $1 == "--source-user-params" ]] ; then
+
+    # This script will be replaced by a newer version.
+    status=0
+    echo "User parameters loaded from $0"
+
+else
+    status=1
+    echo "ERROR: This script doesn't accept external arguments (rather than from its installer). Aborted."
+fi
+
+exit $status
