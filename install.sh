@@ -10,7 +10,7 @@ local install_path="/boot/config/plugins/user.scripts/scripts/virtnbdbackup-auto
 local script_name="virtnbdbackup-auto"
 
 # List of files to be copied and processed:
-local files_list="vm-patch vm-inc-backup"
+local files_list="vm-patch vm-inc-backup $script_name"
 
 if [[ ! -a $install_path/script ]]; then
 
@@ -19,21 +19,26 @@ if [[ ! -a $install_path/script ]]; then
         mkdir -p $install_path
 
         # Install files on host at given path:
-        cp {${files_list// /,},$script_name} $install_path/
+        for file in $files_list; do
+            cp $file $install_path/
+        done
 
         # Includes correct data into the copied script to execute scripts properly.
         # 'bash' command is required since scripts are inside a FAT32 file system:
         sed -i -e "s|script_completion=\"\"|script_completion=\"bash $install_path\"|" $install_path/$script_name
+        sync
 
         status=$?
 
         # Creates success notification and copies remaining files (or delete the created folder if something went wrong):
-        [[ status -eq 0 ]] && { message="INFO: $script_name user script successfully installed. You must edit the script and add parameters."; mv $install_path/$script_name $install_path/script; } || rm -rf $install_path
+        [[ $status -eq 0 ]] && { message="INFO: $script_name user script successfully installed. You must edit the script and add parameters."; mv $install_path/$script_name $install_path/script; } || rm -rf $install_path
 else
 
     # Reinstall case:
     # Install files on host at given path:
-    cp $script_name $install_path/
+    for file in $files_list; do
+        cp -f $file $install_path/
+    done
 
     # Sources existing variables from old script:
     source $install_path/script "--source-user-params"
@@ -46,11 +51,12 @@ else
            -e "s|max_attempts=\"\"|max_attempts=\"$max_attempts\"|" \
            -e "s|script_completion=\"\"|script_completion=\"$script_completion\"|" \
     $install_path/$script_name
+    sync
 
     status=$?
 
     # Creates success notification, copies remaining files and deletes old version of the script (or reverts the old script if something went wrong):
-    [[ status -eq 0 ]] && { message="INFO: $script_name re-installed successfully. Existing user parameters has been migrated to a new version of the script."; mv $install_path/$script_name $install_path/script; cp {${files_list// /,}} $install_path/; } || rm $install_path/$script_name
+    [[ $status -eq 0 ]] && { message="INFO: $script_name re-installed successfully. Existing user parameters has been migrated to a new version of the script."; rm $install_path/script; mv $install_path/$script_name $install_path/script; } || rm $install_path/$script_name
 fi
 
 }
