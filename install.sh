@@ -86,7 +86,7 @@ read -p "Do you want to install virtnbdbackup-docker-scripts? [yes/no]?: " key
 while true; do
     case $key in
         yes)
-            if [[ -n `uname  -r | grep -e "-Unraid$"` ]];
+            if [[ -n `uname  -r | grep -e "-Unraid$"` ]]; then
                 unraid_install
             else
                 generic_install
