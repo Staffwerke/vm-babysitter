@@ -184,24 +184,30 @@ in order to delete checkpoints internally and create a backup chain (or repurpos
 12. Only when you're sure restoration was good, a new backup chain was made and incremental backups are running, you can safely delete the old images and backups.
 
 
-### Recoverign an existing backup to another UnRaid host:
+### Recovering an existing backup to another host:
 
-The case is similar to a quick restoration as described above, except about checkpoints, since these wouldn't exist on the restored disk image or the new host.
+The case is similar to a quick restoration as described above except steps about checkpoints, since these won't exist on the restored disk image or the new host.
 
-You might need to install this tool on the new host first, and bring some existing backup from network (such as mounting it via sshfs / nfs), then do a `vm-restore` in order to grab a copy of the disk image locally.
+As each backup into the chain includes a copy of the VM definitions as of the moment of such action (all under `vmconfig.virtnbdbackup.*.xml` name, at the backup folder) this images can be used to define a new VM (most likely, the more recent one.)
 
-IS important to note that each incremental backup includes a copy of the VM definitions as of the moment of each one (e.g. `vmconfig.virtnbdbackup.N.xml`)
+You might need to install this tool on the new host first, then bring some existing backup (such as mounting it via sshfs / nfs if you have it available via network), then do a `vm-restore` in order to grab a copy of the disk image locally.
 
-However, UnRaid has issues importing VM definitions (even from another UnRaid instance), so defining one of these backups directly (e.g. `virsh define /path/to/backup/vmconfig.virtnbdbackup.0.xml`) and creating correspondent folders and placing the disk image, most likley won't work because starting the VM will throw this error:
+To define a new VM instance, would be enough with execute on Shell: `virsh define /path/to/backup/vmconfig.virtnbdbackup.<last-N>.xml` and place the restored disk image to wotk with this new VM. This will be the case for most operating systems.
+
+However, *UnRaid* has issues importing VM definitions in this way (even from another UnRaid instance), so defining one of these backups directly won't work, and starting the VM will throw this error:
 
 `operation failed: unable to find any master var store for loader: /usr/share/qemu/ovmf-x64/OVMF_CODE-pure-efi.fd`
 
-A possible solution is commented [here](https://forums.unraid.net/topic/77912-solved-cant-start-vm-after-restore/), but results much more factible to create a new VM from scratch, do a `vm-patch` and replace its disk image with one generated from backups as described in the above section, except the steps 5 to 7.
+A working solution is [here](https://forums.unraid.net/topic/77912-solved-cant-start-vm-after-restore/), but results much more factible to do the following:
 
-If after re-creating a VM performing the steps above by chance you get: `Cannot get interface MTU on 'virbr0': No such device`
+- Create a new VM from scratch (setting same parameters as on backed up VM definitions)
 
-apply [this solution](https://forums.unraid.net/topic/93542-execution-error-cannot-get-interface-mtu-on-virbr0-no-such-device/) by executing on the Shell:
+- Apply `vm-patch`
 
-`virsh net-start default`
+- Replace its disk image with one generated from backups as described in the above section (except steps 5 to 7)
 
-And VM should start correctly. Remember to create a new backup chain for this new VM instance.
+- If after re-creating a VM on UnRaid, by chance you get: `Cannot get interface MTU on 'virbr0': No such device`
+
+  apply [this solution](https://forums.unraid.net/topic/93542-execution-error-cannot-get-interface-mtu-on-virbr0-no-such-device/) by executing on the Shell: `virsh net-start default`
+
+And the VM should start correctly.
