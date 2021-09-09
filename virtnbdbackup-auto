@@ -14,7 +14,7 @@
 #______________________________________________________________________________
 # Mandatory parameters:
 
-# Commma separated list of VMs that will be backed up regularly.
+# Comma separated list of VMs that will be backed up regularly.
 # They must have been initialized with both vm-init-xml and vm-full-backup:
 domains_list=""
 
@@ -53,7 +53,7 @@ script_completion=""
 # End of user parameters. (DO NOT edit below this line!)
 ###############################################################################
 
-if [[ -z $1 ]] then
+if [[ -z $1 ]]; then
 
     status=1
     # Non existing script_completion points the tools are system wide installed:
@@ -229,6 +229,7 @@ elif [[ $1 == "--source-user-params" ]] ; then
     # This script will be replaced by a newer version.
     status=0
     echo "User parameters loaded from $0"
+    return $status
 
 else
     status=1
