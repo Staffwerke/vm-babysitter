@@ -8,7 +8,50 @@ Incremental backups can be done in unattended way, per VM or as a batch process.
 
 Batch script is compatible with [UnRaid's User Scripts plugin.](https://forums.unraid.net/topic/48286-plugin-ca-user-scripts/)
 
-## vm-patch
+
+## Install/Re-install:
+
+- Run `install.sh` as root or with sudo. After confirming the action, installs / re-installs a subset of tools onto the system, depending on the detected OS.
+
+- Set a cron task
+
+
+### UnRaid:
+
+When UnRaid is detected, installs `vm-patch`, `vm-inc-backup` and `virtnbdbackup-auto` at `/boot/config/plugins/user.scripts/scripts/virtnbdbackup-auto`
+
+`vm-full-backup` and `vm-restore` aren't installed. You must run them manually, such as from this this same repo, once cloned onto the host at a persistent location.
+
+If a re-install is detected and a configured scheme already exists, the installer will attempt to retrieve all user parameters, and transfer it to the new version of `virtnbdbackup-auto`.
+
+
+### All other Linux Operating Systems:
+
+Installs `vm-patch` , `vm-full-backup` , `vm-inc-backup` and `vm-restore` at `/usr/local/bin`
+
+`virtnbdbackup-auto` isn't installed at this time. You must configure and run a copy of this script from a chosen location.
+
+Reinstallation updates the scripts already installed at `/usr/local/bin` but doesn't have ways to update update user parameters at copies of `virtnbdbackup-auto`
+
+
+## Uninstall:
+
+There's no uninstaller at this time, however, the process si quite simple in all cases:
+
+### UnRaid:
+- From User Script's panel, simply delete the scipt.
+
+Alternatively you can uninstall it from Shell with: `rm -rf /boot/config/plugins/user.scripts/scripts/virtnbdbackup-auto`
+
+### All other Linux Operating Systems:
+
+- Via Shell, as root: `rm /usr/local/bin/{vm-patch,vm-full-backup,vm-inc-backup,vm-restore}`
+
+- Delete any cron task pointing to your custom copy of `virtnbdbackup-auto`
+
+## Tools Documentation:
+
+### vm-patch
 
 Applies custom changes (a.k.a.) 'patches' onto a given VM definitions, so virtnbdbackup can work. Syntax is:
 
@@ -18,7 +61,8 @@ Working the same on both running and stopped VMs, notifying the user if a restar
 
 Usually, is only needed once per VM, but it has been noticed that UnRaid GUI deletes all custom settings while updated from the 'Form View.' So it can be applied **after** any changes performed onto VM Settings at UnRaid.
 
-## vm-full-backup
+
+### vm-full-backup
 
 Creates a new full backup chain of the given VM, as a subfolder with under the given path. Syntax is:
 
@@ -26,7 +70,8 @@ Creates a new full backup chain of the given VM, as a subfolder with under the g
 
 Besides of simple checks (VM must exist and running) it scans for a path of the type `/main-path-to-backups/vm-name` and will prompt the user for deletion if finds it and there are files inside (it won't ask if full path exists and is empty.) This action is required since virtnbdbackup won't work on non-empty folders, failing and then leaving more logs into that folder. For instance, the user should check (or be conscious) its content when this occurs before to answer yes. If answers 'yes', the folder with same `vm-name` plus content inside will be deleted, and re-created again.
 
-## vm-inc-backup
+
+### vm-inc-backup
 
 Adds an incremental backup to an existing backup chain at a subfolder under the given path. Syntax is:
 
@@ -36,9 +81,10 @@ This would be a recurrent operation performed after `vm-full-backup` has created
 
 It's able to run unattended (e.g. with cron), if the intention is to backup one VM at time.
 
-## virtnbdbackup-auto
 
-It makes use of `vm-inc-backup` to run incremental backups of one, or more VMs as a batch operation, logging to STDOUT which VMs were successfuly backed up or failed; exiting with corresponding state (0 if all jobs were successful, 1 if at least one of the jobs failed.)
+### virtnbdbackup-auto
+
+It makes use of `vm-inc-backup` and `vm-patch`to run incremental backups of one, or more VMs as a batch operation, logging to STDOUT which VMs were successfuly backed up or failed; exiting with corresponding state (0 if all jobs were successful, 1 if at least one of the jobs failed.)
 
 Unlike other scripts, does not have syntax. You must modify internal settings by following the instructions [inside the script.](virtnbdbackup-auto/script)
 
@@ -47,7 +93,7 @@ It is the ultimate solution to keep several backup chains updated at the same ti
 Is compatible with UnRaid's User Scripts plugin. Install instructon are detailed [here.](https://forums.unraid.net/topic/48286-plugin-ca-user-scripts/)
 
 
-## vm-restore
+### vm-restore
 
 Fully restores VM's disk image(s) from a given backup path, onto a given restoration path. Syntax is:
 
@@ -74,7 +120,11 @@ Where:
 Unlike the other scripts, `vm-restore` is unaware of VM state, since it restores data onto new disk image(s) at the given location, with names like `'vda'`, `'sda'`, `'hdc'` and so on. It doesn't manage or alter VMs in any way. Restorations can be made for different purposes, such as recover a disk state at a given moment, or for migration purposes.
 
 
-### Notes about reusing VMs with resotred disks
+## Additional Notes:
+
+Except when noticed, applies for all Operating Systems:
+
+### Reusing VMs with resotred disks
 
 In a given scenario where a disk image (e.g. damaged or lost) has to be replaced from backups, re-using the VM with this generated disk image by rename it as the old one *is not enough* if you intend to a new backup chain. If you would attempt to save a full backup now, will end with errors of this kind:
 
@@ -91,6 +141,7 @@ Deleting thus all checkpoints created by libvirt on the server only, not attemtp
 
 (*Important:* Attempting the above command without `--metadata` flag, usually results into an immediate VM crash if is it running.)
 
+
 ### Orphaned Images:
 
 After the actions mentioned above, the old disk image (if still exists and is bootable/mountable) is unable to be re-used on the old backup chain, since it will have checkpoints inside the image, but not on the server (opposed to the above scenario and similar as described [here.)](https://github.com/abbbi/virtnbdbackup/blob/0.22/README.md#transient-virtual-machines-checkpoint-persistency).
@@ -102,7 +153,7 @@ If you need to create new backups of this old image, you need to rebuild the dis
 in order to delete checkpoints internally and create a backup chain (or repurpose it with checkpoints with another application.)
 
 
-## Quick restoration a failed VM's disk image on UnRaid
+### Quick restoration a failed VM's disk image on UnRaid
 
 1. Disable `virtnbdbackup-auto` cron scheduling
 
@@ -131,3 +182,26 @@ in order to delete checkpoints internally and create a backup chain (or repurpos
 11. You can re-enable `virtnbdbackup-auto` cron scheduling to keep making incremental backups automatically.
 
 12. Only when you're sure restoration was good, a new backup chain was made and incremental backups are running, you can safely delete the old images and backups.
+
+
+### Recoverign an existing backup to another UnRaid host:
+
+The case is similar to a quick restoration as described above, except about checkpoints, since these wouldn't exist on the restored disk image or the new host.
+
+You might need to install this tool on the new host first, and bring some existing backup from network (such as mounting it via sshfs / nfs), then do a `vm-restore` in order to grab a copy of the disk image locally.
+
+IS important to note that each incremental backup includes a copy of the VM definitions as of the moment of each one (e.g. `vmconfig.virtnbdbackup.N.xml`)
+
+However, UnRaid has issues importing VM definitions (even from another UnRaid instance), so defining one of these backups directly (e.g. `virsh define /path/to/backup/vmconfig.virtnbdbackup.0.xml`) and creating correspondent folders and placing the disk image, most likley won't work because starting the VM will throw this error:
+
+`operation failed: unable to find any master var store for loader: /usr/share/qemu/ovmf-x64/OVMF_CODE-pure-efi.fd`
+
+A possible solution is commented [here](https://forums.unraid.net/topic/77912-solved-cant-start-vm-after-restore/), but results much more factible to create a new VM from scratch, do a `vm-patch` and replace its disk image with one generated from backups as described in the above section, except the steps 5 to 7.
+
+If after re-creating a VM performing the steps above by chance you get: `Cannot get interface MTU on 'virbr0': No such device`
+
+apply [this solution](https://forums.unraid.net/topic/93542-execution-error-cannot-get-interface-mtu-on-virbr0-no-such-device/) by executing on the Shell:
+
+`virsh net-start default`
+
+And VM should start correctly. Remember to create a new backup chain for this new VM instance.
