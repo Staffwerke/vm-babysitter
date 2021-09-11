@@ -141,9 +141,17 @@ if [[ -z $1 ]]; then
                     # Shuts down the domain
                     virsh shutdown $target_domain
 
+                elif [[ -z `virsh dumpxml $target_domain | grep "<qemu:add capability='incremental-backup'/>"` ]] ; then
+
+                    # Domain is active, but has not been patched or the patch was lost,  e.g. VM modified UnRaid's VM 'form view' panel.
+                    # Patches the VM and notifies about user's action:
+                    $patch_script $target_domain
+
+                    backup_status=1
+                    echo "WARNING: $target_domain wasn't patched for incremental backups! The patch has just been applied by this script, but VM needs to be POWERED OFF in order to apply the changes. Incremental backup will be attempted on next schedule."
+
                 else
-                    # Domain is active.
-                    # Performs the incremental backup!
+                    # Domain is active and patched. Performs the incremental backup!
                     $inc_script $target_domain $backup_folder
                     backup_status=$?
                 fi
