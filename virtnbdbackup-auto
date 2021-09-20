@@ -53,8 +53,9 @@ script_completion=""
 # End of user parameters. (DO NOT edit below this line!)
 ###############################################################################
 
-# Just says the message, but also sends it via UnRaid notification system.
-# Use wisely to not spam WebGUI and bots:
+# Just says the message, but also sends it via UnRaid notification system,
+# Guessing the urgency of that message. Use it wisely:
+#______________________________________________________________________________
 notify()
 {
 local message=$@
@@ -80,10 +81,13 @@ if [[ -n `uname  -r | grep -e "-Unraid$"` ]]; then
     local event="Incremental Backup"
     local subject="virtnbdbackup-auto"
 
-   /usr/local/emhttp/plugins/dynamix/scripts/notify -i $severity -e $event -s $subject -d $message
+   /usr/local/emhttp/plugins/dynamix/scripts/notify -i "$severity" -e "$event" -s "$subject" -d "$message"
 fi
 
 echo $message
+
+# Adds a final delay to prevent false positive spamming detection (e.g. Telegram bots)
+sleep 1
 }
 
 if [[ -z $1 ]]; then
@@ -187,7 +191,7 @@ if [[ -z $1 ]]; then
                     backup_status=1
 
                     # Action is required by the user:
-                    notify "WARNING: User action is required: VM $target_domain needs a POWER CYCLE in order allow incremental backups when this script runs. No backup could be done at this time (but will be attempted on next run.)"
+                    notify "WARNING: User action is required: VM \"$target_domain\" needs a POWER CYCLE to allow incremental backups. No backup could be done at this time, but will be attempted on next run"
                 fi
 
                 if [[ $backup_status -eq 0 ]]; then
