@@ -49,6 +49,7 @@ else
            -e "s|remote_folder=\"\"|remote_folder=\"$remote_folder\"|" \
            -e "s|max_allowed_memory=\"\"|max_allowed_memory=\"$max_allowed_memory\"|" \
            -e "s|max_attempts=\"\"|max_attempts=\"$max_attempts\"|" \
+           -e "s|rsync_args=\"\"|rsync_args=\"$rsync_args\"|" \
            -e "s|script_completion=\"\"|script_completion=\"$script_completion\"|" \
     $install_path/$script_name
     sync

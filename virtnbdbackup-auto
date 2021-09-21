@@ -43,6 +43,9 @@ wait_time=15
 # Number of attempts until give up looking for QEMU Agent (will proceed without freeze guest Filesystem):
 max_attempts=5
 
+# Additional parameters for rsync (Defaults are '-a --delete')
+rsync_args=""
+
 #______________________________________________________________________________
 # Scripts location. This parameter is set automatically during install time
 # When unused, scripts are assumed to be system wide available (e.g. /usr/local/bin)
@@ -203,7 +206,7 @@ if [[ -z $1 ]]; then
 
                         # When $remote folder is set, attempts to transfer changes via rsync:
                         echo "Syncing backup chain of $target_domain to the configured remote endpoint..."
-                        rsync -a --delete $backup_folder/$target_domain/ $remote_folder/$target_domain/
+                        rsync -a --delete $rsync_args $backup_folder/$target_domain/ $remote_folder/$target_domain/
                         rsync_status=$?
                         # Depending on success with rsync, will add the VM to $remote_success or $remote_fail
                         if [[ $rsync_status -eq 0 ]]; then
