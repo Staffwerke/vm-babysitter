@@ -36,6 +36,12 @@ scheduled_actions
 
 #checkpoint_num="$3"
 
+# Generic name for all checkpoints (and bitmaps) into a given backup chain:
+checkpoint_name="virtnbdbackup"
+
+# Default path for checkpoints of a given backup chain (there are cases where this parameter is outside the backup chain)
+#checkpoints_path="checkpoints"
+
 # Returns a formatted string that is the last modified date and time:
 # -----------------------------------------------------------------------------
 last_modified()
@@ -50,12 +56,20 @@ domain_state()
 echo $(virsh domstate $1)
 }
 
+# For a given checkpoint file, returns a string value with (restorable) virtual drives (separated by spaces) (e.g. "hdc hdd")
+# -----------------------------------------------------------------------------
+checkpoint_drives()
+{
+    local drives=($(grep -e "checkpoint='bitmap'" $1 | cut -d"'" -f2))
+    echo ${drives[@]}
+}
+
 # For a given VM name, returns a string value with (restorable) virtual drives (separated by spaces) (e.g. "hdc hdd")
 # -----------------------------------------------------------------------------
-vm_drives_list()
+vm_drives()
 {
-    local vm_drives=($(virsh domblklist --details $1 | grep -e file | grep -e disk | sed -e 's/file//g' -e 's/disk//g' -e 's/ //g' | cut -d'/' -f1))
-    echo ${vm_drives[@]}
+    local drives=($(virsh domblklist --details $1 | grep -e file | grep -e disk | sed -e 's/file//g' -e 's/disk//g' -e 's/ //g' | cut -d'/' -f1))
+    echo ${drives[@]}
 }
 
 # For a given VM name, returns a string value with absoulte path to its image disks (e.g. "/path-to/hdc.img /path-to/hdd.img")
@@ -88,22 +102,22 @@ if [ -z $@ ]; then
         echo ""
         echo "${#vms_list[@]} VMs found in $(cat /etc/hostname):"
         echo  '-------------------------------------------------'
-        printf '%s\t%s\t\t%s\n' '#' 'VM Name ' 'Drives'
+        printf '%s\t%s\t\t%s\n' ' #' 'VM Name ' 'Restorable Drives'
         echo  '-------------------------------------------------'
-        #vms_drives_list=()
         i=0
         for vm in "${vms_list[@]}"; do
 
-            #vms_drives_list+=("$(vm_drives $vm)")
-            printf '%s\t%s\t\t%s\n' "$(( $i + 1))" "$vm    " "$(vm_drives_list $vm)" #"$(domain_state $vm)"       #"${vms_drives_list[$i]}"
+            vms_drives_list+=("$(vm_drives $vm)")
+            printf '%s\t%s\t\t%s\n' " $(( $i + 1))" "$vm    " "${vms_drives_list[$i]}"
             ((i++))
         done
 
-        read -p "Choose the VM Number on the list you want to be restored [1-${#vms_list[@]}]: " choice
+        read -p "Choose the VM Number on the list [1-${#vms_list[@]}] you want to be restored: " choice
 
         while true; do
             if [[ $choice -ge 1 ]] && [[ $choice -le ${#vms_list[@]} ]]; then
-                vm_name=${vms_list[(($choice - 1))]}
+                vm_index=$(($choice - 1))
+                vm_name=${vms_list[$vm_index]}
                 break
             else
                 read -p "$choice : Invalid choice. Please choose a number of the list [1-${#vms_list[@]}]: " choice
@@ -124,7 +138,6 @@ if [ -z $@ ]; then
                 # Scan directory for valid backup folders:
                 items_list=$(ls $backup_path) #| grep '/$' | sed -e 's/\///g')
 
-                backups_list=()
                 for item in $items_list; do
                     if [ -d $backup_path/$item ] && [ -f $backup_path/$item/*.cpt ] && [ -d $backup_path/$item/checkpoints ]; then
 
@@ -153,15 +166,19 @@ if [ -z $@ ]; then
         echo ""
         echo "${#backups_list[@]} backups found in $backup_path:"
         echo "--------------------------------------------"
-        printf '%s\t%s\n' "#    "  "Backup Name"
+        printf '%s\t%s\t\t%s\n' " #    "  "Backup Name" "Backup Drives"
         echo "--------------------------------------------"
-        i=1
+        i=0
         for backup in "${backups_list[@]}"; do
-            printf '%s\t%s\n' "$i   " "$backup"
+
+            # Gets the drives backed up in a given checkpoint:
+            checkpoint_drives_list+=("$(checkpoint_drives $backup_path/$backup/checkpoints/$checkpoint_name.0.xml)")
+
+            printf '%s\t%s\t\t%s\n' " $(( $i + 1))   " "$backup    " "${checkpoint_drives_list[$i]}"
             ((i++))
         done
 
-        read -p "Choose the Backup Number in the list you want to restore [1-${#backups_list[@]}]: " choice
+        read -p "Choose the Backup Number in the list [1-${#backups_list[@]}] you want to restore: " choice
 
         while true; do
             if [[ $choice -ge 1 ]] && [[ $choice -le ${#backups_list[@]} ]]; then
@@ -189,7 +206,7 @@ if [ -z $@ ]; then
 
             # Header to show when there are incremental backups:
             echo  '--------------------------------------------'
-            printf '%s\t%s\n' 'Checkpoint.Index  ' 'Date / Time'
+            printf '%s\t%s\n' ' Checkpoint     ' 'Saved at'
             echo  '--------------------------------------------'
             checkpoint_dates_list=()
             i=0
@@ -199,14 +216,22 @@ if [ -z $@ ]; then
                 checkpoint_dates_list+=("$(last_modified $backup_path/$backup_name/checkpoints/$checkpoint.xml)")
 
                 # Prints on screen detailed (and tabulated) data for the given checkpoint:
-                printf '%s\t%s\n' "$checkpoint    " "${checkpoint_dates_list[$i]}"
+                printf '%s\t%s\n' " $checkpoint" "${checkpoint_dates_list[$i]}"
                 ((i++))
             done
 
-            read -p "Choose the Checkpoint Index in the list you want want to restore [0-$(( ${#checkpoints_list[@]} - 1 ))]: " choice
+            default_choice=$(( ${#checkpoints_list[@]} - 1 ))
+
+            read -p "Choose the Checkpoint Number in the list [0-$default_choice] you want to restore, or press ENTER to select the latest one: " choice
 
             while true; do
-                if [[ $choice -ge 0 ]] && [[ $choice -le $(( ${#checkpoints_list[@]} -1 )) ]]; then
+                if [ -z $choice ]; then
+
+                    checkpoint_index=$default_choice
+                    checkpoint_date="${checkpoint_dates_list[$checkpoint_index]}"
+                    break
+
+                elif [[ $choice -ge 0 ]] && [[ $choice -le $(( ${#checkpoints_list[@]} -1 )) ]]; then
 
                     checkpoint_index=$choice
                     checkpoint_date="${checkpoint_dates_list[$checkpoint_index]}"
@@ -217,18 +242,17 @@ if [ -z $@ ]; then
             done
 
         else
-            # When no incremental backups are detected, will only gather info abotu the (unique) existing full backup,
-            # and will show the info:
+
+            echo "INFO: No incremental backups detected in '$backup_name', the (only) existing backup will be used..."
             checkpoint_index=0
             checkpoint_date=$(last_modified $backup_path/$backup_name/checkpoints/${checkpoints_list[$checkpoint_index]}.xml)
-            echo "INFO: No incremental backups detected in '$backup_name' (the existing full backup will be chosen automatically)"
         fi
 
         echo ""
         echo "Selected checkpoint: '${checkpoints_list[$checkpoint_index]}' (Saved at $checkpoint_date)"
         echo ""
-        status=0
 
+        status=0
     else
         echo "ERROR: No VMs detected in $(cat /etc/hostname) (is libvirt service running?)"
     fi
