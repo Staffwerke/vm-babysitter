@@ -1,33 +1,53 @@
 #!/bin/bash
 
-# -----------------------------------------------------------------------------
-
 # VM name
 #vm_name=$1
 
 # Backup location
 #backup_path=$2
 
-#checkpoint_num="$3"
+#checkpoint_index="$3"
 
 # Generic name for all checkpoints (and bitmaps) into a given backup chain:
 checkpoint_name="virtnbdbackup"
 
-# Default path for checkpoints of a given backup chain (there are cases where this parameter is outside the backup chain)
-#checkpoints_path="checkpoints"
+# Shows Help and basic Usage:
+# -----------------------------------------------------------------------------
+show_help()
+{
+cat << end_of_help
+
+ $(basename $0) -- Script that restores disk image(s) of a virtual machine from saved backups (made with Virtnbdbackup) up to a selected checkpoint in time.
+
+    USAGE:
+    - It can restore a full system (default option), as well as individual disks or drives
+    - Without arguments, it works interactively: A series of options and questions are presented before to actually start the process
+    - When everything has been set to ptoceed, awaits for confirmation before to start (restoration may take time, depending on the data volume to restore, hadware speed, etc.)
+    - Once completed, displays the final result about the operation (full success, partial restoration of disks or fail) showing a summary of restored/failed disks if restoration was partial.
+
+    NOTES:
+    - Use it only with backups created from the SAME Virtual Machine you're attempting to restore!
+    - If the virtual machine to restore is running, it will be (gracefully) powered OFF right before to start the process
+    - When old disk images are kept and restoration was successful, a timestamp with its last modification time is appended to each replaced image fila.
+    - The script is NOT aware of remaining space left, so you must be careful when keping too many old images, specially on scenarios with constrains about storage.
+
+ (Mantainer: Adrián Parilli <a.parilli@staffwerke.de>")
+
+end_of_help
+}
 
 # Returns a formatted string that is the last modified date and time:
 # -----------------------------------------------------------------------------
 last_modified()
 {
-    echo $(date -r $1 "+%Y-%m-%d_%H:%M:%S")
+    echo $(date -r $1 "+%Y-%m-%d %H:%M:%S")
 }
 
 # Returns a string value with the state reported by libvirt (e.g. "running", "shut off", etc.)
 # -----------------------------------------------------------------------------
 domain_state()
 {
-echo $(virsh domstate $1)
+    echo $(virsh domstate $1)
 }
 
 # For a given checkpoint file, returns a string value with (restorable) virtual drives (separated by spaces) (e.g. "hdc hdd")
@@ -64,7 +84,6 @@ restore_vm()
 {
 local restore_status=1
 local restore_vm_command="/usr/local/bin/virtnbdrestore"
-
 local action="restore"
 local full_backup_path="$1"
 local full_restoration_path="$2"
@@ -102,14 +121,12 @@ fi
 restore_status=$?
 
 return $restore_status
-
 }
 
 # Sends shutdown signal and awaits until domain has been shutted down to return success:
 # -----------------------------------------------------------------------------
 shutdown_vm()
 {
-
 local shutdown_vm_status=1
 local vm_needed_state="shut off"
 
@@ -118,7 +135,6 @@ if [[ $(domain_state $1) == $vm_needed_state ]]; then
     echo "INFO: VM '$1' is already $vm_needed_state"
     shutdown_vm_status=0
 else
-
 
     local wait_time=15
     local max_attempts=10
@@ -130,16 +146,48 @@ else
 
         sleep $wait_time
 
-        [[ $(domain_state $1) == $vm_needed_state ]] && { shutdown_vm_status=0; break; } ||((attempt++))
+        [[ $(domain_state $1) == $vm_needed_state ]] && { shutdown_vm_status=0; break; } || ((attempt++))
     done
 
     local message=""
     [[ $shutdown_vm_status -eq 0 ]] && message="INFO: VM '$1' powered off successfully" || message="WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. waiting for VM '$1' to power off"
 fi
+
     echo $message
     return $shutdown_vm_status
 }
 
+# Returns a list with existing checkpoints for a given VM according with libvirt.
+# (NOTE: this doesn't warrant the existence of bitmaps on disk images!)
+# -----------------------------------------------------------------------------
+list_vm_checkpoints()
+{
+    virsh checkpoint-list $1 --name --topological
+}
+
+# Deletes checkpoints METADATA of a given VM:
+# -----------------------------------------------------------------------------
+vm_delete_checkpoint_metadata()
+{
+local vm_delete_checkpoint_metadata_status=1
+
+local vm=$1
+local checkpoints_list=($(list_vm_checkpoints $1))
+local arguments="--metadata"
+
+if [[ ! -z ${checkpoints_list[@]} ]]; then
+
+    echo "INFO: Libvirt reports ${#checkpoints_list[@]} checkpoints for VM '$vm'. This info will be removed..."
+
+    for checkpoint in ${checkpoints_list[@]}; do
+        &> /dev/null virsh checkpoint-delete $vm $checkpoint $arguments
+    done
+else
+
+    echo "INFO: No checkpoints for VM '$vm' reported by libvirt to remove"
+fi
+
+}
 
 # Main execution:
 # -----------------------------------------------------------------------------
@@ -151,9 +199,8 @@ status=1
 if [ -z $@ ]; then
 
     # No input parameters enables the interctive mode:
-
-    #echo "This script restores Virtual Machine's disk image(s) saved with virtnbdbackup, and should be used only with backups created from the same VM you're attempting to restore"
-    #read -n1 -s -r -p $'Press any key to continue...\n' key
+    show_help
+    read -n1 -s -r -p $'Press any key to continue, or Ctrl+C to Cancel...\n' key
 
 # Step 1: Asks the user to choose a VM to restore:
 # -----------------------------------------------------------------------------
@@ -161,13 +208,13 @@ if [ -z $@ ]; then
     if [ $? == 0 ] && [[ ${#vms_list[@]} -ge 1 ]]; then
 
         # Only proceeds either if libvirt doesn't report an error, and if there are non-trasient VMs:
-        echo""
+        echo ""
         echo "Scanning for Virtual Machines..."
         echo ""
         echo "${#vms_list[@]} VMs found in Host $(cat /etc/hostname):"
-        echo '------------------------------------------------------------------------------------------------------------'
+        echo '-------------------------------------------------------------------------------'
         printf " %s \t %-15s \t %s \n" "#" "VM Name" "Drives"
-        echo '------------------------------------------------------------------------------------------------------------'
+        echo '-------------------------------------------------------------------------------'
 
         i=0
         for vm in "${vms_list[@]}"; do
@@ -180,7 +227,7 @@ if [ -z $@ ]; then
             ((i++))
         done
 
-        read -p "Choose the Virtual Machine # in the list [1-${#vms_list[@]}] you want to be restored: " choice
+        read -p "Choose the Virtual Machine # in the list [1-${#vms_list[@]}] to be restored: " choice
 
         while true; do
 
@@ -203,7 +250,7 @@ if [ -z $@ ]; then
 
 # Step 2: Asks the user for the main path to backups:
 # -----------------------------------------------------------------------------
-        read -p "Insert the Full path to the Nearest directory containing all backups sub-directories of $vm_name: " backup_path
+        read -p "Insert the Full path to the Nearest directory containing all backups sub-directories of '$vm_name': " backup_path
 
         while true; do
             if [[ $backup_path == /* ]] && [ -d $backup_path ]; then
@@ -227,27 +274,25 @@ if [ -z $@ ]; then
                 done
 
                 # Will continue only when at least one valid virtnbdbackup folder has been detected:
-                [ ! -z $backups_list ] && break || read -p "Sorry, no matching backups for $vm_name were found in '$backup_path'. Choose a more specific path containing backups: " backup_path
+                [ ! -z $backups_list ] && break || read -p "Sorry, no matching backups for '$vm_name' were found in '$backup_path'. Choose a more specific path containing backups: " backup_path
 
             else
-
                 read -p "'$backup_path': Does not exist, is not a directory, or it is a relative path. Verify the path and re-enter it: " backup_path
             fi
         done
 
-
         # Shows a list of restorable backups folder to choose:
         echo ""
-        echo "${#backups_list[@]} backups found in $backup_path:"
+        echo "${#backups_list[@]} backups found in '$backup_path':"
 
         if [[ ${#backups_list[@]} -gt 1 ]]; then
 
 # Step 3: If multiple backups found for certain VM, asks the user to choose a backup to restore:
 # -----------------------------------------------------------------------------
 
-            echo '------------------------------------------------------------------------------------------------------------'
+            echo '-------------------------------------------------------------------------------'
             printf " %s \t %-15s \t %s \n" "#"  "Backup Name" "Drives"
-            echo '------------------------------------------------------------------------------------------------------------'
+            echo '-------------------------------------------------------------------------------'
             i=0
             for backup in "${backups_list[@]}"; do
 
@@ -258,6 +303,7 @@ if [ -z $@ ]; then
             read -p "Choose the Backup Number in the list [1-${#backups_list[@]}] you want to restore: " choice
 
             while true; do
+
                 if [[ $choice -ge 1 ]] && [[ $choice -le ${#backups_list[@]} ]]; then
 
                     # Saves Backup specs that will be used later:
@@ -271,13 +317,12 @@ if [ -z $@ ]; then
             done
         else
 
-            echo "Backup named as '${backup_names_list[@]}' selected automatically (no other recognizable backups available for VM '$vm_name' in $backup_path)"
+            echo "Backup with name '${backup_names_list[@]}' selected automatically (no other recognizable backups available for VM '$vm_name' in '$backup_path')"
 
             backup_name="${backup_names_list[@]}"
             backup_path="${backups_list[@]}"
             backup_drives_list=(${backup_drives_list[@]})
         fi
-
 
         echo ""
         echo "Scanning for checkpoints..."
@@ -292,9 +337,9 @@ if [ -z $@ ]; then
 # -----------------------------------------------------------------------------
 
             # Header to show when there are incremental backups:
-            echo '------------------------------------------------------------------------------------------------------------'
-            printf " %s \t %s \n" "Checkpoint" "Saved at"
-            echo '------------------------------------------------------------------------------------------------------------'
+            echo '-------------------------------------------------------------------------------'
+            printf " %s \t %-10s \n" "Checkpoint" "Saved at"
+            echo '-------------------------------------------------------------------------------'
             i=0
             for checkpoint in "${checkpoints_list[@]}"; do
 
@@ -302,15 +347,15 @@ if [ -z $@ ]; then
                 checkpoint_dates_list+=("$(last_modified $backup_path/checkpoints/$checkpoint.xml)")
 
                 # Prints on screen detailed (and tabulated) data for the given checkpoint:
-                printf ' %s \t %s \n' "$checkpoint" "${checkpoint_dates_list[$i]}"
+                printf ' %s \t %-10s \n' "$checkpoint" "${checkpoint_dates_list[$i]}"
                 ((i++))
             done
 
             default_choice=$(( ${#checkpoints_list[@]} - 1 ))
-
             read -p "Choose the Checkpoint Number in the list [0-$default_choice] you want to restore, or press ENTER to select the latest one: " choice
 
             while true; do
+
                 if [ -z $choice ]; then
 
                     checkpoint_index="${checkpoints_list[$default_choice]}"
@@ -323,7 +368,6 @@ if [ -z $@ ]; then
                     checkpoint_date="${checkpoint_dates_list[$choice]}"
                     break
                 else
-
                     read -p "$choice : Invalid choice. Please choose a number of the list [0-$(( ${#checkpoints_list[@]} - 1 ))]: " choice
                 fi
             done
@@ -346,8 +390,8 @@ if [ -z $@ ]; then
             if [[ ${vm_drives_list[@]} == ${backup_drives_list[@]} ]]; then
 
                 # Only use case it's when both VM and backup chain, contain identical lists of drives:
-                echo "${#backup_drives_list[@]} restorable drives found in both, VM $vm_name and Backup $backup_name: ${backup_drives_list[@]}"
-                read -p "To restore specific drive(s) only, insert their names separated by spaces; or just press ENTER to restore all the drives: " chosen_drives
+                echo "${#backup_drives_list[@]} restorable drives found at both, VM '$vm_name' and Backup '$backup_name': ${backup_drives_list[@]}"
+                read -p "In order to restore only specific drive(s), insert their names separated by spaces; or just press ENTER to restore all the drives: " chosen_drives
 
                 while true; do
 
@@ -380,20 +424,19 @@ if [ -z $@ ]; then
                 done
 
             #else
-
-                    # TO DO: Add other use cases (e.g. VM and backup lists of drives don't match, etc.
-
+                    # TO DO: Add other use cases (e.g. VM and backup lists of drives don't match, etc.)
             fi
         else
-
             selected_drives=(${backup_drives_list[@]})
         fi
 
-        echo "Drives to be restored in VM $vm_name: ${selected_drives[@]}"
+        echo ""
+        echo "Drives to be restored back at VM '$vm_name': ${selected_drives[@]}"
 
 # Step 6: Ask for keep or not old backup files:
 # -----------------------------------------------------------------------------
 
+        echo ""
         read -p "Do you want to keep the old disk images? [yes/no]: " choice
 
         while true; do
@@ -404,18 +447,17 @@ if [ -z $@ ]; then
                     keep_old_disks=1
                     break
                 ;;
-
                 no|NO)
                     break
                 ;;
-
                 *)
                     read -p "Please, write 'yes' or 'no': " choice
                 ;;
             esac
         done
 
-        read -n1 -s -r -p $'\nReady to go!\nPress any key to start (or Ctrl+C to Cancel)\n' key
+        echo ""
+        read -n1 -s -r -p $'\nEverything is ready to begin!\nPress any key to start the process, or Ctrl+C to Cancel...\n' key
 
 # Step 7: Perform the restoration:
 # -----------------------------------------------------------------------------
@@ -427,10 +469,11 @@ if [ -z $@ ]; then
 
             echo ""
             echo "INFO: Restoration of VM '$vm_name' (${selected_drives[@]}) checkpoint '$checkpoint_index' saved at $checkpoint_date in progress..."
-            echo "============================================================================================================"
             i=0
             for drive in ${selected_drives[@]}; do
 
+                echo '-------------------------------------------------------------------------------'
+                echo ""
                 # Current image name and path for $drive:
                 img_name=$(basename ${vm_img_paths_list[$i]})
                 img_path=$(dirname ${vm_img_paths_list[$i]})
@@ -438,9 +481,7 @@ if [ -z $@ ]; then
                 # Retrieves the correspondent drive according the chosen options,
                 # to the same directory where original image disk is, using the same drive name (e.g. 'hdc')
                 restore_vm $backup_path $img_path $checkpoint_index $drive
-
-                echo '------------------------------------------------------------------------------------------------------------'
-                echo""
+                echo ""
 
                 if [[ $? == 0 ]]; then
 
@@ -452,15 +493,17 @@ if [ -z $@ ]; then
 
                             # Saves the old disk image with a different name:
                             old_img_name="$img_name.$(last_modified $img_path/$img_name)"
-                            mv $img_path/$img_name $img_path/$old_img_name
+                            old_img_name=${old_img_name// /_}
 
+                            mv $img_path/$img_name $img_path/$old_img_name
                             echo "INFO: Old disk image at $img_path saved as '$old_img_name'"
                         else
+
                             # Removes the old image before to be replaced by the new one:
                             rm -f $img_path/$img_name
                         fi
                     else
-                        echo "WARNING: Disk image ($img_name) was not found at $img_path (it will be replaced directly)"
+                        echo "WARNING: Disk image ($img_name) was not found at $img_path (it will be replaced directly by the restored backup)"
                     fi
 
                     # Renames the retrieved image to its correspondent name as of libvirt definitions (name and path):
@@ -468,11 +511,9 @@ if [ -z $@ ]; then
 
                     # Adds the drive to the restored_drives list:
                     restored_drives+=($drive)
-                    echo "INFO: Image Drive '$drive' has been successfuly restored"
-
-                    # TO DO: Remove all past checkpoints metadate from libvirt
-
+                    echo "INFO: Image Drive '$drive' has been successfuly restored!"
                 else
+
                     # Removes any incomplete image, if exists:
                     rm -f $img_path/$drive
 
@@ -480,15 +521,20 @@ if [ -z $@ ]; then
                     failed_drives+=($drive)
                     echo "WARNING: Stream of drive $drive has failed!"
                 fi
+
+                ((i++))
             done
 
-            echo '============================================================================================================'
+            echo '==============================================================================='
             echo ""
 
             if [[ ${#restored_drives[@]} -eq ${#selected_drives[@]} ]]; then
 
+                echo "Querying libvirt for old checkpoints..."
+                vm_delete_checkpoint_metadata $vm_name
+
                 echo ""
-                echo "INFO: Restoration of Virtual Machine '$vm_name' was fully completed!"
+                echo "INFO: Restoration of Virtual Machine '$vm_name' has been successfully completed!"
                 status=0
 
             elif [[ ${#restored_drives[@]} -gt 1 ]]; then
@@ -497,17 +543,20 @@ if [ -z $@ ]; then
                 echo "WARNING: Restoration of Virtual Machine '$vm_name' was NOT complete! (Successed: '${restored_drives[@]}' / Failed: '${failed_drives[@]}')"
                 echo "Check the logs above to determine the cause of the problem, solve it and run this script again (choosing the above failed drives for restoration only)"
                 status=2
-
             else
                 echo "ERROR: Restoration of Virtual Machine '$vm_name' failed!"
                 echo "Check the logs above to determine the cause of the problem, solve it and run this script again (no changes has been made onto the Virtual Machine)"
             fi
         else
-            echo "ERROR: Could not safely start the restoration process because the Virtual Machine '$vm_name' current state ($(domain_state $vm_name)) disallows it"
+            echo "ERROR: Could not safely start the restoration process because the Virtual Machine '$vm_name' current state ($(domain_state $vm_name)) disallows it!"
         fi
     else
         echo "ERROR: No persistent Virtual Machines detected! (is libvirt service running?)"
     fi
+else
+    # Argument(s) detected. By now, only shows the help and exits:
+    show_help
+    status=0
 fi
 
 exit $status
