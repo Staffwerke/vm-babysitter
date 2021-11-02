@@ -84,7 +84,7 @@ It's able to run unattended (e.g. with cron), if the intention is to backup one 
 
 ### vm-restore
 
-(NOTE: This script is obsolete and eventually may be deprecated in favor of more advanced tools. For full VM restoration, check [virtnbdrestore-auto](### virtnbdrestore-auto)  section.)
+(NOTE: This script is obsolete and eventually may be deprecated in favor of more advanced tools. For full VM restoration, check [virtnbdrestore-auto](#virtnbdrestore-auto)  section.)
 
 Fully restores VM's disk image(s) from a given backup path, onto a given restoration path. Syntax is:
 
@@ -119,7 +119,7 @@ Unlike other scripts, does not have syntax. You must modify internal settings by
 
 It is the ultimate solution to keep several backup chains updated at the same time, unattendedly over long periods via cron
 
-Is compatible with UnRaid's User Scripts plugin. Install instructon are detailed [here.](https://forums.unraid.net/topic/48286-plugin-ca-user-scripts/)
+Is compatible with UnRaid's User Scripts plugin. Install instructions are detailed [here.](https://forums.unraid.net/topic/48286-plugin-ca-user-scripts/)
 
 ### virtnbdrestore-auto
 
@@ -127,12 +127,12 @@ Restores disk image(s) of a virtual machine from saved backups (made with vm-ful
 
 Currently works as a 'better' replacement for vm-restore, since does not need arguments to run (it asks all the question questions on screen to source itself with parameters) and is capable of restore a VM automatically,  as much this VM is already defined into the libvirt's host. It also cleans libvirt of past checkpoints, allowing to delete it later if becomes necessary.
 
-More detailed info available at the same script, by running it with `virtnbdrestore-auto`
+More detailed info is available at the same script, by running it with `virtnbdrestore-auto` (press Ctrl+C to cancel the script's run after having read the help)
 
 
 ## Additional Notes:
 
-(NOTE: Most of information below has became obsolete because of [virtnbdrestore-auto](### virtnbdrestore-auto) and it's being kept for its 'educational' relevance.)*
+(NOTE: Most of information below has became obsolete because of [virtnbdrestore-auto](#virtnbdrestore-auto) and it's being kept for its 'educational' relevance.)*
 
 Except when noticed, applies for all Operating Systems:
 
