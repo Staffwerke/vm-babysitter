@@ -82,18 +82,9 @@ This would be a recurrent operation performed after `vm-full-backup` has created
 It's able to run unattended (e.g. with cron), if the intention is to backup one VM at time.
 
 
-### virtnbdbackup-auto
-
-It makes use of `vm-inc-backup` and `vm-patch`to run incremental backups of one, or more VMs as a batch operation, logging to STDOUT which VMs were successfuly backed up or failed; exiting with corresponding state (0 if all jobs were successful, 1 if at least one of the jobs failed.)
-
-Unlike other scripts, does not have syntax. You must modify internal settings by following the instructions [inside the script.](virtnbdbackup-auto/script)
-
-It is the ultimate solution to keep several backup chains updated at the same time, unattendedly over long periods via cron
-
-Is compatible with UnRaid's User Scripts plugin. Install instructon are detailed [here.](https://forums.unraid.net/topic/48286-plugin-ca-user-scripts/)
-
-
 ### vm-restore
+
+(NOTE: This script is obsolete and eventually may be deprecated in favor of more advanced tools. For full VM restoration, check [virtnbdrestore-auto](### virtnbdrestore-auto)  section.)
 
 Fully restores VM's disk image(s) from a given backup path, onto a given restoration path. Syntax is:
 
@@ -120,7 +111,28 @@ Where:
 Unlike the other scripts, `vm-restore` is unaware of VM state, since it restores data onto new disk image(s) at the given location, with names like `'vda'`, `'sda'`, `'hdc'` and so on. It doesn't manage or alter VMs in any way. Restorations can be made for different purposes, such as recover a disk state at a given moment, or for migration purposes.
 
 
+### virtnbdbackup-auto
+
+It makes use of `vm-inc-backup` and `vm-patch`to run incremental backups of one, or more VMs as a batch operation, logging to STDOUT which VMs were successfuly backed up or failed; exiting with corresponding state (0 if all jobs were successful, 1 if at least one of the jobs failed.)
+
+Unlike other scripts, does not have syntax. You must modify internal settings by following the instructions [inside the script.](virtnbdbackup-auto/script)
+
+It is the ultimate solution to keep several backup chains updated at the same time, unattendedly over long periods via cron
+
+Is compatible with UnRaid's User Scripts plugin. Install instructon are detailed [here.](https://forums.unraid.net/topic/48286-plugin-ca-user-scripts/)
+
+### virtnbdrestore-auto
+
+Restores disk image(s) of a virtual machine from saved backups (made with vm-full-backup, vm-inc-backup or virtnbdbackup-auto) up to a selected checkpoint in time.
+
+Currently works as a 'better' replacement for vm-restore, since does not need arguments to run (it asks all the question questions on screen to source itself with parameters) and is capable of restore a VM automatically,  as much this VM is already defined into the libvirt's host. It also cleans libvirt of past checkpoints, allowing to delete it later if becomes necessary.
+
+More detailed info available at the same script, by running it with `virtnbdrestore-auto`
+
+
 ## Additional Notes:
+
+(NOTE: Most of information below has became obsolete because of [virtnbdrestore-auto](### virtnbdrestore-auto) and it's being kept for its 'educational' relevance.)*
 
 Except when noticed, applies for all Operating Systems:
 
@@ -142,16 +154,30 @@ Deleting thus all checkpoints created by libvirt on the server only, not attemtp
 (*Important:* Attempting the above command without `--metadata` flag, usually results into an immediate VM crash if is it running.)
 
 
-### Orphaned Images:
+### Orphaned Images / Fixing disk images after server crash:
 
-After the actions mentioned above, the old disk image (if still exists and is bootable/mountable) is unable to be re-used on the old backup chain, since it will have checkpoints inside the image, but not on the server (opposed to the above scenario and similar as described [here.)](https://github.com/abbbi/virtnbdbackup/blob/0.22/README.md#transient-virtual-machines-checkpoint-persistency).
+After the actions mentioned above, the old disk image (if still exists and is bootable/mountable) is unable to be re-used on the old backup chain, since it will have checkpoints references inside the image, but not on the server (opposed to the above scenario and similar as described [here.)](https://github.com/abbbi/virtnbdbackup/blob/0.22/README.md#transient-virtual-machines-checkpoint-persistency).
 
-If you need to create new backups of this old image, you need to rebuild the disk image first with:
+If you need to create new backups of this old image, you can rebuild the disk image first with:
 
 `qemu-img convert -O qcow2 <old-vm-image> <new-vm-image>`
 
-in order to delete checkpoints internally and create a backup chain (or repurpose it with checkpoints with another application.)
+in order to delete internal checkpoints references and create a backup chain (or repurpose it with checkpoints with another application.)
 
+
+In addition, this info can be deleted from the disk image by deleting this info (called 'bitmaps'.) This is useful if you have issues after a server (or libvirt) crash and vm-full-backup refuses to create a backup chain.
+(Note: you need to *shutdown* the VM in order to do this!)
+
+Locate the disk image with problems and use:
+
+`qemu-img info /path-to-vm-disk-image`
+
+
+It will show you a list with bitmaps with identical names of virtnbdbackup.* checkpoints. You must delete it one by one with:
+
+`qemu-img bitmap --remove /path-to-vm-disk-image <virtnbdbackup.n>` (where 'n' is the checkpoint number)
+
+until the 'info' command shows no bitmaps.
 
 ### Quick restoration a failed VM's disk image on UnRaid
 

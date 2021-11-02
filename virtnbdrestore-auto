@@ -17,7 +17,7 @@ show_help()
 {
 cat << end_of_help
 
- $(basename $0) -- Script that restores disk image(s) of a virtual machine from saved backups (made with Virtnbdbackup) up to a selected checkpoint in time.
+ $(basename $0) -- Restores disk image(s) of a virtual machine from saved backups (made with vm-full-backup, vm-inc-backup or virtnbdbackup-auto) up to a selected checkpoint in time.
 
     USAGE:
     - It can restore a full system (default option), as well as individual disks or drives
