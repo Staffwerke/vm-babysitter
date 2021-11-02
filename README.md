@@ -20,7 +20,7 @@ Batch script is compatible with [UnRaid's User Scripts plugin.](https://forums.u
 
 When UnRaid is detected, installs `vm-patch`, `vm-inc-backup` and `virtnbdbackup-auto` at `/boot/config/plugins/user.scripts/scripts/virtnbdbackup-auto`
 
-`vm-full-backup` and `vm-restore` aren't installed. You must run them manually, such as from this this same repo, once cloned onto the host at a persistent location.
+`vm-full-backup`, `vm-restore` and `virtnbdrestore-auto` aren't installed at the above path. You must run them manually, such as from this this same repo, once cloned onto the host at a persistent location.
 
 If a re-install is detected and a configured scheme already exists, the installer will attempt to retrieve all user parameters, and transfer it to the new version of `virtnbdbackup-auto`.
 
@@ -39,6 +39,7 @@ Reinstallation updates the scripts already installed at `/usr/local/bin` but doe
 There's no uninstaller at this time, however, the process si quite simple in all cases:
 
 ### UnRaid:
+
 - From User Script's panel, simply delete the scipt.
 
 Alternatively you can uninstall it from Shell with: `rm -rf /boot/config/plugins/user.scripts/scripts/virtnbdbackup-auto`
@@ -84,7 +85,7 @@ It's able to run unattended (e.g. with cron), if the intention is to backup one 
 
 ### vm-restore
 
-(NOTE: This script is obsolete and eventually may be deprecated in favor of more advanced tools. For full VM restoration, check [virtnbdrestore-auto](#virtnbdrestore-auto)  section.)
+(NOTE: This script is obsolete and eventually may be deprecated in favor of more advanced tools. For full VM restoration, check [virtnbdrestore-auto](#virtnbdrestore-auto) instead):
 
 Fully restores VM's disk image(s) from a given backup path, onto a given restoration path. Syntax is:
 
@@ -113,7 +114,7 @@ Unlike the other scripts, `vm-restore` is unaware of VM state, since it restores
 
 ### virtnbdbackup-auto
 
-It makes use of `vm-inc-backup` and `vm-patch`to run incremental backups of one, or more VMs as a batch operation, logging to STDOUT which VMs were successfuly backed up or failed; exiting with corresponding state (0 if all jobs were successful, 1 if at least one of the jobs failed.)
+It makes use of `vm-inc-backup` and `vm-patch` to run incremental backups of one, or more VMs as a batch operation, logging to STDOUT which VMs were successfuly backed up or failed; exiting with corresponding state (0 if all jobs were successful, 1 if at least one of the jobs failed.)
 
 Unlike other scripts, does not have syntax. You must modify internal settings by following the instructions [inside the script.](virtnbdbackup-auto/script)
 
@@ -132,9 +133,11 @@ More detailed info is available at the same script, by running it with `virtnbdr
 
 ## Additional Notes:
 
-(NOTE: Most of information below has became obsolete because of [virtnbdrestore-auto](#virtnbdrestore-auto) and it's being kept for its 'educational' relevance.)*
+(NOTE: Most of information below has became obsolete because of [virtnbdrestore-auto](#virtnbdrestore-auto) and it's being kept only for its 'educational' relevance):
+
 
 Except when noticed, applies for all Operating Systems:
+
 
 ### Reusing VMs with resotred disks
 
@@ -170,14 +173,15 @@ In addition, this info can be deleted from the disk image by deleting this info 
 
 Locate the disk image with problems and use:
 
-`qemu-img info /path-to-vm-disk-image`
+`qemu-img info /path-to-vm-disk-image/vdisk1.img`
 
 
-It will show you a list with bitmaps with identical names of virtnbdbackup.* checkpoints. You must delete it one by one with:
+It will show you a summary, including a list with bitmaps with identical names of virtnbdbackup.* checkpoints. You must delete it one by one with:
 
 `qemu-img bitmap --remove /path-to-vm-disk-image <virtnbdbackup.n>` (where 'n' is the checkpoint number)
 
 until the 'info' command shows no bitmaps.
+
 
 ### Quick restoration a failed VM's disk image on UnRaid
 
