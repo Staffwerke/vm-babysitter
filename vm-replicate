@@ -1,0 +1,230 @@
+#!/bin/bash
+
+cat << schedule
+
+Similar to virtnbdrestore-auto (interactive) but creates a new VM based on definitions from an existing VM
+
+Lists all available VMs to choose one:
+
+Asks for:
+    New VM name (mandatory)
+    RAM (optional)
+    CPUs (optional)
+    For each interface:
+        MAC address: Randomize, keep, or insert custom (optional)
+        Network to be connected (optional)
+    if existing VM is not patched for incremental backups:
+        asks for patching
+
+Generate:
+    UUID
+    MAC addr (if NOT set to keep or was manually added)
+
+Modify:
+    disk images paths (based on VM name)
+    nvram image path (based on UUID)
+
+Copy/clone:
+    If source VM is running, shuts it down prior to perform a disk copy
+    writable disk images from original to new location (qemu-img)
+    nvram (from qemu template)
+
+Patch (if required by user)
+
+Validate the VM
+Define the VM.
+
+schedule
+
+# Temporal path to store files (as .xml):
+working_path="/tmp"
+
+# Base MAC address used on the qemu/kvm implementation:
+base_mac_addr="52:54:00"
+
+# Returns a string value with the state reported by libvirt (e.g. "running", "shut off", etc.)
+# -----------------------------------------------------------------------------
+domain_state()
+{
+    echo $(virsh domstate $1)
+}
+
+# For a given VM name, returns a string value with absoulte path to its image disks (e.g. "/path-to/hdc.img /path-to/hdd.img")
+# -----------------------------------------------------------------------------
+list_vm_img_paths()
+{
+    echo $(virsh domblklist --details $1 | grep -e file | grep -e disk | sed -e 's/ file //g' -e 's/ disk //g' | rev | cut -d' ' -f1 | rev )
+}
+
+# Sorts unordered items lexicographically. This is used for user input not in order:
+# -----------------------------------------------------------------------------
+sort_items()
+{
+    echo $@ | xargs -n1 | sort | xargs
+}
+
+# Sends shutdown signal and awaits until domain has been shutted down to return success:
+# -----------------------------------------------------------------------------
+shutdown_vm()
+{
+local shutdown_vm_status=1
+local vm_needed_state="shut off"
+
+if [[ $(domain_state $1) == $vm_needed_state ]]; then
+
+    echo "INFO: VM '$1' is already $vm_needed_state"
+    shutdown_vm_status=0
+else
+
+    local wait_time=15
+    local max_attempts=10
+    local attempt=1
+
+    while (( $attempt < $max_attempts )); do
+
+        virsh shutdown $1
+
+        sleep $wait_time
+
+        [[ $(domain_state $1) == $vm_needed_state ]] && { shutdown_vm_status=0; break; } || ((attempt++))
+    done
+
+    local message=""
+    [[ $shutdown_vm_status -eq 0 ]] && message="INFO: VM '$1' powered off successfully" || message="WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. waiting for VM '$1' to power off"
+fi
+
+    echo $message
+    return $shutdown_vm_status
+}
+
+# Determines if a domain is patched for incremental backups, returning '0' if true, or '1' if false
+# -----------------------------------------------------------------------------
+vm_is_patched()
+{
+
+    local vm_is_patched_state=1
+
+    # Expected match on non-patched VMs:
+    local original_pattern="<domain type='kvm'>"
+
+    # Expected match on manually modified VMs (e.g. with 'virsh edit $target_domain')
+    local modified_pattern="<domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>"
+
+    local match=$(virsh dumpxml --inactive --security-info $1 | grep -e "$original_pattern" -e "$modified_pattern")
+
+    [ $match == $modified_pattern ] && vm_is_patched_state=0
+
+    return $vm_is_patched_state
+
+}
+
+# Returns a random, uppercase,  MAC address, based upon (optional) base pattern 'XX:XX:XX'
+# -----------------------------------------------------------------------------
+gen_random_mac()
+{
+    local seed
+
+    # If no base pattern is provided, will use global parameter:
+    [[ -z $1 ]] && seed=$base_mac_addr
+
+    printf '%s:%02X:%02X:%02X\n' ${seed^^} $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))
+}
+
+# Main execution:
+# -----------------------------------------------------------------------------
+
+# Load all functions
+#source $PWD/functions.sh
+
+status=1
+if [ -z $@ ]; then
+
+    # No input parameters enables the interctive mode:
+    #show_help
+    #read -n1 -s -r -p $'Press any key to continue, or Ctrl+C to Cancel...\n' key
+
+# Step 1: Asks the user to choose a VM to clone:
+# -----------------------------------------------------------------------------
+    vms_list=($(virsh list --all --persistent --name))
+    if [ $? == 0 ] && [[ ${#vms_list[@]} -ge 1 ]]; then
+
+        # Only proceeds either if libvirt doesn't report an error, and if there are non-trasient VMs:
+        echo ""
+        echo "Scanning for Virtual Machines..."
+        echo ""
+        echo "${#vms_list[@]} VMs found in Host $(cat /etc/hostname):"
+        echo '-------------------------------------------------------------------------------'
+        printf " %s \t %-15s \t %s \n" "#" "VM Name"
+        echo '-------------------------------------------------------------------------------'
+
+        i=0
+        for vm in "${vms_list[@]}"; do
+
+            # Shows each VM found, including the restorable drives:
+            printf " %s \t %s \n" "$(( $i + 1))" "$vm"
+            ((i++))
+        done
+
+        read -p "Choose the Virtual Machine # in the list [1-${#vms_list[@]}] to be replicated: " choice
+
+        while true; do
+
+            if [[ $choice -ge 1 ]] && [[ $choice -le ${#vms_list[@]} ]]; then
+
+                source_vm="${vms_list[(( $choice - 1 ))]}"
+
+                # NOTE: expand this list with: CPU, RAM, drives, nets and macs
+                # Saves VM specs that will be used for restoration:
+                #vm_img_paths_list=($(list_vm_img_paths $source_vm))
+                #vm_patch_list+=($(vm_is_patched $source_vm))
+                #source_vm_state=(${vm_states_list[(( $choice - 1 ))]})
+
+                break
+            else
+                read -p "'$choice' is invalid. Please choose a number of the list [1-${#vms_list[@]}]: " choice
+            fi
+        done
+
+        echo ""
+        echo "Virtual Machine '$vm_name' selected for being cloned"
+        echo ""
+
+# Step 2: Asks the user for New VM parameters:
+# -----------------------------------------------------------------------------
+        read -p "Insert the name of the virtual machine to be replicated from $source_vm': " vm_name
+
+        while true; do
+
+            # Unlike $vms_list, transient VMs are scanned too:
+            for vm in "$(virsh list --all --name)"; do
+                # Checks if $vm_name is already defined:
+                [ $vm_name == $vm ] { matches_existing_vm=1; break; }
+            done
+
+                if [[ ! $matches_existing_vm ]]; then
+
+                    break
+                else
+
+                    read -p "'$vm_name' already exists. Insert a different name for the virtual machine to be replicated from $source_vm': " vm_name
+                fi
+        done
+
+# Step 3: Dump $source_vm definitions and apply changes::
+# -----------------------------------------------------------------------------
+
+    # Self-generated UUID to replace the original one
+    vm_uuid=$(uuidgen)
+
+
+    # Path to xml definitions file to be processed:
+    vm_xml_path=$working_path/$vm_name.xml
+
+    # Dumps current VMs XML file to a temporal location:
+    virsh dumpxml --inactive --security-info $source_vm > $vm_xml_path
+
+    # Changes its name internally
+
+# -----------------------------------------------------------------------------
+
+exit $status
