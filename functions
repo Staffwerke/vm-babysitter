@@ -78,22 +78,6 @@ fi
     return $shutdown_vm_status
 }
 
-# Determines if a domain is patched for incremental backups, returning the string 'true' if patched, and 'false' if not:
-# -----------------------------------------------------------------------------
-vm_is_patched()
-{
-
-    # Expected match on non-patched VMs:
-    local original_pattern="<domain type='kvm'>"
-
-    # Expected match on manually modified VMs (e.g. with 'virsh edit $target_domain')
-    local modified_pattern="<domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>"
-
-    local match=$(virsh dumpxml --inactive --security-info $1 | grep -e "$original_pattern" -e "$modified_pattern")
-
-    [ $match == $modified_pattern ] && echo "true" || echo "false"
-}
-
 # Returns a random, uppercase, MAC address, based upon (optional) base pattern 'XX:XX:XX'
 # -----------------------------------------------------------------------------
 gen_random_macaddr()
@@ -111,4 +95,38 @@ gen_random_macaddr()
 get_vm_macaddr()
 {
     echo $(virsh domiflist --inactive $1 | grep -o -E '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}')
+}
+
+# For a given VM name, returns a string value with (restorable) virtual drives (separated by spaces) (e.g. "hdc hdd")
+# -----------------------------------------------------------------------------
+list_vm_drives()
+{
+    echo $(virsh domblklist --details $1 | grep -e file | grep -e disk | sed -e 's/file//g' -e 's/disk//g' -e 's/ //g' | cut -d'/' -f1)
+}
+
+# Determines if a domain is patched for incremental backups, returning the string 'true' if patched, and 'false' if not:
+# -----------------------------------------------------------------------------
+vm_is_patched()
+{
+
+    # Expected match on non-patched VMs:
+    local original_pattern="<domain type='kvm'>"
+
+    # Expected match on manually modified VMs (e.g. with 'virsh edit $target_domain')
+    local modified_pattern="<domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>"
+
+    local match=$(virsh dumpxml --inactive --security-info $1 | grep -e "$original_pattern" -e "$modified_pattern")
+
+    [[ $match == $modified_pattern ]] && echo "true" || echo "false"
+}
+
+# Patches a given xml file to provide incremental backups capability, returning sed status
+# (Assumes the xml file has no patch):
+# -----------------------------------------------------------------------------
+patch_xml()
+{
+    # Modifies the XML file with sed, adding parameters as of virtnbdbackup documentation:
+    sed -i -e "s|<domain type='kvm'>|<domain type='kvm' id='1' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>|" -e "/<\/domain>/i \ \ <qemu:capabilities>\n      <qemu:add capability='incremental-backup'\/>\n  <\/qemu:capabilities>" $1
+
+    return $?
 }
