@@ -20,8 +20,6 @@ if [ -z $@ ]; then
     #show_help
     #read -n1 -s -r -p $'Press any key to continue, or Ctrl+C to Cancel...\n' key
 
-    # Asks the user to choose a VM to clone:
-    # -----------------------------------------------------------------------------
     vms_list=($(virsh list --all --persistent --name))
 
     if [ $? == 0 ] && [[ ${#vms_list[@]} -ge 1 ]]; then
@@ -46,28 +44,21 @@ if [ -z $@ ]; then
             ((i++))
         done
 
+        # Asks the user to choose a VM to clone:
+        # -----------------------------------------------------------------------------
         echo ""
-        read -p "Choose the Virtual Machine # in the list [1-${#vms_list[@]}] to be replicated: " choice
+        choice=$(choose_number "Choose the Virtual Machine # in the list to be replicated" "1" "${#vms_list[@]}")
 
-        while true; do
-
-            if [[ $choice -ge 1 ]] && [[ $choice -le ${#vms_list[@]} ]]; then
-
-               # Saves VM specs that will be used for restoration:
-                src_vm="${vms_list[(( $choice - 1 ))]}"
-                src_vm_img_paths_list=($(list_vm_img_paths $src_vm))
-                vm_drives_list=(${vm_drives_list[(( $choice - 1 ))]})
-
-                break
-            else
-
-                # Otherwise, alerts about the error and asks for $choice again:
-                read -p "'$choice' is invalid. Please choose a number of the list [1-${#vms_list[@]}]: " choice
-            fi
-        done
+        # Saves VM specs that will be used for restoration:
+        src_vm="${vms_list[(( $choice - 1 ))]}"
+        src_vm_img_paths_list=($(list_vm_img_paths $src_vm))
+        vm_drives_list=(${vm_drives_list[(( $choice - 1 ))]})
 
         echo ""
         echo "INFO: VM $src_vm selected as source for being replicated"
+
+# ADD OPTION TO REPLICATE VM ON A REMOTE HOST:
+# -----------------------------------------------------------------------------
 
         # Asks the user for a name to be used for the New VM:
         # -----------------------------------------------------------------------------
@@ -87,57 +78,30 @@ if [ -z $@ ]; then
         if [ ! -z ${vm_drives_list[@]} ]; then
 
             # Asks the user for copying disks from $src_vm for $dest_vm
-            # (and alternatively to check / modify its paths):
             # -----------------------------------------------------------------------------
             echo ""
-            read -p "Do you want to replicate the disk images from $src_vm into $dest_vm? [yes/no]: " choice
+            copy_disks=$(yes_no "Do you want to replicate the disk images from $src_vm into $dest_vm?" "yes")
+            case $copy_disks in
 
-            while true; do
+                yes)
+                    echo ""
+                    echo "INFO: Disk images will be provisioned"
 
-                case $choice in
+                    # Looks for the VM state and notifies about a sudden shutdown (necessary to perform disk clonning:
+                    src_vm_state=$(domain_state $src_vm)
+                    [[  $src_vm_state != "shut off" ]] && echo "WARNING: VM $src_vm is currently $src_vm_state. It will be temporarily shutted down during the process."
+                ;;
 
-                    yes|YES)
-                        copy_disks=1
-                        echo ""
-                        echo "INFO: Disk images will be provisioned"
+                no)
+                    echo ""
+                    echo "INFO: No disk images will be provisioned (you must provide it manually)"
 
-                        # Looks for the VM state and notifies about a sudden shutdown (necessary to perform disk clonning:
-                        src_vm_state=$(domain_state $src_vm)
-                        [[  $src_vm_state != "shut off" ]] && echo "WARNING: VM $src_vm is currently $src_vm_state. It will be temporarily shutted down during the process."
-                        break
-                    ;;
-                    no|NO)
+                    # Asks the user for checking / modifying paths:
+                    # -----------------------------------------------------------------------------
+                    check_paths=$(yes_no "Do you still want to check (and possibly redefine) image disk paths for VM $dest_vm?" "yes")
+            esac
 
-                        echo ""
-                        echo "INFO: No disk images will be provisioned (you must provide it manually)"
-
-                        read -p  "Do you still want to check (and possibly redefine) image disk paths for VM $dest_vm? [yes/no]: " choice
-
-                        while true; do
-
-                            case $choice in
-
-                                yes|YES)
-                                    check_paths=1
-                                    break
-                                ;;
-                                no|NO)
-                                    break
-                                ;;
-                                *)
-                                    read -p "Please, write 'yes' or 'no': " choice
-                                ;;
-                            esac
-                        done
-                        break
-                    ;;
-                    *)
-                        read -p "Please, write 'yes' or 'no': " choice
-                    ;;
-                esac
-            done
-
-            if [ $copy_disks ] || [ $check_paths ]; then
+            if [ $copy_disks == yes ] || [ $check_paths == yes ]; then
 
                 # When disk images are to be copied, or the user wants to check / redefine new paths for $dest_vm
                 # Shows the possible options and ways to modify them:
@@ -167,7 +131,7 @@ if [ -z $@ ]; then
                         echo "$menu_option. Set the disk image path automatically to: $proposed_path"
                     fi
 
-                    if [ ! $copy_disks ] ; then
+                    if [ $copy_disks == no ] ; then
 
                         # Only when user has chosen to not copy disks, show the 3rd option:
                         ((menu_option++))
@@ -175,73 +139,60 @@ if [ -z $@ ]; then
                     fi
 
                     echo ""
-                    read -p "Which action would you like to perform?: " choice
+                    choice=$(choose_number "Choose the # of the action you want to perform" "1" "$menu_option")
 
-                    while true; do
+                    case $choice in
 
-                        if [[ $choice -ge 1 ]] && [[ $choice -le $menu_option ]]; then
-
-                            case $choice in
-
-                                1)
-                                    # User has chosen to set path manually:
-                                    echo ""
-                                    read -p "Insert the full path to the disk image (e.g. /path/to/disk.img): " manual_path
-                                    while true; do
-
-
-                                        for path in ${dest_vm_img_paths_list[@]}; do
-
-                                            path_already_exists=""
-                                            # Checks if path was already defined for another disk (in the same VM):
-                                            [[ $manual_path == $path ]] && { path_already_exists=1; break; }
-                                        done
-
-                                        message=""
-                                        if [ $path_already_exists ]; then
-
-                                            message="'$manual_path' was already defined for this VM and cannot be used"
-                                        elif [[ $manual_path != /* ]]; then
-
-                                            message="'$manual_path' is not an absolute path"
-                                        else
-
-                                            dest_vm_img_paths_list+=($manual_path)
-                                            break
-                                        fi
-
-                                        read -p "$message. Insert the full path to the disk image (image name included): " manual_path
-                                    done
-                                ;;
-                                2)
-                                    if [ $auto_path ]; then
-
-                                        # $proposed_path is plausible and has been chosen:
-                                        dest_vm_img_paths_list+=($proposed_path)
-                                    elif [ $copy_disks ]; then
-
-                                        # $proposed_path isn't plausible and $copy_disks was set to 'no'
-                                        # User has set to keep path:
-                                        dest_vm_img_paths_list+=($path)
-                                    fi
-                                ;;
-                                3)
-                                        # $proposed_path is plausible and $copy_disks was set to 'no'
-                                        # User has set to keep path:
-                                        dest_vm_img_paths_list+=($path)
-                                ;;
-                            esac
-
+                        1)
+                            # User has chosen to set path manually:
                             echo ""
-                            echo "INFO: Disk image path for ${vm_drives_list[$i]} set to ${dest_vm_img_paths_list[$i]}"
-                            break
+                            read -p "Insert the full path to the disk image (e.g. /path/to/disk.img): " manual_path
+                            while true; do
 
-                        else
+                                for path in ${dest_vm_img_paths_list[@]}; do
 
-                            # Otherwise, alerts about the error and asks for $choice again:
-                            read -p "'$choice' is invalid. Please choose a number of the list [1-$menu_option]: " choice
-                        fi
-                    done
+                                    path_already_exists=""
+                                    # Checks if path was already defined for another disk (in the same VM):
+                                    [[ $manual_path == $path ]] && { path_already_exists=1; break; }
+                                done
+
+                                message=""
+                                if [ $path_already_exists ]; then
+
+                                    message="'$manual_path' was already defined for this VM and cannot be used"
+                                elif [[ $manual_path != /* ]]; then
+
+                                    message="'$manual_path' is not an absolute path"
+                                else
+
+                                    dest_vm_img_paths_list+=($manual_path)
+                                    break
+                                fi
+
+                                read -p "$message. Insert the full path to the disk image (image name included): " manual_path
+                            done
+                        ;;
+                        2)
+                            if [ $auto_path ]; then
+
+                                # $proposed_path is plausible and has been chosen:
+                                dest_vm_img_paths_list+=($proposed_path)
+                            elif [ $copy_disks == yes ]; then
+
+                                # $proposed_path isn't plausible and $copy_disks was set to 'no'
+                                # User has set to keep path:
+                                dest_vm_img_paths_list+=($path)
+                            fi
+                        ;;
+                        3)
+                                # $proposed_path is plausible and $copy_disks was set to 'no'
+                                # User has set to keep path:
+                                dest_vm_img_paths_list+=($path)
+                        ;;
+                    esac
+
+                    echo ""
+                    echo "INFO: Disk image path for ${vm_drives_list[$i]} set to ${dest_vm_img_paths_list[$i]}"
                 done
             fi
         fi
@@ -251,26 +202,9 @@ if [ -z $@ ]; then
         if [[ $(vm_is_patched $src_vm) == false ]]; then
 
             # $src_vm isn't patched. Asks if $dest_vm should be patched:
-            read -p "Do you want to patch VM '$dest_vm' in order to accept incremental backups? [yes/no]: " choice
+            patch_vm=$(yes_no "Do you want to patch VM '$dest_vm' in order to accept incremental backups?" "yes")
 
-            while true; do
-
-                case $choice in
-
-                    yes|YES)
-                        patch_vm=1
-                        break
-                    ;;
-                    no|NO)
-                        break
-                    ;;
-                    *)
-                        read -p "Please, write 'yes' or 'no': " choice
-                    ;;
-                esac
-            done
         fi
-
         # End of interactive part.
         # -----------------------------------------------------------------------------
 
@@ -306,9 +240,10 @@ if [ -z $@ ]; then
         # Replaces all matches of $src_uuid for $dest_uuid:
         sed -i -e "s|$src_uuid|$dest_uuid|g" $vm_definitions_file
 
+        # On UnRaid, checks for nvram (already replaced with $dest_uuid, if exists):
+        # -----------------------------------------------------------------------------
         if [[ $(is_unraid) ]]; then
 
-            # On UnRaid, checks for nvram (already replaced with $dest_uuid, if exists):
             vm_nvram_path=$(grep -e "<nvram>" $vm_definitions_file | cut -d'>' -f2 | cut -d '<' -f1)
 
             if [ ! -z $vm_nvram_path ]; then
@@ -355,7 +290,7 @@ if [ -z $@ ]; then
         # When defined by the user, replicates disk images:
         # -----------------------------------------------------------------------------
 
-        if [ $copy_disks ]; then
+        if [ $copy_disks == yes ]; then
 
 
             if [[ $(domain_state $src_vm) != "shut off" ]]; then
