@@ -130,3 +130,72 @@ patch_xml()
 
     return $?
 }
+
+# Prompts a given question to the user, and returns either 'yes' or 'no':
+# -----------------------------------------------------------------------------
+yes_no()
+{
+    local question=$1
+    local default_choice=$2
+    local trailing_string="[yes/no]"
+    local choice
+
+    while true; do
+
+        # Prompts and in case $default_choice was provided, it's displayed with upper caps:
+        read -p "$question ${trailing_string/$default_choice/${default_choice^^}}: " choice
+
+        case $choice in
+
+            yes|YES|no|NO)
+
+                echo ${choice,,}
+                break
+            ;;
+            "")
+                if [ ! -z $default_choice ]; then
+
+                    echo $default_choice
+                    break
+                fi
+            ;;
+        esac
+
+    done
+}
+
+# Prompts a given question to the user amd returns a number if is within (also given) parameters:
+# -----------------------------------------------------------------------------
+choose_number()
+{
+        local question=$1
+        local min_choice=$2
+        local max_choice=$3
+        if [ ! -z $4 ] || [[ $min_choice -eq $max_choice ]]; then
+            local default_choice=" (defaults to '$4')"
+        fi
+        local choice
+
+    while true; do
+
+        read -p "$question [$min_choice-$max_choice]$default_choice: " choice
+
+        case $choice in
+
+            [0-9])
+                if [[ $choice -ge $min_choice ]] && [[ $choice -le $max_choice ]]; then
+
+                    echo $choice
+                    break
+                fi
+            ;;
+
+            "")
+                if [ ! -z $default_choice ]; then
+
+                    echo $default_choice
+                    break
+                fi
+        esac
+    done
+}
