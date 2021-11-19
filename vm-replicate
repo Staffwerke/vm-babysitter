@@ -7,6 +7,7 @@ working_path="$HOME/.$(basename $0).tmp"
 # (Here, on the same dir
 functions_path="$(dirname $0)/functions"
 
+# -----------------------------------------------------------------------------
 # Main execution:
 # -----------------------------------------------------------------------------
 
@@ -15,6 +16,10 @@ source $functions_path
 
 status=1
 if [ -z $@ ]; then
+
+    # -----------------------------------------------------------------------------
+    # Beginning of interactive part:
+    # -----------------------------------------------------------------------------
 
     # No input parameters enables the interctive mode:
     #show_help
@@ -57,8 +62,63 @@ if [ -z $@ ]; then
         echo ""
         echo "INFO: VM $src_vm selected as source for being replicated"
 
-# ADD OPTION TO REPLICATE VM ON A REMOTE HOST:
-# -----------------------------------------------------------------------------
+        # Asks the user to replicate onto local, or remote VM:
+        # -----------------------------------------------------------------------------
+        while true; do
+
+            echo ""
+            echo '-------------------------------------------------------------------------------'
+            echo "Endpoint where $src_vm will be replicated:"
+            echo ""
+            echo "1. Replicate the VM locally $(cat /etc/hostname)"
+            echo "2. Set a remote host to replicate the VM (via SSH)"
+            echo ""
+            choice=$(choose_number "Choose an option number for the VM endpoint" "1" "2" "1")
+
+            case $choice in
+
+                1)
+                    endpoint="local"
+                    echo "INFO: VM $src_vm will be replicated locally"
+                ;;
+                2)
+                    endpoint="remote"
+                    while true; do
+
+                        read -p "Insert remote user and server location where $src_vm will be replicated (e.g. user@hostname): " $remote_server
+
+                        if [ $remote_server == *@* ]; then
+
+                            # Test remote host connectivity and libvirt:
+                            ssh_command $remote_server "exit 0"
+                            remote_server_status=$?
+
+                            if [ $remote_server_status == 0 ]; then
+
+                                # Server returns the command status sent.Looks up for libvirt API:
+                                remote_api_version=$(ssh_command $remote_server 'echo $(virsh -- version)')
+                                remote_api_status=$?
+
+                                if [ $remote_api_status == 0 ]; then
+
+                                    echo "INFO: VM $src_vm will be replicated via '$remote_server' (Libvirt v$remote_api_version)"
+
+                                    # Gets the list of VMs from $remote_server to discard duplicates on the remote endpoint:
+                                    vms_list=($(ssh_command $remote_server "virsh list --all --persistent --name"))
+                                else
+                                    echo "ERROR: Querying for libvirt version on endpoint '$remote_server' failed with error '$remote_api_status'. Exiting now."
+                                    exit $status
+                                fi
+                            else
+                                echo "ERROR: Connection with $remote_server failed with status $remote_server_status"
+                            fi
+                        else
+                            echo "Login '$remote_server' has bad syntax formation"
+                        fi
+                    done
+                ;;
+            esac
+        done
 
         # Asks the user for a name to be used for the New VM:
         # -----------------------------------------------------------------------------
@@ -72,7 +132,7 @@ if [ -z $@ ]; then
                 [[ $dest_vm == $vm ]] && { vm_already_exists=1; break; }
             done
 
-            [ ! -z $vm_already_exists ] && read -p "VM $dest_vm already exists. You must choose a different name: " dest_vm || break
+            [ ! -z $vm_already_exists ] && read -p "VM $dest_vm already exists on $endpoint endpoint. You must choose a different name: " dest_vm || break
         done
 
         if [ ! -z ${vm_drives_list[@]} ]; then
@@ -131,9 +191,9 @@ if [ -z $@ ]; then
                         echo "$menu_option. Set the disk image path automatically to: $proposed_path"
                     fi
 
-                    if [ $copy_disks == no ] ; then
+                    if [ $copy_disks == no ] || [ $endpoint == remote ]; then
 
-                        # Only when user has chosen to not copy disks, show the 3rd option:
+                        # Only when user has chosen to not copy disks or the VM will be replicated on another host, it shows the 3rd option:
                         ((menu_option++))
                         echo "$menu_option. Keep the disk image path unchanged: $path"
                     fi
@@ -177,15 +237,15 @@ if [ -z $@ ]; then
 
                                 # $proposed_path is plausible and has been chosen:
                                 dest_vm_img_paths_list+=($proposed_path)
-                            elif [ $copy_disks == yes ]; then
+                            elif [ $copy_disks == yes ] || [ $endpoint == remote ]; then
 
-                                # $proposed_path isn't plausible and $copy_disks was set to 'no'
+                                # $proposed_path IS NOT plausible. $copy_disks was set to 'no' or $endpoint set to 'remote'
                                 # User has set to keep path:
                                 dest_vm_img_paths_list+=($path)
                             fi
                         ;;
                         3)
-                                # $proposed_path is plausible and $copy_disks was set to 'no'
+                                # $proposed_path IT IS plausible. $copy_disks was set to 'no' or $endpoint set to 'remote'
                                 # User has set to keep path:
                                 dest_vm_img_paths_list+=($path)
                         ;;
@@ -205,7 +265,11 @@ if [ -z $@ ]; then
             patch_vm=$(yes_no "Do you want to patch VM '$dest_vm' in order to accept incremental backups?" "yes")
 
         fi
-        # End of interactive part.
+
+        # -----------------------------------------------------------------------------
+        # End of interactive part
+        # -----------------------------------------------------------------------------
+        # Beginning of modification on $vm_definitions_file
         # -----------------------------------------------------------------------------
 
         echo ""
@@ -240,25 +304,6 @@ if [ -z $@ ]; then
         # Replaces all matches of $src_uuid for $dest_uuid:
         sed -i -e "s|$src_uuid|$dest_uuid|g" $vm_definitions_file
 
-        # On UnRaid, checks for nvram (already replaced with $dest_uuid, if exists):
-        # -----------------------------------------------------------------------------
-        if [[ $(is_unraid) ]]; then
-
-            vm_nvram_path=$(grep -e "<nvram>" $vm_definitions_file | cut -d'>' -f2 | cut -d '<' -f1)
-
-            if [ ! -z $vm_nvram_path ]; then
-
-                # If exists in definitions and not as file, a new nvram file must be provisioned.
-                # On UnRaid, it's located at a well defined path:
-                template_nvram_path="/usr/share/qemu/ovmf-x64/OVMF_VARS-pure-efi.fd"
-
-                # So, simply copies the template, renamed as the nvram filedefined for $dest_vm:
-                cp -f $template_nvram_path $vm_nvram_path
-
-                [[ $? -eq 0 ]] && echo "INFO: NVRAM device '$vm_nvram_path' successfully created." || echo "WARNING: Could not create a NVRAM device. Check the log above to detemrine the cause of the issue "
-            fi
-        fi
-
         # Replaces MAC addresses for (qemu/kvm) randomized ones:
         # -----------------------------------------------------------------------------
 
@@ -276,22 +321,33 @@ if [ -z $@ ]; then
 
         # When defined by the user, Replaces disk image paths:
         # -----------------------------------------------------------------------------
+        i=0
+        for path in ${dest_vm_img_paths_list[@]}; do
 
-        if [ ! -z ${dest_vm_img_paths_list[@]} ]; then
+            # Replaces $src_vm paths for a $dest_vm paths:
+            sed -i -e "s|<source file='${src_vm_img_paths_list[$i]}'/>|<source file='$path'/>|" $vm_definitions_file
+        done
 
-            i=0
-            for path in ${dest_vm_img_paths_list[@]}; do
+        # If requested, patches $dest_vm for incremental backups:
+        # -----------------------------------------------------------------------------
 
-                # Replaces $src_vm paths for a $dest_vm paths:
-                sed -i -e "s|<source file='${src_vm_img_paths_list[$i]}'/>|<source file='$path'/>|" $vm_definitions_file
-            done
+        if [ $patch_vm ]; then
+
+            # Patches $dest_vm:
+            patch_xml $vm_definitions_file
+
+            [[ $? -eq 0 ]] && message="INFO: Incremental backup capability successfully added to $dest_vm" || message="WARNING: Oops! Something went wrong adding incremental backup capability to $dest_vm. This may imply this VM is incompatible with QEMU/KVM."
         fi
+        # -----------------------------------------------------------------------------
+        # End of modifications on $vm_definitions_file.
+        # -----------------------------------------------------------------------------
+        # Beginning of file copy:
+        # -----------------------------------------------------------------------------
 
         # When defined by the user, replicates disk images:
         # -----------------------------------------------------------------------------
 
         if [ $copy_disks == yes ]; then
-
 
             if [[ $(domain_state $src_vm) != "shut off" ]]; then
 
@@ -303,11 +359,10 @@ if [ -z $@ ]; then
 
                 # Gets the status of the operation:
                 shutdown_status=$?
-
             else
+
                 shutdown_status=0
             fi
-
 
             if [[ $shutdown_status -eq 0 ]]; then
 
@@ -315,19 +370,35 @@ if [ -z $@ ]; then
                 for image_path in ${dest_vm_img_paths_list[@]}; do
 
                     # Copies the image disk only when conditions apply:
-                    echo "INFO: Replicating '${src_vm_img_paths_list[$i]}' as '$image_path'..."
+                    echo "INFO: Replicating '${src_vm_img_paths_list[$i]}' as '$image_path' on $endpoint endpoint..."
 
-                    mkdir -p $(dirname $image_path)
-                    qemu-img convert -O qcow2 ${src_vm_img_paths_list[$i]} $image_path
+                    if [ endpoint == local ]; then
+
+                        # Creates folder and dumps a copy of the disk image with qemu-img convert:
+                        mkdir -p $(dirname $image_path)
+                        qemu-img convert -O qcow2 ${src_vm_img_paths_list[$i]} $image_path
+
+                    elif [ endpoint == remote ]; then
+
+                        # Creates remote folder, creates local mountpoint, mounts the remote folder and dumps with qemu-img convert directly:
+                        mkdir -p $working_path/remote
+                        ssh_command $remote_server "mkdir -p $(dirname $image_path)"
+                        sshfs_command $remote_server $(dirname $image_path) $working_path/remote
+                        qemu-img convert -O qcow2 ${src_vm_img_paths_list[$i]} $working_path/remote/$(basename $image_path)
+                    fi
 
                     # Notifies about success or fail of each disk image provisioning for $dest_vm:
                     [[ $? -eq 0 ]] && echo "INFO: $image_path provisioned successfully" || echo "ERROR: Failed provisioning $image_path. Read the logs above for more info"
+
+                    # Unmounts the remote folder when is the case:
+                    [ $endpoint == remote ] && umount $working_path/remote
+
                     ((i++))
                 done
             else
                 echo "ERROR: VM $src_vm could not be properly powered off. Aborting disk image provisioning. Read the logs above for more info"
-
             fi
+
             if [ $src_vm_was_on ]; then
 
                 # Starts $src_vm if it was previously running before the copy:
@@ -336,15 +407,25 @@ if [ -z $@ ]; then
             fi
         fi
 
-        # If requested, patches $dest_vm for incremental backups:
+        # On UnRaid, checks for nvram (already replaced with $dest_uuid, if exists):
         # -----------------------------------------------------------------------------
+        if [[ $(is_unraid) ]]; then
 
-        if [ $patch_vm ]; then
+            vm_nvram_path=$(grep -e "<nvram>" $vm_definitions_file | cut -d'>' -f2 | cut -d '<' -f1)
 
-            # Patches $dest_vm:
-            patch_xml $vm_definitions_file
+            if [ ! -z $vm_nvram_path ]; then
 
-            [[ $? -eq 0 ]] && message="INFO: Incremental backup capability successfully added to $dest_vm" || message="WARNING: Oops! Something went wrong adding incremental backup capability to $dest_vm. This may imply this VM is incompatible with QEMU/KVM."
+                # If exists in definitions and not as file, a new nvram file must be provisioned.
+                # On UnRaid, it's located at a well defined path:
+                template_nvram_path="/usr/share/qemu/ovmf-x64/OVMF_VARS-pure-efi.fd"
+
+                # So, simply copies the template, renamed as the nvram file defined for $dest_vm:
+
+                [ $endpoint == local ] && cp -f $template_nvram_path $vm_nvram_path
+                [ $endpoint == remote ] && { ssh_command $remote_server "mkdir -p $(basedir $vm_nvram_path)"; scp_command $remote_server $template_nvram_path $vm_nvram_path; }
+
+                [[ $? -eq 0 ]] && echo "INFO: NVRAM device '$vm_nvram_path' successfully created on $endpoint endpoint." || echo "WARNING: Could not create a NVRAM device at $endpoint endpoint. (Read logs above for more info)"
+            fi
         fi
 
         # Finally, defines the VM in QEMU/KVM and cleanses temporal files::
