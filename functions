@@ -8,6 +8,9 @@
 # Base MAC address used on the qemu/kvm implementation:
 base_mac_addr="52:54:00"
 
+# Maximum time to await for a response in certain functions:
+wait_time=15
+
 # Guess OS name by kernel and returns a string with '1' if OS is Unraid, nothing otherwise:
 # -----------------------------------------------------------------------------
 is_unraid()
@@ -198,4 +201,28 @@ choose_number()
                 fi
         esac
     done
+}
+
+# Sends a command string $2 via ssh to the server $1, returning the status of the operation:
+#------------------------------------------------------------------------------
+ssh_command()
+{
+    ssh -q -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=$wait_time $1 $2
+    return $?
+
+}
+
+# Sends a file $2 with scp to the server $1 at path $3, returning the status of the operation:
+#------------------------------------------------------------------------------
+scp_command()
+{
+    scp -q -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=$wait_time $2 $1:$3
+}
+
+# Onto a local folder $3, mounts a remote folder located at $1:$2 via ssh, returning the status of the operation:
+# To close the connection, only needs to 'umount $3'
+#------------------------------------------------------------------------------
+sshfs_command()
+{
+    sshfs -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=$wait_time  $1:$2 $3
 }
