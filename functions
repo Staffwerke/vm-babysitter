@@ -60,7 +60,7 @@ if [[ $(domain_state $1) == $vm_needed_state ]]; then
     shutdown_vm_status=0
 else
 
-    local wait_time=15
+    #local wait_time=15
     local max_attempts=10
     local attempt=1
 
@@ -74,7 +74,7 @@ else
     done
 
     local message=""
-    [[ $shutdown_vm_status -eq 0 ]] && message="INFO: VM '$1' powered off successfully" || message="WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. waiting for VM '$1' to power off"
+    [[ $shutdown_vm_status -eq 0 ]] && message="INFO: VM '$1' powered off successfully" || message="WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. awaiting for VM '$1' to power off"
 fi
 
     echo $message
