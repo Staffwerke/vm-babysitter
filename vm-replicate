@@ -95,7 +95,7 @@ if [ -z $@ ]; then
 
                             if [ $remote_server_status == 0 ]; then
 
-                                # Server returns the command status sent.Looks up for libvirt API:
+                                # Server returns the command status sent. Looks up for libvirt API:
                                 remote_api_version=$(ssh_command $remote_server 'echo $(virsh -- version)')
                                 remote_api_status=$?
 
@@ -110,10 +110,10 @@ if [ -z $@ ]; then
                                     exit $status
                                 fi
                             else
-                                echo "ERROR: Connection with $remote_server failed with status $remote_server_status"
+                                echo "ERROR: Connection with endpoint '$remote_server' failed with status $remote_server_status"
                             fi
                         else
-                            echo "Login '$remote_server' has bad syntax formation"
+                            echo "Endpoint '$remote_server' has bad syntax formation"
                         fi
                     done
                 ;;
@@ -154,7 +154,7 @@ if [ -z $@ ]; then
 
                 no)
                     echo ""
-                    echo "INFO: No disk images will be provisioned (you must provide it manually)"
+                    echo "INFO: No disk images will be provisioned (you must provide them manually)"
 
                     # Asks the user for checking / modifying paths:
                     # -----------------------------------------------------------------------------
@@ -164,9 +164,9 @@ if [ -z $@ ]; then
             if [ $copy_disks == yes ] || [ $check_paths == yes ]; then
 
                 # When disk images are to be copied, or the user wants to check / redefine new paths for $dest_vm
+
                 # Shows the possible options and ways to modify them:
                 # -----------------------------------------------------------------------------
-
                 i=0
                 for path in ${src_vm_img_paths_list[@]}; do
 
@@ -178,14 +178,14 @@ if [ -z $@ ]; then
                     echo "Options for disk ${vm_drives_list[$i]} (source: $path) "
                     echo '-------------------------------------------------------------------------------'
                     echo ""
-                    echo "$menu_option. Set the disk image path manually to custom location and name"
+                    echo "$menu_option. Set the disk image path to a custom location and name"
 
-                    # Attempts to find a new path matching by Vm name:
+                    # Attempts to find a NEW path matching by VM name:
                     proposed_path=${path//$src_vm/$dest_vm}
 
-                    if [[ $path != $proposed_path ]]; then
+                    if [ $path != $proposed_path ]; then
 
-                        # And if this action is possible, proposes it as an option:
+                        # If this action is possible, proposes it as an option:
                         auto_path=1
                         ((menu_option++))
                         echo "$menu_option. Set the disk image path automatically to: $proposed_path"
@@ -237,6 +237,7 @@ if [ -z $@ ]; then
 
                                 # $proposed_path is plausible and has been chosen:
                                 dest_vm_img_paths_list+=($proposed_path)
+
                             elif [ $copy_disks == yes ] || [ $endpoint == remote ]; then
 
                                 # $proposed_path IS NOT plausible. $copy_disks was set to 'no' or $endpoint set to 'remote'
@@ -262,7 +263,7 @@ if [ -z $@ ]; then
         if [[ $(vm_is_patched $src_vm) == false ]]; then
 
             # $src_vm isn't patched. Asks if $dest_vm should be patched:
-            patch_vm=$(yes_no "Do you want to patch VM '$dest_vm' in order to accept incremental backups?" "yes")
+            patch_vm=$(yes_no "Do you want to patch VM '$dest_vm' in order to accept incremental backups right after being created?" "yes")
 
         fi
 
@@ -331,7 +332,7 @@ if [ -z $@ ]; then
         # If requested, patches $dest_vm for incremental backups:
         # -----------------------------------------------------------------------------
 
-        if [ $patch_vm ]; then
+        if [ $patch_vm == yes ]; then
 
             # Patches $dest_vm:
             patch_xml $vm_definitions_file
@@ -428,14 +429,28 @@ if [ -z $@ ]; then
             fi
         fi
 
-        # Finally, defines the VM in QEMU/KVM and cleanses temporal files::
+        # Finally, defines the VM in QEMU/KVM and cleanses temporal files:
         # -----------------------------------------------------------------------------
 
-         virsh define $vm_definitions_file
+         if [ $endpoint == local ]; then
 
-        if [[ $? -eq 0 ]]; then
+            # When local, defines VM directly:
+            virsh define $vm_definitions_file
+            vm_define_status=$?
 
-            echo "INFO: VM $dest_vm successfully added"
+         elif [ $endpoint == remote ]; then
+
+            # When remote, transfers $vm_definitions_file to the host, defines it, fetches the state of the operation and then deletes the transferred file:
+            remote_vm_definitions_file="/tmp/$(basename $vm_definitions_file)"
+            scp_command $remote_server $vm_definitions_file $remote_vm_definitions_file
+            ssh_command $remote_server "virsh define $remote_vm_definitions_file"
+            vm_define_status=$?
+            ssh_command $remote_server rm -f $remote_vm_definitions_file
+        fi
+
+        if [[ $remote_vm_definitions_file -eq 0 ]]; then
+
+            echo "INFO: VM $dest_vm successfully added at $endpoint endpoint!"
             rm -rf $working_path
             status=0
         else
