@@ -117,7 +117,7 @@ local install_path="/usr/local/bin"
 local script_name="virtnbdbackup-auto"
 
 # List of files to be copied and processed:
-local files_list="vm-patch vm-full-backup vm-inc-backup vm-restore virtnbdrestore-auto"
+local files_list="vm-patch vm-full-backup vm-inc-backup vm-restore vm-replicate virtnbdrestore-auto"
 
 # Install files on host at given path:
 copy_files "$files_list" "$install_path"
