@@ -1,11 +1,36 @@
 #!/bin/bash
 
+# Variables:
+# -----------------------------------------------------------------------------
 # Temporal path to store files (as .xml):
 working_path="$HOME/.$(basename $0).tmp"
 
-# Location of script where all functions and global variables to be used are declared:
+# Location of the script where all functions and global variables to be used are declared:
 # (Here, on the same dir
 functions_path="$(dirname $0)/functions"
+
+show_info()
+{
+cat << end_of_info
+
+ $(basename $0) -- Replicates a given virtual machine onto a local or remote endpoint.
+
+ REQUIREMENTS:
+    (All except the first one refer to remote replication only)
+    - libvirt and qemu-utils (on all involved hosts)
+    - ssh, scp and sshfs (on this host)
+    - ssh server (on the remote host)
+    - Both hosts must be set with proper RSA/DSA keys authentication, so this host can connect with the other directly.
+
+ INSTRUCTIONS:
+    - A series of options and questions will be presented before to actually start the process
+    - You will be asked for confirmation before to start the process (replication may take time, depending on the data volume to restore, hadware speed, etc.)
+    - Once completed, it will display the final result about the operation.
+
+ (Mantainer: Adrián Parilli <a.parilli@staffwerke.de>)
+
+end_of_info
+}
 
 # -----------------------------------------------------------------------------
 # Main execution:
@@ -22,8 +47,8 @@ if [ -z $@ ]; then
     # -----------------------------------------------------------------------------
 
     # No input parameters enables the interctive mode:
-    #show_help
-    #read -n1 -s -r -p $'Press any key to continue, or Ctrl+C to Cancel...\n' key
+    show_info
+    read -n1 -s -r -p $'Press any key to continue, or Ctrl+C to Cancel...\n' key
 
     vms_list=($(virsh list --all --persistent --name))
 
@@ -465,9 +490,9 @@ if [ -z $@ ]; then
     fi
 else
     # Argument(s) detected. By now, only shows the help and exits:
-    echo "WARNING: Arguments aren't suported"
-    #show_help
-    #status=0
+    show_info
+    echo "Run this script without arguments to start the interactive mode. Exited."
+    status=0
 fi
 
 exit $status
