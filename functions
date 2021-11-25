@@ -4,7 +4,6 @@
 # This scipt holds all the functions and global variables used by other scripts.
 # -----------------------------------------------------------------------------
 
-
 # Base MAC address used on the qemu/kvm implementation:
 base_mac_addr="52:54:00"
 
