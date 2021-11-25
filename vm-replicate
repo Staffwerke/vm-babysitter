@@ -70,7 +70,7 @@ if [ -z $@ ]; then
             echo '-------------------------------------------------------------------------------'
             echo "Endpoint where $src_vm will be replicated:"
             echo ""
-            echo "1. Replicate the VM locally $(cat /etc/hostname)"
+            echo "1. Replicate the VM locally ($(cat /etc/hostname))"
             echo "2. Set a remote host to replicate the VM (via SSH)"
             echo ""
             choice=$(choose_number "Choose an option number for the VM endpoint" "1" "2" "1")
@@ -80,14 +80,15 @@ if [ -z $@ ]; then
                 1)
                     endpoint="local"
                     echo "INFO: VM $src_vm will be replicated locally"
+                    break
                 ;;
                 2)
                     endpoint="remote"
                     while true; do
 
-                        read -p "Insert remote user and server location where $src_vm will be replicated (e.g. user@hostname): " $remote_server
+                        read -p "Insert remote user and server location where $src_vm will be replicated (e.g. user@hostname): " remote_server
 
-                        if [ $remote_server == *@* ]; then
+                        if [[ $remote_server == *@* ]]; then
 
                             # Test remote host connectivity and libvirt:
                             ssh_command $remote_server "exit 0"
@@ -101,10 +102,12 @@ if [ -z $@ ]; then
 
                                 if [ $remote_api_status == 0 ]; then
 
-                                    echo "INFO: VM $src_vm will be replicated via '$remote_server' (Libvirt v$remote_api_version)"
+                                    echo "INFO: VM $src_vm will be replicated via '$remote_server' (Libvirt info: $remote_api_version)"
 
                                     # Gets the list of VMs from $remote_server to discard duplicates on the remote endpoint:
                                     vms_list=($(ssh_command $remote_server "virsh list --all --persistent --name"))
+
+                                    break 2
                                 else
                                     echo "ERROR: Querying for libvirt version on endpoint '$remote_server' failed with error '$remote_api_status'. Exiting now."
                                     exit $status
@@ -161,7 +164,7 @@ if [ -z $@ ]; then
                     check_paths=$(yes_no "Do you still want to check (and possibly redefine) image disk paths for VM $dest_vm?" "yes")
             esac
 
-            if [ $copy_disks == yes ] || [ $check_paths == yes ]; then
+            if [[ $copy_disks == yes ]] || [[ $check_paths == yes ]]; then
 
                 # When disk images are to be copied, or the user wants to check / redefine new paths for $dest_vm
 
@@ -183,7 +186,7 @@ if [ -z $@ ]; then
                     # Attempts to find a NEW path matching by VM name:
                     proposed_path=${path//$src_vm/$dest_vm}
 
-                    if [ $path != $proposed_path ]; then
+                    if [[ $path != $proposed_path ]]; then
 
                         # If this action is possible, proposes it as an option:
                         auto_path=1
@@ -191,7 +194,7 @@ if [ -z $@ ]; then
                         echo "$menu_option. Set the disk image path automatically to: $proposed_path"
                     fi
 
-                    if [ $copy_disks == no ] || [ $endpoint == remote ]; then
+                    if [[ $copy_disks == no ]] || [[ $endpoint == remote ]]; then
 
                         # Only when user has chosen to not copy disks or the VM will be replicated on another host, it shows the 3rd option:
                         ((menu_option++))
@@ -238,7 +241,7 @@ if [ -z $@ ]; then
                                 # $proposed_path is plausible and has been chosen:
                                 dest_vm_img_paths_list+=($proposed_path)
 
-                            elif [ $copy_disks == yes ] || [ $endpoint == remote ]; then
+                            elif [[ $copy_disks == yes ]] || [[ $endpoint == remote ]]; then
 
                                 # $proposed_path IS NOT plausible. $copy_disks was set to 'no' or $endpoint set to 'remote'
                                 # User has set to keep path:
@@ -332,7 +335,7 @@ if [ -z $@ ]; then
         # If requested, patches $dest_vm for incremental backups:
         # -----------------------------------------------------------------------------
 
-        if [ $patch_vm == yes ]; then
+        if [[ $patch_vm == yes ]]; then
 
             # Patches $dest_vm:
             patch_xml $vm_definitions_file
@@ -348,7 +351,7 @@ if [ -z $@ ]; then
         # When defined by the user, replicates disk images:
         # -----------------------------------------------------------------------------
 
-        if [ $copy_disks == yes ]; then
+        if [[ $copy_disks == yes ]]; then
 
             if [[ $(domain_state $src_vm) != "shut off" ]]; then
 
@@ -373,13 +376,13 @@ if [ -z $@ ]; then
                     # Copies the image disk only when conditions apply:
                     echo "INFO: Replicating '${src_vm_img_paths_list[$i]}' as '$image_path' on $endpoint endpoint..."
 
-                    if [ endpoint == local ]; then
+                    if [[ $endpoint == local ]]; then
 
                         # Creates folder and dumps a copy of the disk image with qemu-img convert:
                         mkdir -p $(dirname $image_path)
                         qemu-img convert -O qcow2 ${src_vm_img_paths_list[$i]} $image_path
 
-                    elif [ endpoint == remote ]; then
+                    elif [[ $endpoint == remote ]]; then
 
                         # Creates remote folder, creates local mountpoint, mounts the remote folder and dumps with qemu-img convert directly:
                         mkdir -p $working_path/remote
@@ -392,7 +395,7 @@ if [ -z $@ ]; then
                     [[ $? -eq 0 ]] && echo "INFO: $image_path provisioned successfully" || echo "ERROR: Failed provisioning $image_path. Read the logs above for more info"
 
                     # Unmounts the remote folder when is the case:
-                    [ $endpoint == remote ] && umount $working_path/remote
+                    [[ $endpoint == remote ]] && umount $working_path/remote
 
                     ((i++))
                 done
@@ -410,7 +413,7 @@ if [ -z $@ ]; then
 
         # On UnRaid, checks for nvram (already replaced with $dest_uuid, if exists):
         # -----------------------------------------------------------------------------
-        if [[ $(is_unraid) ]]; then
+        if [[ $(is_unraid) == yes ]]; then
 
             vm_nvram_path=$(grep -e "<nvram>" $vm_definitions_file | cut -d'>' -f2 | cut -d '<' -f1)
 
@@ -422,8 +425,8 @@ if [ -z $@ ]; then
 
                 # So, simply copies the template, renamed as the nvram file defined for $dest_vm:
 
-                [ $endpoint == local ] && cp -f $template_nvram_path $vm_nvram_path
-                [ $endpoint == remote ] && { ssh_command $remote_server "mkdir -p $(basedir $vm_nvram_path)"; scp_command $remote_server $template_nvram_path $vm_nvram_path; }
+                [[ $endpoint == local ]] && cp -f $template_nvram_path $vm_nvram_path
+                [[ $endpoint == remote ]] && { ssh_command $remote_server "mkdir -p $(basedir $vm_nvram_path)"; scp_command $remote_server $template_nvram_path $vm_nvram_path; }
 
                 [[ $? -eq 0 ]] && echo "INFO: NVRAM device '$vm_nvram_path' successfully created on $endpoint endpoint." || echo "WARNING: Could not create a NVRAM device at $endpoint endpoint. (Read logs above for more info)"
             fi
@@ -432,23 +435,23 @@ if [ -z $@ ]; then
         # Finally, defines the VM in QEMU/KVM and cleanses temporal files:
         # -----------------------------------------------------------------------------
 
-         if [ $endpoint == local ]; then
+         if [[ $endpoint == local ]]; then
 
             # When local, defines VM directly:
             virsh define $vm_definitions_file
             vm_define_status=$?
 
-         elif [ $endpoint == remote ]; then
+         elif [[ $endpoint == remote ]]; then
 
             # When remote, transfers $vm_definitions_file to the host, defines it, fetches the state of the operation and then deletes the transferred file:
             remote_vm_definitions_file="/tmp/$(basename $vm_definitions_file)"
             scp_command $remote_server $vm_definitions_file $remote_vm_definitions_file
             ssh_command $remote_server "virsh define $remote_vm_definitions_file"
             vm_define_status=$?
-            ssh_command $remote_server rm -f $remote_vm_definitions_file
+            ssh_command $remote_server "rm -f $remote_vm_definitions_file"
         fi
 
-        if [[ $remote_vm_definitions_file -eq 0 ]]; then
+        if [[ $vm_define_status -eq 0 ]]; then
 
             echo "INFO: VM $dest_vm successfully added at $endpoint endpoint!"
             rm -rf $working_path
