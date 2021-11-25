@@ -11,12 +11,12 @@ base_mac_addr="52:54:00"
 # Maximum time to await for a response in certain functions:
 wait_time=15
 
-# Guess OS name by kernel and returns a string with '1' if OS is Unraid, nothing otherwise:
+# Guess OS name by kernel and returns a string with 'yes' if OS is Unraid, and otherwise 'no':
 # -----------------------------------------------------------------------------
 is_unraid()
 {
     local is_unraid_status=1
-    [[ ! -z $(uname  -r | grep -e "-Unraid$") ]] && echo "1"
+    [[ ! -z $(uname  -r | grep -e "-Unraid$") ]] && echo "yes" || echo "no"
 }
 
 # Returns a string value with the state reported by libvirt (e.g. "running", "shut off", etc.)
@@ -194,9 +194,9 @@ choose_number()
             ;;
 
             "")
-                if [ ! -z $default_choice ]; then
+                if [ ! -z $4 ]; then
 
-                    echo $default_choice
+                    echo $4
                     break
                 fi
         esac
