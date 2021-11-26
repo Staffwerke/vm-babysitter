@@ -9,25 +9,26 @@ working_path="$HOME/.$(basename $0).tmp"
 # (Here, on the same dir
 functions_path="$(dirname $0)/functions"
 
+# Name of the local host:
+localhost=$(cat /etc/hostname)
 show_info()
 {
 cat << end_of_info
 
- $(basename $0) -- Replicates a given virtual machine onto a local or remote endpoint.
+ $(basename $0) -- Replicates a given virtual machine onto a local or remote endpoint  (Author: Adrián Parilli <a.parilli@staffwerke.de>)
 
  REQUIREMENTS:
-    (All except the first one refer to remote replication only)
-    - libvirt and qemu-utils (on all involved hosts)
-    - ssh, scp and sshfs (on this host)
-    - ssh server (on the remote host)
-    - Both hosts must be set with proper RSA/DSA keys authentication, so this host can connect with the other directly.
+    (All except the first one, refer only to remote replication)
+    - libvirt service running (in all involved hosts)
+    - qemu-img (this host)
+    - ssh, scp and sshfs (this host)
+    - ssh server (remote host)
+    - Both hosts must be set with proper RSA/DSA keys authentication, in ways this host can connect with the other directly.
 
  INSTRUCTIONS:
-    - A series of options and questions will be presented before to actually start the process
-    - You will be asked for confirmation before to start the process (replication may take time, depending on the data volume to restore, hadware speed, etc.)
+    - A series of options and questions will be presented, and must be answered
+    - You will be asked for confirmation before to start the process
     - Once completed, it will display the final result about the operation.
-
- (Mantainer: Adrián Parilli <a.parilli@staffwerke.de>)
 
 end_of_info
 }
@@ -58,7 +59,7 @@ if [ -z $@ ]; then
         echo ""
         echo "Scanning for Virtual Machines..."
         echo ""
-        echo "${#vms_list[@]} VMs found in Host $(cat /etc/hostname):"
+        echo "${#vms_list[@]} VMs found in host '$localhost':"
         echo '-------------------------------------------------------------------------------'
         printf " %s \t %-15s \t %s \n" "#" "VM Name" "Drives"
         echo '-------------------------------------------------------------------------------'
@@ -77,15 +78,14 @@ if [ -z $@ ]; then
         # Asks the user to choose a VM to clone:
         # -----------------------------------------------------------------------------
         echo ""
-        choice=$(choose_number "Choose the Virtual Machine # in the list to be replicated" "1" "${#vms_list[@]}")
+        choice=$(choose_number "Choose the Virtual Machine to be replicated" "1" "${#vms_list[@]}")
 
         # Saves VM specs that will be used for restoration:
         src_vm="${vms_list[(( $choice - 1 ))]}"
         src_vm_img_paths_list=($(list_vm_img_paths $src_vm))
         vm_drives_list=(${vm_drives_list[(( $choice - 1 ))]})
 
-        echo ""
-        echo "INFO: VM $src_vm selected as source for being replicated"
+        echo "INFO: VM '$src_vm' selected for being replicated"
 
         # Asks the user to replicate onto local, or remote VM:
         # -----------------------------------------------------------------------------
@@ -93,27 +93,36 @@ if [ -z $@ ]; then
 
             echo ""
             echo '-------------------------------------------------------------------------------'
-            echo "Endpoint where $src_vm will be replicated:"
+            echo "Endpoint selection to replicate '$src_vm'"
+            echo '-------------------------------------------------------------------------------'
+            echo "1. At localhost ($localhost)"
+            echo "2. At a remote host (via SSH)"
             echo ""
-            echo "1. Replicate the VM locally ($(cat /etc/hostname))"
-            echo "2. Set a remote host to replicate the VM (via SSH)"
-            echo ""
-            choice=$(choose_number "Choose an option number for the VM endpoint" "1" "2" "1")
+            choice=$(choose_number "Choose an option number for endpoint" "1" "2" "1")
 
             case $choice in
 
                 1)
                     endpoint="local"
-                    echo "INFO: VM $src_vm will be replicated locally"
+                    echo "INFO: Destination endpoint set to '$localhost'"
                     break
                 ;;
                 2)
                     endpoint="remote"
                     while true; do
 
-                        read -p "Insert remote user and server location where $src_vm will be replicated (e.g. user@hostname): " remote_server
+                        read -p "Insert user name and server's DNS name or IP where $src_vm will be replicated (e.g. user@hostname): " remote_server
 
                         if [[ $remote_server == *@* ]]; then
+
+                            # Grabs remote user and server separately:
+                            #remote_server_user=$(echo $remote_server | cut -d'@' -f1)
+                            remote_server_name=$(echo $remote_server | cut -d'@' -f2)
+
+                            remote_port=$(choose_number "Insert port number to connect with host '$remote_server_name':" "0" "65535" "22")
+
+                            # When port is 22, there's no need to specify the '-p <port_number>' to SSH (and related) commands:
+                            [[ $remote_port -ne 22 ]] && ssh_port="-p $remote_port"
 
                             # Test remote host connectivity and libvirt:
                             ssh_command $remote_server "exit 0"
@@ -122,26 +131,28 @@ if [ -z $@ ]; then
                             if [ $remote_server_status == 0 ]; then
 
                                 # Server returns the command status sent. Looks up for libvirt API:
-                                remote_api_version=$(ssh_command $remote_server 'echo $(virsh -- version)')
+                                remote_api_version=$(ssh_command $remote_server 'echo $(virsh --version)')
                                 remote_api_status=$?
 
                                 if [ $remote_api_status == 0 ]; then
 
-                                    echo "INFO: VM $src_vm will be replicated via '$remote_server' (Libvirt info: $remote_api_version)"
+                                    echo ""
+                                    echo "INFO: Destination endpoint set to '$remote_server_name' port $remote_port (libvirt $remote_api_version)"
 
                                     # Gets the list of VMs from $remote_server to discard duplicates on the remote endpoint:
                                     vms_list=($(ssh_command $remote_server "virsh list --all --persistent --name"))
 
+                                    # Breaks both loops:
                                     break 2
                                 else
-                                    echo "ERROR: Querying for libvirt version on endpoint '$remote_server' failed with error '$remote_api_status'. Exiting now."
-                                    exit $status
+                                    echo "ERROR: Cannot connect with libvirt service at endpoint '$remote_server_name' port $remote_port (failed with status $remote_api_status)"
+                                    #exit $status
                                 fi
                             else
-                                echo "ERROR: Connection with endpoint '$remote_server' failed with status $remote_server_status"
+                                echo "ERROR: Cannot connect with endpoint '$remote_server_name' port $remote_port (failed with status $remote_server_status)"
                             fi
                         else
-                            echo "Endpoint '$remote_server' has bad syntax formation"
+                            echo "ERROR: '$remote_server' has a bad syntax"
                         fi
                     done
                 ;;
@@ -150,7 +161,8 @@ if [ -z $@ ]; then
 
         # Asks the user for a name to be used for the New VM:
         # -----------------------------------------------------------------------------
-        read -p "Choose a unique name for the new VM: " dest_vm
+        echo ""
+        read -p "Choose a name for the new VM: " dest_vm
 
         while true; do
 
@@ -160,33 +172,30 @@ if [ -z $@ ]; then
                 [[ $dest_vm == $vm ]] && { vm_already_exists=1; break; }
             done
 
-            [ ! -z $vm_already_exists ] && read -p "VM $dest_vm already exists on $endpoint endpoint. You must choose a different name: " dest_vm || break
+            [ ! -z $vm_already_exists ] && read -p "VM '$dest_vm' already exists on $endpoint endpoint. You must choose a different name: " dest_vm || break
         done
 
         if [ ! -z ${vm_drives_list[@]} ]; then
 
             # Asks the user for copying disks from $src_vm for $dest_vm
             # -----------------------------------------------------------------------------
-            echo ""
-            copy_disks=$(yes_no "Do you want to replicate the disk images from $src_vm into $dest_vm?" "yes")
+            copy_disks=$(yes_no "Do you also want to replicate the following disk image(s): [${vm_drives_list[@]// /,}] from '$src_vm' into '$dest_vm'?" "yes")
             case $copy_disks in
 
                 yes)
-                    echo ""
                     echo "INFO: Disk images will be provisioned"
 
                     # Looks for the VM state and notifies about a sudden shutdown (necessary to perform disk clonning:
                     src_vm_state=$(domain_state $src_vm)
-                    [[  $src_vm_state != "shut off" ]] && echo "WARNING: VM $src_vm is currently $src_vm_state. It will be temporarily shutted down during the process."
+                    [[  $src_vm_state != "shut off" ]] && echo "WARNING: VM '$src_vm' is currently $src_vm_state. It will be temporarily shutted down during the process."
                 ;;
 
                 no)
-                    echo ""
                     echo "INFO: No disk images will be provisioned (you must provide them manually)"
 
                     # Asks the user for checking / modifying paths:
                     # -----------------------------------------------------------------------------
-                    check_paths=$(yes_no "Do you still want to check (and possibly redefine) image disk paths for VM $dest_vm?" "yes")
+                    check_paths=$(yes_no "Do you still want to check (and possibly redefine) image disk paths for VM '$dest_vm'?" "yes")
             esac
 
             if [[ $copy_disks == yes ]] || [[ $check_paths == yes ]]; then
@@ -227,15 +236,16 @@ if [ -z $@ ]; then
                     fi
 
                     echo ""
-                    choice=$(choose_number "Choose the # of the action you want to perform" "1" "$menu_option")
+                    choice=$(choose_number "Choose the action you want to perform" "1" "$menu_option")
 
                     case $choice in
 
                         1)
                             # User has chosen to set path manually:
                             echo ""
-                            read -p "Insert the full path to the disk image (e.g. /path/to/disk.img): " manual_path
                             while true; do
+
+                                read -p "Insert the full path to the disk image (e.g. /full/path/to/$dest_vm.img): " manual_path
 
                                 for path in ${dest_vm_img_paths_list[@]}; do
 
@@ -245,9 +255,9 @@ if [ -z $@ ]; then
                                 done
 
                                 message=""
-                                if [ $path_already_exists ]; then
+                                if [ ! -z $path_already_exists ]; then
 
-                                    message="'$manual_path' was already defined for this VM and cannot be used"
+                                    message="'$manual_path' was already defined for VM '$dest_vm' and cannot be used twice"
                                 elif [[ $manual_path != /* ]]; then
 
                                     message="'$manual_path' is not an absolute path"
@@ -256,12 +266,10 @@ if [ -z $@ ]; then
                                     dest_vm_img_paths_list+=($manual_path)
                                     break
                                 fi
-
-                                read -p "$message. Insert the full path to the disk image (image name included): " manual_path
                             done
                         ;;
                         2)
-                            if [ $auto_path ]; then
+                            if [ ! -z $auto_path ]; then
 
                                 # $proposed_path is plausible and has been chosen:
                                 dest_vm_img_paths_list+=($proposed_path)
@@ -280,20 +288,27 @@ if [ -z $@ ]; then
                         ;;
                     esac
 
-                    echo ""
                     echo "INFO: Disk image path for ${vm_drives_list[$i]} set to ${dest_vm_img_paths_list[$i]}"
                 done
             fi
+        else
+            echo "INFO: VM '$src_vm' has no writable disks that can be replicated"
         fi
+
+# ADD MEMORY CHANGE HERE
 
         # If incremental backup patch is not detected in $src_vm, asks the user for applying this patch into $dest_vm:
         # -----------------------------------------------------------------------------
         if [[ $(vm_is_patched $src_vm) == false ]]; then
 
             # $src_vm isn't patched. Asks if $dest_vm should be patched:
-            patch_vm=$(yes_no "Do you want to patch VM '$dest_vm' in order to accept incremental backups right after being created?" "yes")
+            echo ""
+            patch_vm=$(yes_no "Patch VM '$dest_vm' in order to accept incremental backups after being created?" "yes")
 
         fi
+
+        echo ""
+        read -n1 -s -r -p $'Press any key to start the replication process, or Ctrl+C to Cancel...\n' key
 
         # -----------------------------------------------------------------------------
         # End of interactive part
@@ -301,9 +316,7 @@ if [ -z $@ ]; then
         # Beginning of modification on $vm_definitions_file
         # -----------------------------------------------------------------------------
 
-        echo ""
         echo "INFO: Processing parameters for VM '$dest_vm'..."
-        echo ""
 
         # Dumps $src_vm definitions apart, and apply changes:
         # -----------------------------------------------------------------------------
@@ -365,7 +378,7 @@ if [ -z $@ ]; then
             # Patches $dest_vm:
             patch_xml $vm_definitions_file
 
-            [[ $? -eq 0 ]] && message="INFO: Incremental backup capability successfully added to $dest_vm" || message="WARNING: Oops! Something went wrong adding incremental backup capability to $dest_vm. This may imply this VM is incompatible with QEMU/KVM."
+            [[ $? -eq 0 ]] && echo "INFO: Incremental backup capability successfully added to VM '$dest_vm'" || echo "WARNING: Could not add incremental backup capability to VM '$dest_vm'"
         fi
         # -----------------------------------------------------------------------------
         # End of modifications on $vm_definitions_file.
@@ -399,13 +412,14 @@ if [ -z $@ ]; then
                 for image_path in ${dest_vm_img_paths_list[@]}; do
 
                     # Copies the image disk only when conditions apply:
-                    echo "INFO: Replicating '${src_vm_img_paths_list[$i]}' as '$image_path' on $endpoint endpoint..."
+                    echo "INFO: Replicating '${src_vm_img_paths_list[$i]}' as '$image_path' on $endpoint endpoint (this may take some time...)"
 
                     if [[ $endpoint == local ]]; then
 
                         # Creates folder and dumps a copy of the disk image with qemu-img convert:
                         mkdir -p $(dirname $image_path)
                         qemu-img convert -O qcow2 ${src_vm_img_paths_list[$i]} $image_path
+                        image_path_status=$?
 
                     elif [[ $endpoint == remote ]]; then
 
@@ -413,22 +427,31 @@ if [ -z $@ ]; then
                         mkdir -p $working_path/remote
                         ssh_command $remote_server "mkdir -p $(dirname $image_path)"
                         sshfs_command $remote_server $(dirname $image_path) $working_path/remote
-                        qemu-img convert -O qcow2 ${src_vm_img_paths_list[$i]} $working_path/remote/$(basename $image_path)
+
+                        if [[ $? -eq 0 ]]; then
+
+                            # Will only replicate the disk if mount of remote endpoint is successful:
+                            qemu-img convert -O qcow2 ${src_vm_img_paths_list[$i]} $working_path/remote/$(basename $image_path)
+                            image_path_status=$?
+
+                            # Unmounts the remote folder after completion:
+                            umount $working_path/remote
+                        else
+
+                            echo "ERROR: Cannot mount the remote folder on host '$remote_server_name' to replicate '$(basename $image_path)'. Skipped"
+                        fi
                     fi
 
                     # Notifies about success or fail of each disk image provisioning for $dest_vm:
-                    [[ $? -eq 0 ]] && echo "INFO: $image_path provisioned successfully" || echo "ERROR: Failed provisioning $image_path. Read the logs above for more info"
-
-                    # Unmounts the remote folder when is the case:
-                    [[ $endpoint == remote ]] && umount $working_path/remote
+                    [[ $image_path_status -eq 0 ]] && echo "INFO: $image_path provisioned successfully" || echo "ERROR: Failed provisioning $image_path."
 
                     ((i++))
                 done
             else
-                echo "ERROR: VM $src_vm could not be properly powered off. Aborting disk image provisioning. Read the logs above for more info"
+                echo "ERROR: VM '$src_vm' could not be properly powered off. Aborting disk image provisioning"
             fi
 
-            if [ $src_vm_was_on ]; then
+            if [ ! -z $src_vm_was_on ]; then
 
                 # Starts $src_vm if it was previously running before the copy:
                 echo "INFO: Powering on $src_vm..."
@@ -463,7 +486,7 @@ if [ -z $@ ]; then
          if [[ $endpoint == local ]]; then
 
             # When local, defines VM directly:
-            virsh define $vm_definitions_file
+            &> /dev/null virsh define $vm_definitions_file
             vm_define_status=$?
 
          elif [[ $endpoint == remote ]]; then
@@ -471,14 +494,15 @@ if [ -z $@ ]; then
             # When remote, transfers $vm_definitions_file to the host, defines it, fetches the state of the operation and then deletes the transferred file:
             remote_vm_definitions_file="/tmp/$(basename $vm_definitions_file)"
             scp_command $remote_server $vm_definitions_file $remote_vm_definitions_file
-            ssh_command $remote_server "virsh define $remote_vm_definitions_file"
+            ssh_command $remote_server "&> /dev/null virsh define $remote_vm_definitions_file"
             vm_define_status=$?
             ssh_command $remote_server "rm -f $remote_vm_definitions_file"
         fi
 
         if [[ $vm_define_status -eq 0 ]]; then
 
-            echo "INFO: VM $dest_vm successfully added at $endpoint endpoint!"
+            echo ""
+            echo "INFO: VM $dest_vm replicated at $endpoint endpoint successfully!"
             rm -rf $working_path
             status=0
         else
