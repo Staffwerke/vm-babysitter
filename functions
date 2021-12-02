@@ -1,9 +1,11 @@
 #!/bin/bash
 
-# -----------------------------------------------------------------------------
-# This scipt holds all the functions and global variables used by other scripts.
-# -----------------------------------------------------------------------------
 
+# THIS SCIPT HOLDS ALL THE FUNCTIONS AND GLOBAL VARIABLES USED BY SCRIPTS
+
+###############################################################################
+# Common Variables:
+###############################################################################
 # Base MAC address used on the qemu/kvm implementation:
 base_mac_addr="52:54:00"
 
@@ -13,21 +15,52 @@ wait_time=15
 # SSH port can be omitted if 22. Otherwise, '-p <port_number>' :
 ssh_port=""
 
-# Guess OS name by kernel and returns a string with 'yes' if OS is Unraid, and otherwise 'no':
+###############################################################################
+# Libvirt Related Functions:
+###############################################################################
+
 # -----------------------------------------------------------------------------
-is_unraid()
+# Returns a list with existing checkpoints for a given VM according with libvirt.
+# -----------------------------------------------------------------------------
+domain_checkpoint_list()
 {
-    local is_unraid_status=1
-    [[ ! -z $(uname  -r | grep -e "-Unraid$") ]] && echo "yes" || echo "no"
+    virsh checkpoint-list $1 --name --topological
 }
 
-# Returns a string value with the state reported by libvirt (e.g. "running", "shut off", etc.)
 # -----------------------------------------------------------------------------
-domain_state()
+# Deletes checkpoints METADATA of a given VM:
+# -----------------------------------------------------------------------------
+domain_delete_checkpoint_metadata()
 {
-    echo $(virsh domstate $1)
+local domain_delete_checkpoint_metadata_status=1
+
+local vm=$1
+local checkpoints_list=($(domain_checkpoint_list $1))
+local arguments="--metadata"
+
+if [[ ! -z ${checkpoints_list[@]} ]]; then
+
+    echo "INFO: Libvirt reports ${#checkpoints_list[@]} checkpoints for VM '$vm'. This info will be removed..."
+
+    for checkpoint in ${checkpoints_list[@]}; do
+        &> /dev/null virsh checkpoint-delete $vm $checkpoint $arguments
+    done
+else
+
+    echo "INFO: No checkpoints for VM '$vm' reported by libvirt to remove"
+fi
+
 }
 
+#------------------------------------------------------------------------------
+# Returns 'yes' or 'no' if domain exists and is persistent (not transient):
+#------------------------------------------------------------------------------
+domain_exists()
+{
+    [ ! -z $(virsh list --all --name --persistent | grep -w "$1") ] && echo "yes" || echo "no"
+}
+
+# -----------------------------------------------------------------------------
 # Returns a string value with the UUID of the given domain:
 # -----------------------------------------------------------------------------
 domain_id()
@@ -35,54 +68,148 @@ domain_id()
     echo $(virsh dominfo $1 | grep -w "UUID:" | rev | cut -d' ' -f1 | rev)
 }
 
+# -----------------------------------------------------------------------------
+# For a given VM name, returns a string value with (restorable) virtual drives (separated by spaces) (e.g. "hdc hdd")
+# -----------------------------------------------------------------------------
+domain_drives_list()
+{
+    echo $(virsh domblklist --details $1 | grep -e file | grep -e disk | sed -e 's/file//g' -e 's/disk//g' -e 's/ //g' | cut -d'/' -f1)
+}
+
+# -----------------------------------------------------------------------------
 # For a given VM name, returns a string value with absoulte path to its image disks (e.g. "/path-to/hdc.img /path-to/hdd.img")
 # -----------------------------------------------------------------------------
-list_vm_img_paths()
+domain_img_paths_list()
+#list_vm_img_paths()
 {
     echo $(virsh domblklist --details $1 | grep -e file | grep -e disk | sed -e 's/ file //g' -e 's/ disk //g' | rev | cut -d' ' -f1 | rev )
 }
 
-# Sorts unordered items lexicographically. This is used for user input not in order:
-# -----------------------------------------------------------------------------
-sort_items()
+#------------------------------------------------------------------------------
+# Returns 'yes' or 'no' about if domain does have 'incremental-backup' capability:
+#------------------------------------------------------------------------------
+domain_is_patched()
 {
-    echo $@ | xargs -n1 | sort | xargs
+    [ ! -z $(virsh dumpxml $1 | grep "<qemu:add capability='incremental-backup'/>") ] && echo "yes" || echo "no"
 }
 
+# -----------------------------------------------------------------------------
+# Returns a string that is a space separated list of mac addresses of a given VM:
+# -----------------------------------------------------------------------------
+domain_macaddr_list()
+#get_vm_macaddr()
+{
+    echo $(virsh domiflist --inactive $1 | grep -o -E '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}')
+}
+
+#------------------------------------------------------------------------------
+# Attempts a full power cycle onto a given domain. Returns '0' if success and '1' if it fails:
+#------------------------------------------------------------------------------
+domain_powercycle()
+#powercycle_domain()
+{
+    local domain=$1
+    local powercycle_domain_status=1
+
+    echo "Performing power cycle to $domain ..."
+
+    # Sends the shutdown signal to the given domain:
+    virsh shutdown $domain
+
+    if [ $? == 0 ]; then
+
+        local attempt=0
+        while (( $attempt < $MAX_ATTEMPTS )); do
+            ((attempt++))
+            # Awaits for the VM (qemu guest service, actually) for being on
+            sleep $wait_time
+
+            if [ $(domain_state $domain) == "shut off" ]; then
+
+                break
+
+            elif [ $attempt -eq $max_attempts ]; then
+
+                echo "WARNING: Unable to determine if VM $domain was completely shut down. Starting $domain anyway..."
+
+            fi
+        done
+
+        # Turns on the domain again:
+        virsh start $target_domain
+        [ $? == 0 ] && { powercycle_domain_status=0; echo "INFO: $domain successfully restarted"; } || echo "ERROR: User action is required: Verify VM $domain (or libvirt status) and restart the container (This VM could not be started to complete the power cycle)"
+
+    else
+        echo "ERROR: Could not perform a power cycle to $domain"
+    fi
+
+    return $powercycle_domain_status
+}
+
+#------------------------------------------------------------------------------
+# Returns a string value with the state reported by libvirt (e.g. "running", "shut off", etc.)
+# -----------------------------------------------------------------------------
+domain_state()
+{
+    echo $(virsh domstate $1)
+}
+
+# -----------------------------------------------------------------------------
 # Sends shutdown signal and awaits until domain has been shutted down to return success:
 # -----------------------------------------------------------------------------
-shutdown_vm()
+domain_shutdown()
 {
-local shutdown_vm_status=1
-local vm_needed_state="shut off"
+    local domain_shutdown_status=1
+    local vm_needed_state="shut off"
 
-if [[ $(domain_state $1) == $vm_needed_state ]]; then
+    if [[ $(domain_state $1) == $vm_needed_state ]]; then
 
-    echo "INFO: VM '$1' is already $vm_needed_state"
-    shutdown_vm_status=0
-else
+        echo "INFO: VM '$1' is already $vm_needed_state"
+        domain_shutdown_status=0
+    else
 
-    #local wait_time=15
-    local max_attempts=10
-    local attempt=1
+        #local wait_time=15
+        local max_attempts=10
+        local attempt=1
 
-    while (( $attempt < $max_attempts )); do
+        while (( $attempt < $max_attempts )); do
 
-        virsh shutdown $1
+            virsh shutdown $1
 
-        sleep $wait_time
+            sleep $wait_time
 
-        [[ $(domain_state $1) == $vm_needed_state ]] && { shutdown_vm_status=0; break; } || ((attempt++))
-    done
+            [[ $(domain_state $1) == $vm_needed_state ]] && { domain_shutdown_status=0; break; } || ((attempt++))
+        done
 
-    local message=""
-    [[ $shutdown_vm_status -eq 0 ]] && message="INFO: VM '$1' powered off successfully" || message="WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. awaiting for VM '$1' to power off"
-fi
+        local message=""
+        [[ $domain_shutdown_status -eq 0 ]] && message="INFO: VM '$1' powered off successfully" || message="WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. awaiting for VM '$1' to power off"
+    fi
 
     echo $message
-    return $shutdown_vm_status
+    return $domain_shutdown_status
 }
 
+# -----------------------------------------------------------------------------
+# Returns a list with all persistent domains:
+# -----------------------------------------------------------------------------
+domains_list()
+{
+    echo $(virsh list --all --persistent --name)
+}
+
+###############################################################################
+# POSIX Related Functions:
+###############################################################################
+
+# -----------------------------------------------------------------------------
+# For a given checkpoint file, returns a string value with (restorable) virtual drives (separated by spaces) (e.g. "hdc hdd")
+# -----------------------------------------------------------------------------
+backup_restorable_drives_list()
+{
+    echo $(grep -e "checkpoint='bitmap'" $1 | cut -d"'" -f2)
+}
+
+# -----------------------------------------------------------------------------
 # Returns a random, uppercase, MAC address, based upon (optional) base pattern 'XX:XX:XX'
 # -----------------------------------------------------------------------------
 gen_random_macaddr()
@@ -95,36 +222,14 @@ gen_random_macaddr()
     printf '%s:%02X:%02X:%02X\n' ${seed^^} $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))
 }
 
-# Returns a string that is a space separated list of mac addresses of a given VM:
+# Returns a formatted string that is the last modified date and time:
 # -----------------------------------------------------------------------------
-get_vm_macaddr()
+last_modified()
 {
-    echo $(virsh domiflist --inactive $1 | grep -o -E '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}')
+    echo $(date -r $1 "+%Y-%m-%d %H:%M:%S")
 }
 
-# For a given VM name, returns a string value with (restorable) virtual drives (separated by spaces) (e.g. "hdc hdd")
 # -----------------------------------------------------------------------------
-list_vm_drives()
-{
-    echo $(virsh domblklist --details $1 | grep -e file | grep -e disk | sed -e 's/file//g' -e 's/disk//g' -e 's/ //g' | cut -d'/' -f1)
-}
-
-# Determines if a domain is patched for incremental backups, returning the string 'true' if patched, and 'false' if not:
-# -----------------------------------------------------------------------------
-vm_is_patched()
-{
-
-    # Expected match on non-patched VMs:
-    local original_pattern="<domain type='kvm'>"
-
-    # Expected match on manually modified VMs (e.g. with 'virsh edit $target_domain')
-    local modified_pattern="<domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>"
-
-    local match=$(virsh dumpxml --inactive --security-info $1 | grep -e "$original_pattern" -e "$modified_pattern")
-
-    [[ $match == $modified_pattern ]] && echo "true" || echo "false"
-}
-
 # Patches a given xml file to provide incremental backups capability, returning sed status
 # (Assumes the xml file has no patch):
 # -----------------------------------------------------------------------------
@@ -136,6 +241,60 @@ patch_xml()
     return $?
 }
 
+# -----------------------------------------------------------------------------
+# Guess OS name by kernel and returns a string with 'yes' if OS is Unraid, and otherwise 'no':
+# -----------------------------------------------------------------------------
+os_is_unraid()
+#is_unraid()
+{
+    local is_unraid_status=1
+    [[ ! -z $(uname  -r | grep -e "-Unraid$") ]] && echo "yes" || echo "no"
+}
+
+# -----------------------------------------------------------------------------
+# Sorts unordered items lexicographically. This is used for user input not in order:
+# -----------------------------------------------------------------------------
+
+sort_items()
+{
+    echo $@ | xargs -n1 | sort | xargs
+}
+
+###############################################################################
+# Remote Commands & File Transfer Related Functions:
+###############################################################################
+
+# -----------------------------------------------------------------------------
+# Sends a command string $2 via ssh to the server $1, returning the status of the operation:
+#------------------------------------------------------------------------------
+ssh_command()
+{
+    ssh $ssh_port -q -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=$wait_time $1 $2
+    return $?
+
+}
+
+# -----------------------------------------------------------------------------
+# Sends a file $2 with scp to the server $1 at path $3, returning the status of the operation:
+#------------------------------------------------------------------------------
+scp_command()
+{
+    scp $ssh_port -q -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=$wait_time $2 $1:$3
+}
+
+# -----------------------------------------------------------------------------
+# Onto a local folder $3, mounts a remote folder located at $1:$2 via ssh, returning the status of the operation (to close the connection, only needs to 'umount $3'):
+#------------------------------------------------------------------------------
+sshfs_command()
+{
+    sshfs $ssh_port -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=$wait_time  $1:$2 $3
+}
+
+###############################################################################
+# Display Related Functions;
+###############################################################################
+
+# -----------------------------------------------------------------------------
 # Prompts a given question to the user, and returns either 'yes' or 'no':
 # -----------------------------------------------------------------------------
 yes_no()
@@ -169,6 +328,7 @@ yes_no()
     done
 }
 
+# -----------------------------------------------------------------------------
 # Prompts a given question to the user amd returns a number if is within (also given) parameters:
 # -----------------------------------------------------------------------------
 choose_number()
@@ -203,28 +363,4 @@ choose_number()
                 fi
         esac
     done
-}
-
-# Sends a command string $2 via ssh to the server $1, returning the status of the operation:
-#------------------------------------------------------------------------------
-ssh_command()
-{
-    ssh $ssh_port -q -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=$wait_time $1 $2
-    return $?
-
-}
-
-# Sends a file $2 with scp to the server $1 at path $3, returning the status of the operation:
-#------------------------------------------------------------------------------
-scp_command()
-{
-    scp $ssh_port -q -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=$wait_time $2 $1:$3
-}
-
-# Onto a local folder $3, mounts a remote folder located at $1:$2 via ssh, returning the status of the operation:
-# To close the connection, only needs to 'umount $3'
-#------------------------------------------------------------------------------
-sshfs_command()
-{
-    sshfs $ssh_port -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=$wait_time  $1:$2 $3
 }
