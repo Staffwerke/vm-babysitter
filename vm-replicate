@@ -51,7 +51,7 @@ if [ -z $@ ]; then
     show_info
     read -n1 -s -r -p $'Press any key to continue, or Ctrl+C to Cancel...\n' key
 
-    vms_list=($(virsh list --all --persistent --name))
+    vms_list=($(domains_list))
 
     if [ $? == 0 ] && [[ ${#vms_list[@]} -ge 1 ]]; then
 
@@ -68,7 +68,7 @@ if [ -z $@ ]; then
         for vm in "${vms_list[@]}"; do
 
             # Gets a list with drives in each VM that can b e restored:
-            vm_drives_list+=("$(list_vm_drives $vm)")
+            vm_drives_list+=("$(domain_drives_list $vm)")
 
             # Shows each VM found, including the restorable drives:
             printf " %s \t %-15s \t %s \n" "$(( $i + 1))" "$vm" "${vm_drives_list[$i]}"
@@ -82,7 +82,7 @@ if [ -z $@ ]; then
 
         # Saves VM specs that will be used for restoration:
         src_vm="${vms_list[(( $choice - 1 ))]}"
-        src_vm_img_paths_list=($(list_vm_img_paths $src_vm))
+        src_vm_img_paths_list=($(domain_img_paths_list $src_vm))
         vm_drives_list=(${vm_drives_list[(( $choice - 1 ))]})
 
         echo "INFO: VM '$src_vm' selected for being replicated"
@@ -299,7 +299,7 @@ if [ -z $@ ]; then
 
         # If incremental backup patch is not detected in $src_vm, asks the user for applying this patch into $dest_vm:
         # -----------------------------------------------------------------------------
-        if [[ $(vm_is_patched $src_vm) == false ]]; then
+        if [[ $(domain_is_patched $src_vm) == yes ]]; then
 
             # $src_vm isn't patched. Asks if $dest_vm should be patched:
             echo ""
@@ -350,7 +350,7 @@ if [ -z $@ ]; then
         # -----------------------------------------------------------------------------
 
         # Gets the original list of MAC addresses from $src_vm:
-        src_macaddr_list=($(get_vm_macaddr $src_vm))
+        src_macaddr_list=($(domain_macaddr_list $src_vm))
 
         for mac in ${vm_mac_addr_list[@]}; do
 
@@ -397,7 +397,7 @@ if [ -z $@ ]; then
                 src_vm_was_on=1
 
                 # Shuts down $src_vm
-                shutdown_vm $src_vm
+                domain_shutdown $src_vm
 
                 # Gets the status of the operation:
                 shutdown_status=$?
@@ -461,7 +461,7 @@ if [ -z $@ ]; then
 
         # On UnRaid, checks for nvram (already replaced with $dest_uuid, if exists):
         # -----------------------------------------------------------------------------
-        if [[ $(is_unraid) == yes ]]; then
+        if [[ $(os_is_unraid) == yes ]]; then
 
             vm_nvram_path=$(grep -e "<nvram>" $vm_definitions_file | cut -d'>' -f2 | cut -d '<' -f1)
 
