@@ -50,39 +50,11 @@ last_modified()
     echo $(date -r $1 "+%Y-%m-%d %H:%M:%S")
 }
 
-# Returns a string value with the state reported by libvirt (e.g. "running", "shut off", etc.)
-# -----------------------------------------------------------------------------
-domain_state()
-{
-    echo $(virsh domstate $1)
-}
-
 # For a given checkpoint file, returns a string value with (restorable) virtual drives (separated by spaces) (e.g. "hdc hdd")
 # -----------------------------------------------------------------------------
 list_backup_drives()
 {
     echo $(grep -e "checkpoint='bitmap'" $1 | cut -d"'" -f2)
-}
-
-# For a given VM name, returns a string value with (restorable) virtual drives (separated by spaces) (e.g. "hdc hdd")
-# -----------------------------------------------------------------------------
-list_vm_drives()
-{
-    echo $(virsh domblklist --details $1 | grep -e file | grep -e disk | sed -e 's/file//g' -e 's/disk//g' -e 's/ //g' | cut -d'/' -f1)
-}
-
-# For a given VM name, returns a string value with absoulte path to its image disks (e.g. "/path-to/hdc.img /path-to/hdd.img")
-# -----------------------------------------------------------------------------
-list_vm_img_paths()
-{
-    echo $(virsh domblklist --details $1 | grep -e file | grep -e disk | sed -e 's/ file //g' -e 's/ disk //g' | rev | cut -d' ' -f1 | rev )
-}
-
-# Sorts unordered items lexicographically. This is used for user input not in order:
-# -----------------------------------------------------------------------------
-sort_items()
-{
-    echo $@ | xargs -n1 | sort | xargs
 }
 
 # Runs a volatile container that executes virtnbdrestore with specific options:
@@ -128,40 +100,6 @@ fi
 restore_status=$?
 
 return $restore_status
-}
-
-# Sends shutdown signal and awaits until domain has been shutted down to return success:
-# -----------------------------------------------------------------------------
-shutdown_vm()
-{
-local shutdown_vm_status=1
-local vm_needed_state="shut off"
-
-if [[ $(domain_state $1) == $vm_needed_state ]]; then
-
-    echo "INFO: VM '$1' is already $vm_needed_state"
-    shutdown_vm_status=0
-else
-
-    local wait_time=15
-    local max_attempts=10
-    local attempt=1
-
-    while (( $attempt < $max_attempts )); do
-
-        virsh shutdown $1
-
-        sleep $wait_time
-
-        [[ $(domain_state $1) == $vm_needed_state ]] && { shutdown_vm_status=0; break; } || ((attempt++))
-    done
-
-    local message=""
-    [[ $shutdown_vm_status -eq 0 ]] && message="INFO: VM '$1' powered off successfully" || message="WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. waiting for VM '$1' to power off"
-fi
-
-    echo $message
-    return $shutdown_vm_status
 }
 
 # Returns a list with existing checkpoints for a given VM according with libvirt.
@@ -228,7 +166,7 @@ if [ -z $@ ]; then
         for vm in "${vms_list[@]}"; do
 
             # Gets a list with drives in each VM that can b e restored:
-            vm_drives_list+=("$(list_vm_drives $vm)")
+            vm_drives_list+=("$(domain_drives_list $vm)")
 
             # Shows each VM found, including the restorable drives:
             printf " %s \t %-15s \t %s \n" "$(( $i + 1))" "$vm" "${vm_drives_list[$i]}"
@@ -244,7 +182,7 @@ if [ -z $@ ]; then
                 # Saves VM specs that will be used for restoration:
                 vm_name="${vms_list[(( $choice - 1 ))]}"
                 vm_drives_list=(${vm_drives_list[(( $choice - 1 ))]})
-                vm_img_paths_list=($(list_vm_img_paths $vm_name))
+                vm_img_paths_list=($(domain_img_paths_list $vm_name))
 
                 break
             else
@@ -471,7 +409,7 @@ if [ -z $@ ]; then
 # -----------------------------------------------------------------------------
 
         # Shutdown $vm_name
-        shutdown_vm $vm_name
+        domain_shutdown $vm_name
 
         if [[ $? == 0 ]]; then
 
