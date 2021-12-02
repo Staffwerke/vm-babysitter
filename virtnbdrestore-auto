@@ -43,20 +43,6 @@ cat << end_of_help
 end_of_help
 }
 
-# Returns a formatted string that is the last modified date and time:
-# -----------------------------------------------------------------------------
-last_modified()
-{
-    echo $(date -r $1 "+%Y-%m-%d %H:%M:%S")
-}
-
-# For a given checkpoint file, returns a string value with (restorable) virtual drives (separated by spaces) (e.g. "hdc hdd")
-# -----------------------------------------------------------------------------
-list_backup_drives()
-{
-    echo $(grep -e "checkpoint='bitmap'" $1 | cut -d"'" -f2)
-}
-
 # Runs a volatile container that executes virtnbdrestore with specific options:
 # -----------------------------------------------------------------------------
 restore_vm()
@@ -100,38 +86,6 @@ fi
 restore_status=$?
 
 return $restore_status
-}
-
-# Returns a list with existing checkpoints for a given VM according with libvirt.
-# (NOTE: this doesn't warrant the existence of bitmaps on disk images!)
-# -----------------------------------------------------------------------------
-list_vm_checkpoints()
-{
-    virsh checkpoint-list $1 --name --topological
-}
-
-# Deletes checkpoints METADATA of a given VM:
-# -----------------------------------------------------------------------------
-vm_delete_checkpoint_metadata()
-{
-local vm_delete_checkpoint_metadata_status=1
-
-local vm=$1
-local checkpoints_list=($(list_vm_checkpoints $1))
-local arguments="--metadata"
-
-if [[ ! -z ${checkpoints_list[@]} ]]; then
-
-    echo "INFO: Libvirt reports ${#checkpoints_list[@]} checkpoints for VM '$vm'. This info will be removed..."
-
-    for checkpoint in ${checkpoints_list[@]}; do
-        &> /dev/null virsh checkpoint-delete $vm $checkpoint $arguments
-    done
-else
-
-    echo "INFO: No checkpoints for VM '$vm' reported by libvirt to remove"
-fi
-
 }
 
 # -----------------------------------------------------------------------------
@@ -212,7 +166,7 @@ if [ -z $@ ]; then
                         backups_list+=("$folder")
 
                         # Gets the drives backed up in the main checkpoint:
-                        backup_drives_list+=("$(list_backup_drives $folder/checkpoints/$checkpoint_name.0.xml)")
+                        backup_drives_list+=("$(backup_restorable_drives_list $folder/checkpoints/$checkpoint_name.0.xml)")
 
                         # And finally, creates an ordered list of backup names to be displayed:
                         backup_names_list+=("$(echo $folder | rev | cut -d '/' -f1 | rev)")
@@ -477,7 +431,7 @@ if [ -z $@ ]; then
             if [[ ${#restored_drives[@]} -eq ${#selected_drives[@]} ]]; then
 
                 echo "Querying libvirt for old checkpoints..."
-                vm_delete_checkpoint_metadata $vm_name
+                domain_delete_checkpoint_metadata $vm_name
 
                 echo ""
                 echo "INFO: Restoration of Virtual Machine '$vm_name' has been successfully completed!"
