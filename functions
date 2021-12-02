@@ -90,7 +90,7 @@ domain_img_paths_list()
 #------------------------------------------------------------------------------
 domain_is_patched()
 {
-    [ ! -z $(virsh dumpxml $1 | grep "<qemu:add capability='incremental-backup'/>") ] && echo "yes" || echo "no"
+    [[ ! -z $(virsh dumpxml $1 | grep "<qemu:add capability='incremental-backup'/>") ]] && echo "yes" || echo "no"
 }
 
 # -----------------------------------------------------------------------------
