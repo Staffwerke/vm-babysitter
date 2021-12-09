@@ -6,16 +6,16 @@
 #------------------------------------------------------------------------------
 
 DOMAINS_LIST
-IMAGES_MAIN_PATH
 BACKUPS_MAIN_PATH
 REMOTE_BACKUPS_MAIN_PATH
+RESTART_VMS_IF_REQUIRED
+
 MAX_BACKUP_CHAINS_KEEP
 BACKUP_COMPRESSION
 
-RESTART_VMS_IF_REQUIRED=:-"no" # If 'yes' allows automatic domain shutdown/start if results necessary (e.g. patch)
-MAX_ALLOWED_MEMORY=:-8388608 # (integer) Max amount of RAM in KiB to assign a domain to run and perform a backup (default is 8388608 KiB)
-MAX_ATTEMPTS=:-5
-WAIT_TIME=:-15
+MAX_ALLOWED_MEMORY
+MAX_ATTEMPTS
+WAIT_TIME
 
 #------------------------------------------------------------------------------
 # TO DO:
@@ -39,11 +39,11 @@ PROCEDURE:
     is DOMAINS_LIST defined?
     yes
         filter transient, diskless and unexistent domains (Warns the user about such VMs if any, it will be just ignored)
-
+        add the rest to check_vms_list, if no VMs in check_vms_list, it will fail with error: 'None of the VMs in DOMAINS_LIST can be backed up.'
     no
         It will fail with error: 'undefined DOMAINS_LIST'
 
-    For each remaining VM:
+    For VMs in check_vms_list:
         Were ALL specified image disks (if any) in DOMAINS_LIST found?
         yes
             are ALL rw?
@@ -76,14 +76,14 @@ PROCEDURE:
                 yes
                     is r/w?
                     yes
-                        it will be used as main path for remote backups
+                        It will be used as main path for remote backups
                     no
                         It will fail with error: 'permission issues on REMOTE_BACKUPS_MAIN_PATH'
                 no
                     Attempts to create REMOTE_BACKUPS_MAIN_PATH remotely
                     Success?
                     yes
-                        it will be used as main path for remote backups
+                        It will be used as main path for remote backups
                     no
                         It will fail with error: 'REMOTE_BACKUPS_MAIN_PATH doesn't exist and can't be created on the remote server'
             no
@@ -91,74 +91,67 @@ PROCEDURE:
         no
             It will fail with error 'Incorrect syntax for REMOTE_BACKUPS_MAIN_PATH'
     no
-        Don't use REMOTE_BACKUPS_MAIN_PATH
+        Don't use REMOTE_BACKUPS_MAIN_PATH at all
 
-    is OS Unraid AND /var/lib/libvirt/qemu/checkpoint is empty?
+    OS is Unraid AND /var/lib/libvirt/qemu/checkpoint is empty?
     yes
-        Any remaining VM is ON?
+        Any VM in check_vms_list is ON?
         yes
-            It will fail with error: 'UnRaid: Server has just been restarted (or 1st time run): Power OFF all VMs you plan to backup'
+            It will fail with error: 'UnRaid: Server has just been restarted (or 1st time run): Power OFF all VMs you plan to backup, disable autostart and restart the container.'
         no
             restarted_server=true
     no
         restarted_server=false
 
-    any error occured above?
+    Any error occured above OR no VMs in check_vms_list?
         yes
             List all the errors and exit
         no
             2. Check VMs:
             #------------------------------------------------------------------------------
-            For ALL VM:
-                disable autostart if set, notify the user VMs must be kept with autostart off
+            For VMs in check_vms_list:
                 is VM CURRENTLY patched for incremental backups?
                 yes
-                    add to VMs for check_backups
+                    move VM to check_backups_list
                     break the loop.
                 no
                     is VM ON?
                     yes
-                        RESTART_VMS_IF_REQUIRED?
+                        is VM patched for incremental backups in INACTIVE state?
                         yes
-                            if VM INACTIVE patched for incremental backups?
+                            RESTART_VMS_IF_REQUIRED?
                             yes
+                                Alert the user: 'VM is about to get a full power cycle'
                                 powercycle the VM
-                                break the loop.
-                            no
-                                patch the VM
-                                patch successful?
+                                Success?
                                 yes
-                                    powercycle the VM
-                                    Restart the loop.
+                                    break the loop.
                                 no
-                                    add to failed_patch_list
-                                    Will exit with error: 'Issues patching VM. Redefine this VM and try again.'
-
+                                    Alert the user: 'ACTION REQUIRED: VM powercycle was not successful. Check the VM for possible issues'
+                                    move VM to VMS_ISSUES_LIST
+                                    break the loop.
+                            no
+                                Alert the user: 'ACTION REQUIRED: 'VM requires a full power cycle in order to create any backup from it'
+                                move VM to VMS_ISSUES_LIST
+                                break the loop.
                         no
                             patch the VM
                             patch successful?
-                                yes
-                                    Warn the user about a power cycle is required first or won't be backed up
-                                    break the loop.
-                                no
-                                    add to failed_patch_list
-                                    Will exit with error: 'Issues patching VM. Redefine this VM and try again.'
-                    no
-                        patch the VM
-                        patch successful?
-                                yes
-                                    break the loop.
-                                no
-                                    add to failed_patch_list
-                                    Will exit with error: 'Issues patching VM. Redefine this VM and try again.'
+                            yes
+                                restart the loop.
+                            no
+                                Alert the user about the issue: 'ACTION REQUIRED: Unknown error when attempting to patch this VM. Redefine the VM, and keep it off.'
+                                break the loop.
+                    is VM set to autostart?
+                    yes
+                        set autostart to off
+                        Remind the user that VMs to be backed up must be kept with autostart off
 
-            any error occured above?
-        yes
-            List all the errors and exit
-        no
+            Any VM in check_backups_list?
+            yes
             3. Check Backups:
             #------------------------------------------------------------------------------
-            - For ALL VMs:
+            For ALL VMs in check_backups_list:
                 has ongoing local backup AND backup_integrity is ok?
                 yes
                     restarted_server?
@@ -238,46 +231,43 @@ PROCEDURE:
 
             4. Initialize:
             #------------------------------------------------------------------------------
-            - For each VM in AUTOSTART_VMS_LIST
+            For each VM in AUTOSTART_VMS_LIST
                 Is VM OFF?
                 yes
                     start the VM
 
-            Is Cron task for SCHEDULED_BACKUPS_LIST set?
+            Is Cron task set for SCHEDULED_BACKUPS_LIST?
             yes
                 Current cron schedule != CRON_SCHEDULE?
                 yes
                     update cron task with current CRON_SCHEDULE
             no
-                Create a cron task with current CRON_SCHEDULE
+                Create a new cron task with current CRON_SCHEDULE
 
-            5. Monitoring:
+            5. Process slacking backup chains:
             #------------------------------------------------------------------------------
+            sleep for DELAY_BACKUP_CHAIN_START
 
-            Anything in FULL_BACKUPS_LIST?
-            yes
-                - For all VMs in FULL_BACKUPS_LIST
-                    run a full backup chain procedure
+            For VMs in FULL_BACKUPS_LIST
+                run a full backup chain procedure
+                Success?
+                yes
+                    move VM to SCHEDULED_BACKUPS_LIST
+                no
+                    Alert the user about the issue: 'ACTION REQUIRED: Unknown error while attempting to create a full backup chain of this VM'
+                    move VM to VMS_ISSUES_LIST
+
+                For VMs in RETRIEVE_BACKUPS_LIST
+                    Restore local backup chain from remote endpoint
                     Success?
                     yes
                         move VM to SCHEDULED_BACKUPS_LIST
                     no
-                        move VM to USER_ACTION_REQUIRED_LIST
-                        Warn the user about the abnormal situation with this VM and request a power cycle
+                        Alert the user about the issue: 'ACTION REQUIRED: Communication error while attempting to retrieve a full backup chain of this VM from remote endpoint'
+                        move VM to VMS_ISSUES_LIST
 
-            Anything in RETRIEVE_BACKUPS_LIST?
-                yes
-                    - For all VMs in RETRIEVE_BACKUPS_LIST
-                        Restore local backup chain from remote endpoint
-                        Success?
-                        yes
-                            move VM to SCHEDULED_BACKUPS_LIST
-                        no
-                            move VM to
-
-
-
-Stand on, and await for termination (SIGSTOP or SIGKILL)
+            # From this point, monitoring VMS_ISSUES_LIST for changes (and trigger correspondent actions) would be viable.
+            Stand still, and await for termination (SIGSTOP / SIGKILL)
 
 #------------------------------------------------------------------------------
 end_of specs
