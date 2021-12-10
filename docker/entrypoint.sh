@@ -276,68 +276,97 @@ end_of specs
 # All variables and functions are managed via this script:
 source ./functions.sh
 
+# 1.1 Check DOMAINS_LIST:
 #------------------------------------------------------------------------------
-# Checks user parameters and shows on screen results
-# Returns '0' if everything was successful and '1' if something failed:
-#------------------------------------------------------------------------------
-echo "INFO: Checking parameters..."
 
-check_parameters_status=1
-
-# Checks for domains in $DOMAINS_LIST
-if [ -z $DOMAINS_LIST ]; then
-
-    echo "ERROR: ENV \$DOMAINS_LIST was not provisioned!"
-else
-
-    # Parses $DOMAINS_LIST into a local variable separated by spaces:
-    domains_list=${DOMAINS_LIST//,/ }
+if [ ! -z $DOMAINS_LIST ]; then
 
     echo "INFO: Querying for domains in \$DOMAINS_LIST via libvirt..."
+    for domain in ${DOMAINS_LIST//,/ }; do
 
-    # Grabs the list of all persistent domains in host:
-    host_domains_list=$(virsh list --all --name --persistent)
+        if [ $(domain_exists $domain) == yes ]; then
 
-    # Initial search value is zero:
-    domain_search_failed=0
+            drives_list=($(domain_drives_list $domain))
+            if [ ! -z ${drives_list[@]} ]; then
 
-    for domain in $domains_list; do
+                images_list=($(domain_img_paths_list $domain))
+                for image in ${images_list[@]}; do
 
-        # Searches for each domain and notifies about success/fail:
-        [ $(domain_exists $domain) == yes ] && echo "INFO: Domain $domain found" || { ((domain_search_failed++)); echo "WARNING: Domain $domain not found, or is a transient domain"; }
+                    if [ -f $image ]; then
+
+                        if [ -r $image ] && [ -w $image ]; then
+
+                            check_vms_list+=($domain)
+                            message=""
+                        else
+                            failed_vms_list+=($domain)
+                            message="ERROR: '$domain': '$image': Permission issues (cannot read or write)"
+                        fi
+                    else
+                        failed_vms_list+=($domain)
+                        message="ERROR: '$domain': '$image': Not found"
+                    fi
+                done
+            else
+                ignored_vms_list+=($domain)
+                message="WARNING: '$domain': No drives that can be backed up (ignored)"
+            fi
+        else
+            ignored_vms_list+=($domain)
+            message+="WARNING: '$domain': Does not exist or is a transient domain (ignored)"
+        fi
+
+        [ ! -z $message ] && echo $message
     done
 
-    # Sets $domain_search_status as OK if all domains were found:
-    [ $domain_search_failed == 0 ] && domain_search_status="OK"
-fi
+    if [ ! -z $failed_vms_list ]; then
 
-# Checks $BACKUPS_MAIN_PATH, notifies about errors:
-# (It is assumed $BACKUPS_MAIN_PATH exists, since it's automatically created by Docker)
-if  [ -r $BACKUPS_MAIN_PATH ] && [ -w $BACKUPS_MAIN_PATH ]; then
+        echo "ERROR: One or more domains (${failed_vms_list[@]} )have issues that need to be solved before to run this container again."
+    elif [ -z $check_vms_list ]; then
 
-    backup_main_path_status="OK"
-    echo "INFO: Directory $BACKUPS_MAIN_PATH is accessible"
+        echo "ERROR: No suitable domains to be backed up."
+    else
+        domains_list_status="OK"
+        message=""
 
 else
-    cause_of_fail=()
-    [ ! -d $BACKUPS_MAIN_PATH ] && cause_of_fail+=('not a directory')
-    [ ! -r $BACKUPS_MAIN_PATH ] && cause_of_fail+=('unreadable')
-    [ ! -w $BACKUPS_MAIN_PATH ] && cause_of_fail+=('unwritable')
-
-    echo "ERROR: Issues detected with $BACKUPS_MAIN_PATH (${cause_of_fail[@]// /,})"
+    echo "ERROR: Environment variable 'DOMAINS_LIST' is undefined."
 fi
 
-# Checks $REMOTE_BACKUPS_MAIN_PATH: Discards syntax errors, checks if accessible, looks for folder permissions on the remote end:
+# 1.2 Check BACKUPS_MAIN_PATH
+#------------------------------------------------------------------------------
+
+if [ ! -z $BACKUPS_MAIN_PATH ]; then
+
+    echo "INFO: Checking for BACKUPS_MAIN_PATH..."
+    if  [ -d $BACKUPS_MAIN_PATH ]; then
+
+        if  [ -r $BACKUPS_MAIN_PATH ] && [ -w $BACKUPS_MAIN_PATH ]; then
+
+            backups_main_path_status="OK"
+        else
+            message="ERROR: Backups main path: '$BACKUPS_MAIN_PATH': Permission issues (cannot read or write)"
+        fi
+    else
+        message="ERROR: Backups main path: '$BACKUPS_MAIN_PATH': Not found"
+    fi
+else
+    echo "ERROR: Environment variable 'BACKUPS_MAIN_PATH' is undefined."
+fi
+
+# 1.3 Check REMOTE_BACKUPS_MAIN_PATH
+#------------------------------------------------------------------------------
+
 if [ -z $REMOTE_BACKUPS_MAIN_PATH ]; then
 
-    remote_backup_main_path_status="OK"
-    "INFO: ENV \$REMOTE_BACKUPS_MAIN_PATH was not passed. No remote endpoint transfers will be performed"
+    remote_backups_main_path_status="OK"
+    "INFO: Environment variable REMOTE_BACKUPS_MAIN_PATH is undefined. No remote backup endpoint will be used"
 
 elif [ $REMOTE_BACKUPS_MAIN_PATH == *@*:/* ]; then
 
     # Apparently includes correct remote login and path. Separates ssh login from remote path:
     remote_server=$(echo $REMOTE_BACKUPS_MAIN_PATH | cut -d':' -f1)
-    remote_backup_main_path=$(echo $REMOTE_BACKUPS_MAIN_PATH | cut -d':' -f2)
+    remote_backups_main_path=$(echo $REMOTE_BACKUPS_MAIN_PATH | cut -d':' -f2)
 
     # Attempts to comunicate with the remote host:
     ssh_command $remote_server "exit 0"
@@ -346,26 +375,63 @@ elif [ $REMOTE_BACKUPS_MAIN_PATH == *@*:/* ]; then
     if [ $remote_server_status == 0 ]; then
 
         # Attempts to perform similar checks as with $BACKUPS_MAIN_PATH, except it only returns "OK" if there was success:
-        remote_backup_main_path_status=$(ssh_command $remote_server "if [ ! -e $remote_backup_main_path ]; then; mkdir -p $remote_backup_main_path; [ $? == 0 ] && echo OK; elif [ -d $remote_backup_main_path ] && [ -r $remote_backup_main_path ] && [ -w $remote_backup_main_path ]; then; echo OK; fi")
+        remote_backups_main_path_status=$(ssh_command $remote_server "if [ ! -e $remote_backups_main_path ]; then; mkdir -p $remote_backups_main_path; [ $? == 0 ] && echo CREATED; elif [ -d $remote_backups_main_path ] && [ -r $remote_backups_main_path ] && [ -w $remote_backups_main_path ]; then; echo OK; fi")
 
-        [ $remote_backup_main_path_status == OK ] && echo "INFO: Remote endpoint: $REMOTE_BACKUPS_MAIN_PATH is accessible (directory just created or already exists)" || echo "ERROR: Issues detected with $REMOTE_BACKUPS_MAIN_PATH (is not a folder or insufficient read/write permissions)"
+        if [ $remote_backups_main_path_status == OK ]; then
+
+            echo "INFO: Remote endpoint: $REMOTE_BACKUPS_MAIN_PATH exists and is usable for backups"
+        elif [ $remote_backups_main_path_status == CREATED ]; then
+
+            echo "INFO: Remote endpoint: $REMOTE_BACKUPS_MAIN_PATH created"
+        else
+            echo "ERROR: Remote endpoint: $REMOTE_BACKUPS_MAIN_PATH has not insufficient read/write permissions or is not a directory"
+        fi
 
     else
         echo "ERROR: Connection with $remote_server failed with status $remote_server_status"
     fi
 else
-    echo "ERROR: '$REMOTE_BACKUPS_MAIN_PATH' has bad syntax formation. Aborted."
+    echo "ERROR: Incorrect syntax for '$REMOTE_BACKUPS_MAIN_PATH'"
 fi
 
-if [ $domain_search_status == OK ] && { $backup_main_path_status == OK ] && [ $remote_backup_main_path_status == OK ]; then
+# 1.4 Check if OS is Unraid and it has just been restarted
+#------------------------------------------------------------------------------
+if [ $(os_is_unraid) == yes ] && [ ! -z ${check_vms_list[@]} ]; then
 
-    check_parameters_status=0
+    echo "INFO: OS Unraid detected"
+    for domain in "${check_vms_list[@]}" "${failed_vms_list[@]}"; do
 
-else
-    echo "ERROR: Some of the input parameters is incorrect or another error was found. Please check the logs above to determine the issue."
+        checkpoints+=$(domain_checkpoint_list $domain)
+        [ ! -z checkpoints[@] ] && { checkpoints=1, break; }
+    done
+
+    if [ -z $checkpoints ]; then
+
+        echo "INFO: Server has just been restarted recently or this is the first run. Checking for running domains..."
+
+        for domain in ${check_vms_list[@]}; do
+
+            [ $(domain_state $domain) != "shut off" ] &&poweroff_vms_list+=($domain)
+        done
+
+        if [ ! -z $poweroff_vms_list ]; then
+
+            if [ ! -z $RESTART_VMS_IF_REQUIRED ]; then
+
+                restarted_server="true"
+                echo "WARNING: Domain(s) '${poweroff_vms_list[@]}' will be temporarily shutdown in order to verify its correspondent backup chain integrity (environment variable 'RESTART_VMS_IF_REQUIRED' is set)"
+            else
+                echo "ERROR: ACTION REQUIRED: Domain(s) '${poweroff_vms_list[@]} need to be shutdown before to run this container again (cannot check backup integrity in its current state)"
+            fi
+        else
+            restarted_server="true"
+        fi
+    fi
 fi
 
-if [ $check_parameters_status == 0 ]; then;
+# 1.4 Check if OS is Unraid and it has just been restarted
+#------------------------------------------------------------------------------
+if [ $domains_list_status == OK ] && [ $backups_main_path_status == OK ] && [ ! -z $remote_backups_main_path_status ] && [ $restarted_server == true ]; then
 
     #------------------------------------------------------------------------------
     # Checks VMs in $domains_list, patches it for incremental backups as needed:
