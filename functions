@@ -210,6 +210,13 @@ backup_restorable_drives_list()
 }
 
 # -----------------------------------------------------------------------------
+# Looks for a given directory and returns 'yes' if empty:
+# -----------------------------------------------------------------------------
+dir_is_empty()
+{
+    find $1 -maxdepth 0 -empty -exec echo {} yes \;
+}
+# -----------------------------------------------------------------------------
 # Returns a random, uppercase, MAC address, based upon (optional) base pattern 'XX:XX:XX'
 # -----------------------------------------------------------------------------
 gen_random_macaddr()
