@@ -86,11 +86,11 @@ domain_img_paths_list()
 }
 
 #------------------------------------------------------------------------------
-# Returns 'yes' or 'no' about if domain does have 'incremental-backup' capability:
+# Returns 'yes' or 'no' about if domain does have 'incremental-backup' capability (accepts extra parameters via $2):
 #------------------------------------------------------------------------------
 domain_is_patched()
 {
-    [[ ! -z $(virsh dumpxml $1 | grep "<qemu:add capability='incremental-backup'/>") ]] && echo "yes" || echo "no"
+    [[ ! -z $(virsh dumpxml $1 $2 | grep "<qemu:add capability='incremental-backup'/>") ]] && echo "yes" || echo "no"
 }
 
 # -----------------------------------------------------------------------------
