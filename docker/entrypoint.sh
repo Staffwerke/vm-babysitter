@@ -1,6 +1,6 @@
 #!/bin/bash
 
-: << 'end_of specs'
+: << 'end_of_specs'
 #------------------------------------------------------------------------------
 # ENV:
 #------------------------------------------------------------------------------
@@ -270,11 +270,103 @@ PROCEDURE:
             Stand still, and await for termination (SIGSTOP / SIGKILL)
 
 #------------------------------------------------------------------------------
-end_of specs
+end_of_specs
+
+###############################################################################
+# Specific functions and procedures:
+###############################################################################
 
 #------------------------------------------------------------------------------
-# All variables and functions are managed via this script:
-source ./functions.sh
+# Check if VMs are patched for incremental backups (and apply when possible):
+#------------------------------------------------------------------------------
+check_vms_patch()
+{
+    # Imports the name of the list to process and its items
+    #(Bash cannot operate global arrays by indirect reference):
+
+    local vm_list_name=$1
+    shift
+    local vm_list_content=($@)
+
+    # Then processes each VM. Looks for patch and applies actions as required:
+    for domain in ${vm_list_content[@]}; do
+
+        # Control variables used inside the loop:
+        local domain_shutdown_failed=""
+        local vm_patch_failed=""
+
+        # For each VM the loop repeats itself until VM is deteceted as successfully patches,
+        # Or when there are issues that can't be solved at the moment:
+        while true; do
+
+            if [ $(domain_is_patched $domain --current) == yes ]; then
+
+                # VM is patched. Move to $check_backups_list (from wherever is listed):
+                check_backups_list+=($domain)
+
+                [ $vm_list_name == check_vms_list ] && unset check_vms_list[$(item_position $domain $vm_list_name)]
+
+                [ $vm_list_name == action_required_vms_list ] && unset action_required_vms_list[$(item_position $domain $vm_list_name)]
+
+                # Cleanses control variables (in case they were used):
+                domain_shutdown_failed=""
+                vm_patch_failed=""
+
+                # Exits the loop:
+                break
+
+            elif [ $(domain_is_patched $domain --inactive) == yes ]; then
+
+                # VM is (presumably) running and was patched before, but needs a power cycle so changes can be applied.
+                if [ ! -z $RESTART_VMS_IF_REQUIRED ] && \
+                [ $domain_shutdown_failed != yes ] && [ $vm_patch_failed != yes ]; then
+
+                    # When permission is granted, and past iteration over the VM haven't triggered errors, attempts shuts down the VM temporarily:
+                    domain_shutdown $domain
+
+                    # Success. Include into powered off VMs and restart the loop:
+                    # Fail: Marks triggers control variable for next iteration:
+                    [[ $? -eq 0 ]] && poweredroff_vms_list+=($domain) || domain_shutdown_failed="yes"
+
+                    # And restarts the loop (checks VM again under changed conditions):
+                    continue
+
+                elif [ $vm_list_name == check_vms_list ]; then
+
+                    # User actions are required in order to take this VM in count again.
+                    # Move from $check_vms_list to $action_required_vms_list and exit the loop:
+                    action_required_vms_list+=($domain)
+                    unset check_vms_list[$(item_position $domain $vm_list_name)]
+
+                    # Exits the loop:
+                    break
+                else
+                    # $action_required_vms_list is being monitored, but no no changes has been made, so exits the loop:
+                    break
+                fi
+            else
+                # VM is not patched (or lost its patch at some point.)
+                # Apply the patch for incremental backup:
+                vm-patch $domain
+
+                # In the rare case the VM patch is unsuccessful, activate this variable control for next iteration:
+                [[ $? -ne 0 ]] && vm_patch_failed="yes"
+
+                # Restarts the loop (checks VM again under changed condition):
+                continue
+            fi
+        done
+    done
+
+    # Still Needs to list changes or alert if something went wrong (e.g. failed patch)
+}
+
+#------------------------------------------------------------------------------
+# Internal global variables and common functions are managed via this script:
+source ./functions
+#------------------------------------------------------------------------------
+# 1. Check input parameters (exits on error)
+#------------------------------------------------------------------------------
 
 # 1.1 Check DOMAINS_LIST:
 #------------------------------------------------------------------------------
@@ -286,16 +378,20 @@ if [ ! -z $DOMAINS_LIST ]; then
 
         if [ $(domain_exists $domain) == yes ]; then
 
+            # Domain exists, checks for drives that can actually be backed up
             drives_list=($(domain_drives_list $domain))
             if [ ! -z ${drives_list[@]} ]; then
 
+                # Does have drives able to be backed up. Checks if such disk images are reachable inside the container:
                 images_list=($(domain_img_paths_list $domain))
                 for image in ${images_list[@]}; do
 
                     if [ -f $image ]; then
 
+                        # Dick images found. Check if has read/write permissions:
                         if [ -r $image ] && [ -w $image ]; then
 
+                            # All images are reachable. Add to list for next checkup:
                             check_vms_list+=($domain)
                             message=""
                         else
@@ -321,11 +417,12 @@ if [ ! -z $DOMAINS_LIST ]; then
 
     if [ ! -z $failed_vms_list ]; then
 
-        echo "ERROR: One or more domains (${failed_vms_list[@]} )have issues that need to be solved before to run this container again."
+        echo "ERROR: One or more domains (${failed_vms_list[@]}) have issues that need to be solved before to run this container again."
     elif [ -z $check_vms_list ]; then
 
         echo "ERROR: No suitable domains to be backed up."
     else
+        # When no VM failed the test AND remained VMs to check (not ignored), then domain_list check is successful:
         domains_list_status="OK"
         message=""
 
@@ -341,14 +438,16 @@ if [ ! -z $BACKUPS_MAIN_PATH ]; then
     echo "INFO: Checking for BACKUPS_MAIN_PATH..."
     if  [ -d $BACKUPS_MAIN_PATH ]; then
 
+        # $BACKUPS_MAIN_PATH found
         if  [ -r $BACKUPS_MAIN_PATH ] && [ -w $BACKUPS_MAIN_PATH ]; then
 
+            # $BACKUPS_MAIN_PATH has read/write permissions. backup check is successful:
             backups_main_path_status="OK"
         else
             message="ERROR: Backups main path: '$BACKUPS_MAIN_PATH': Permission issues (cannot read or write)"
         fi
     else
-        message="ERROR: Backups main path: '$BACKUPS_MAIN_PATH': Not found"
+        message="ERROR: Backups main path: '$BACKUPS_MAIN_PATH': Not found or not a directory"
     fi
 else
     echo "ERROR: Environment variable 'BACKUPS_MAIN_PATH' is undefined."
@@ -394,115 +493,82 @@ else
     echo "ERROR: Incorrect syntax for '$REMOTE_BACKUPS_MAIN_PATH'"
 fi
 
-# 1.4 Check if OS is Unraid and it has just been restarted
 #------------------------------------------------------------------------------
-if [ $(os_is_unraid) == yes ] && [ ! -z ${check_vms_list[@]} ]; then
+# 2. Only when input parameters doesn't require to restart the container, it continues the rest of the checks:
+#------------------------------------------------------------------------------
 
-    echo "INFO: OS Unraid detected"
-    for domain in "${check_vms_list[@]}" "${failed_vms_list[@]}"; do
+if [ $domains_list_status == OK ] && [ $backups_main_path_status == OK ] && [ ! -z $remote_backups_main_path_status ]; then
 
-        checkpoints+=$(domain_checkpoint_list $domain)
-        [ ! -z checkpoints[@] ] && { checkpoints=1, break; }
-    done
+    # 2.1 Check if OS is Unraid and it has just been restarted (checking backups under this scenario assumes missing checkpoints / broken backup chains:
+    #------------------------------------------------------------------------------
+    if [ $(os_is_unraid) == yes ]; then
 
-    if [ -z $checkpoints ]; then
-
-        echo "INFO: Server has just been restarted recently or this is the first run. Checking for running domains..."
-
+        echo "INFO: OS Unraid detected"
         for domain in ${check_vms_list[@]}; do
 
-            [ $(domain_state $domain) != "shut off" ] &&poweroff_vms_list+=($domain)
+            # Looks for checkpoints in all VMs, only stopping if it finds something
+            # (does nto rely on expose checkpoints dir inside the container):
+            if [ ! -z $(domain_checkpoint_list $domain) ];
+
+                checkpoints_found="true"
+                break
+            else
+                checkpoints_found="false"
+            fi
         done
 
-        if [ ! -z $poweroff_vms_list ]; then
+        if [ $checkpoints_found == true ]; then
 
-            if [ ! -z $RESTART_VMS_IF_REQUIRED ]; then
-
-                restarted_server="true"
-                echo "WARNING: Domain(s) '${poweroff_vms_list[@]}' will be temporarily shutdown in order to verify its correspondent backup chain integrity (environment variable 'RESTART_VMS_IF_REQUIRED' is set)"
-            else
-                echo "ERROR: ACTION REQUIRED: Domain(s) '${poweroff_vms_list[@]} need to be shutdown before to run this container again (cannot check backup integrity in its current state)"
-            fi
-        else
             restarted_server="true"
-        fi
-    fi
-fi
+            echo "INFO: Unraid host has just been restarted recently or no backups has been performed yet on the server. Checking for running domains..."
 
-# 1.4 Check if OS is Unraid and it has just been restarted
-#------------------------------------------------------------------------------
-if [ $domains_list_status == OK ] && [ $backups_main_path_status == OK ] && [ ! -z $remote_backups_main_path_status ] && [ $restarted_server == true ]; then
+            i=0
+            for domain in ${check_vms_list[@]}; do
 
-    #------------------------------------------------------------------------------
-    # Checks VMs in $domains_list, patches it for incremental backups as needed:
-    #------------------------------------------------------------------------------
-    echo "INFO: Checking Virtual Machines..."
+                if [ $(domain_state $domain) != "shut off" ]; then
 
-    check_vms_status=1
+                    if [ ! -z $RESTART_VMS_IF_REQUIRED ]; then
 
-    # Verifies and Attempts to patch every non-patched domain in $domains_list:
-    for domain in $domains_list; do
+                        domain_shutdown $domain
+                        if [[ $? -eq 0 ]]
 
-        if [ $(patched_domain $domain) == no ]; then
+                            # Added VMs list that were on and had to be shutdown temporarily in order to perform further checks:
+                            poweredroff_vms_list+=($domain)
+                        else
 
-            # Domain definitions don't allow incremental backups. So it will be patched:
-            # TO DO: Convert this into an internal function.
-            vm-patch $domain
-
-            if [ $? != 0 ] ; then
-
-                # It was unable to patch at least one domain:
-                failed_patch=1
-
-            elif [ $(domain_state $domain) != "shut off" ]; then
-
-                # Domain was patched, but needs a power cycle in order to apply changes:
-                powercycle_domains_list+=($domain)
-            fi
-        fi
-    done
-
-    if [ -z $failed_patch ]; then
-
-        # All VMs were patched successfully
-        # Checks for domains which are in need of a power cycle:
-        if [ -z $restart_domains_list ]; then
-
-            # No one needs for a power cycle, everything is ready to go:
-            check_vms_status=0
-
-        elif [ $AUTO_VM_RESTART == yes ]; then
-
-            echo "INFO: \$AUTO_VM_RESTART is set to '$AUTO_VM_RESTART'. It will attempt to power cycle the following VMS: '${powercycle_domains_list[@]}' now!"
-
-            # Restart VMs which are in need of apply the patch:
-            for domain in ${powercycle_domains_list[@]}; do
-
-                # Attempts to powercycle $domain:
-                powercycle_domain $domain
-                if [ $? !=0 ] && powercycle_failed=1
+                            # VM Delayed too much without being shutdown
+                            action_required_vms_list+=($domain)
+                            unset check_vms_list[i]
+                    else
+                        # Uer needs to shutdown this VM before to perform any further checks o backups:
+                        action_required_vms_list+=($domain)
+                        unset check_vms_list[i]
+                    fi
+                else
+                    ((i++))
+                fi
             done
 
-            # When no VM had issues restarting, all of them are ready to go:
-            [ -z $powercycle_failed ] && check_vms_status=0
+            # Notifies the user bout the result and if needs to perform further actions (VMs are temporarily ignored, but checked periodically if state changes):
+
+            [ ! -z $poweredroff_vms_list ] && echo "WARNING: Virtual machine(s) '${poweredroff_vms_list[@]}' has been temporarily shutdown in order to verify its correspondent backup chain integrity"
+
+            [ ! -z $action_required_vms_list ] && echo "WARNING: ACTION REQUIRED: Virtual machine(s) '${action_required_vms_list[@]} need to be SHUTDOWN in order to verify its correspondent backup chain integrity (state will be checked periodically)"
+
         else
-            echo "WARNING: User action required: Power Cycle the following VMs: '${powercycle_domains_list[@]}' and then restart the container (or add '-e \$AUTO_VM_RESTART=yes')"
+            restarted_server="false"
         fi
-    else
-        echo "ERROR: At least one domain could not be patched correctly. Check the logs above to determine the possible cause."
+
     fi
+# Rest of the initial checkup between these lines:
+#------------------------------------------------------------------------------
+        # Check / apply VM patch
+        check_vms_patch "check_vms_list" "${check_vms_list[@]}"
+        # Check VM backups
+#------------------------------------------------------------------------------
 fi
 
-if [ $check_vms_status == 0 ]; then
-
-    # Existing backups
-    check_backups
-    if [ $? == 0 ]; then
-
-        # If some, or no VM has a full backup chain, will create those first:
-        [ ! -z $full_backup_domains_list ] && create_backup_chain
-
-        # Launches cron task to perform SCHEDULED_BACKUPS_LIST:
-        scheduled_backups
-    fi
-fi
+# Create/update the scheduler
+# Begin monitorization (user action required and slack VMs)
+# Awaits for SIGSTOP, then closes all processes and goes off.
+#------------------------------------------------------------------------------
