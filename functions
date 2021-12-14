@@ -229,6 +229,21 @@ gen_random_macaddr()
     printf '%s:%02X:%02X:%02X\n' ${seed^^} $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))
 }
 
+# -----------------------------------------------------------------------------
+# Looks for a first concurrence of a given item into a given array name, returning the index if found and nothing if not found:
+# -----------------------------------------------------------------------------
+item_position()
+{
+    local searched_item=$1
+    local array_name="$2[@]"
+
+    local i=0
+    for item in ${!array_name}; do
+
+        [ $item == $searched_item ] && { echo $i; break; } || ((i++))
+    done
+}
+
 # Returns a formatted string that is the last modified date and time:
 # -----------------------------------------------------------------------------
 last_modified()
