@@ -2,6 +2,11 @@
 
 # VM to be patched:
 target_domain=$1
+
+# Optional user flag
+user_flag=$2
+
+# Absolute path where xml definitions will be temporarily dumped:
 working_path="/tmp"
 
 # Verifies for target_domain, in first instance:
@@ -44,7 +49,7 @@ if [[ ! -z $domain_exists ]]; then
         message="INFO: $target_domain patched successfully."
 
         # If server is NOT off, Notifies the user about restart the need of a server restart to apply these changes:
-        [[ -z $domain_state ]] &&  message+=" (Note: Changes will be applied after next VM restart)"
+        [[ -z $domain_state ]] &&  message+=" (Note: Changes will be applied after next VM power cycle)"
         status=0
 
     elif [[ $match == $modified_pattern ]]; then
@@ -64,5 +69,7 @@ else
         message="ERROR: $target_domain does not exist. Aborted."
 fi
 
-echo $message
+# Will exit silently if '-q' or '--quiet' are passed as second argument:
+[[ $user_flag != "-q" ]] && [[ $user_flag != "--quiet" ]] && echo $message
+
 exit $status
