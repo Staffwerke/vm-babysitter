@@ -282,83 +282,102 @@ end_of_specs
 check_vms_patch()
 {
     # Imports the name of the list to process and its items
-    #(Bash cannot operate global arrays by indirect reference):
-
+    #(Bash cannot operate on global arrays by indirect reference):
     local vm_list_name=$1
     shift
     local vm_list_content=($@)
 
-    # Then processes each VM. Looks for patch and applies actions as required:
+    # Lists to add VMs is something fails (and summarize at the end):
+    local domain_shutdown_failed=()
+    local vm_patch_failed=()
+
+    # Processes each VM. Looks for patch and applies actions as required:
+    local i=0
     for domain in ${vm_list_content[@]}; do
 
-        # Control variables used inside the loop:
-        local domain_shutdown_failed=""
-        local vm_patch_failed=""
 
-        # For each VM the loop repeats itself until VM is deteceted as successfully patches,
-        # Or when there are issues that can't be solved at the moment:
+        # For each VM, the loop repeats itself as needed until a VM has been successfully patched, or not:
         while true; do
+            if [ -z ${domain_shutdown_failed[$i]} ] && [ -z ${vm_patch_failed[$i]} ]; then
 
-            if [ $(domain_is_patched $domain --current) == yes ]; then
+                # First loop iteration, or no errors has occured:
+                if [ $(domain_is_patched $domain --current) == yes ]; then
 
-                # VM is patched. Move to $check_backups_list (from wherever is listed):
-                check_backups_list+=($domain)
+                    # VM is patched. Move to $check_backups_list (from wherever is listed):
+                    check_backups_list+=($domain)
 
-                [ $vm_list_name == check_vms_list ] && unset check_vms_list[$(item_position $domain $vm_list_name)]
+                    [ $vm_list_name == check_vms_list ] && unset check_vms_list[$(item_position $domain $vm_list_name)]
 
-                [ $vm_list_name == action_required_vms_list ] && unset action_required_vms_list[$(item_position $domain $vm_list_name)]
-
-                # Cleanses control variables (in case they were used):
-                domain_shutdown_failed=""
-                vm_patch_failed=""
-
-                # Exits the loop:
-                break
-
-            elif [ $(domain_is_patched $domain --inactive) == yes ]; then
-
-                # VM is (presumably) running and was patched before, but needs a power cycle so changes can be applied.
-                if [ ! -z $RESTART_VMS_IF_REQUIRED ] && \
-                [ $domain_shutdown_failed != yes ] && [ $vm_patch_failed != yes ]; then
-
-                    # When permission is granted, and past iteration over the VM haven't triggered errors, attempts shuts down the VM temporarily:
-                    domain_shutdown $domain
-
-                    # Success. Include into powered off VMs and restart the loop:
-                    # Fail: Marks triggers control variable for next iteration:
-                    [[ $? -eq 0 ]] && poweredroff_vms_list+=($domain) || domain_shutdown_failed="yes"
-
-                    # And restarts the loop (checks VM again under changed conditions):
-                    continue
-
-                elif [ $vm_list_name == check_vms_list ]; then
-
-                    # User actions are required in order to take this VM in count again.
-                    # Move from $check_vms_list to $action_required_vms_list and exit the loop:
-                    action_required_vms_list+=($domain)
-                    unset check_vms_list[$(item_position $domain $vm_list_name)]
+                    [ $vm_list_name == action_required_vms_list ] && unset action_required_vms_list[$(item_position $domain $vm_list_name)]
 
                     # Exits the loop:
                     break
+
+                elif [ $(domain_is_patched $domain --inactive) == yes ]; then
+
+                    # VM is (presumably) running and was patched before, but needs a power cycle so changes can be applied:
+
+                    if [ ! -z $RESTART_VMS_IF_REQUIRED ]; then
+
+                        # When permission is granted, and past iteration over the VM haven't triggered errors, attempts shuts down the VM temporarily:
+                        domain_shutdown $domain
+
+                        # Success. Include into powered off VMs list
+                        # Fail: Triggers control variable for next iteration:
+                        [[ $? -eq 0 ]] && poweredroff_vms_list+=($domain) || domain_shutdown_failed+=($domain)
+                    else
+                        # User must shutdown $domain manually:
+                        domain_shutdown_failed+=($domain)
+                    fi
+
+                        # Restarts the loop (checks VM again under changed conditions):
+                        continue
                 else
-                    # $action_required_vms_list is being monitored, but no no changes has been made, so exits the loop:
-                    break
+                    # VM is not patched (or lost its patch at some point.)
+                    # Apply the patch for incremental backup:
+                    vm-patch $domain --quiet
+
+                    # Fail: Triggers control variable for next iteration:
+                    [[ $? -ne 0 ]] vm_patch_failed+=($domain)
+
+                    # Restarts the loop (checks VM again under changed condition):
+                    continue
                 fi
             else
-                # VM is not patched (or lost its patch at some point.)
-                # Apply the patch for incremental backup:
-                vm-patch $domain
 
-                # In the rare case the VM patch is unsuccessful, activate this variable control for next iteration:
-                [[ $? -ne 0 ]] && vm_patch_failed="yes"
+                # Cannot perform any actions on this VM.
 
-                # Restarts the loop (checks VM again under changed condition):
-                continue
+                if [ $vm_list_name == check_vms_list ]; then
+
+                    # Move from $check_vms_list to $action_required_vms_list:
+                    action_required_vms_list+=($domain)
+                    unset check_vms_list[$(item_position $domain $vm_list_name)]
+                fi
+                    # Exits the loop:
+                    break
             fi
         done
+        # Increases the index to check the next VM:
+        ((i++))
     done
 
-    # Still Needs to list changes or alert if something went wrong (e.g. failed patch)
+    # Depending on the results, shows a brief summary with VMs with changed state or actions if required:
+    [ ! -z ${check_backups_list[@]} ] && \
+
+        echo "INFO: '${check_backups_list[@]}': On queue for backup chain check"
+
+    [ ! -z ${poweredroff_vms_list[@]} ] && \
+
+        echo "INFO: '${poweredroff_vms_list[@]}': Temporarily shutdown to apply incremental backup patch (will be powered on shortly)"
+
+    [ ! -z ${domain_shutdown_failed[@]} ] && \
+
+        echo "WARNING: ACTION REQUIRED for '${domain_shutdown_failed[@]}': Powercycle to apply incremental backup patch (temporarily skipped)"
+
+    [ ! -z ${vm_patch_failed[@]} ] && \
+
+        echo "WARNING: ACTION REQUIRED for '${vm_patch_failed[@]}': 'Inconsistent settings, could not patch for incremental bakups. If this isn't expected, Run 'virsh edit <vm-name>' or use your Graphic UI to verify XML definitions (temporarily skipped)"
+
 }
 
 #------------------------------------------------------------------------------
