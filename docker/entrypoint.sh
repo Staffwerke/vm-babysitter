@@ -180,54 +180,11 @@ PROCEDURE:
                                 move VM to FULL_BACKUPS_LIST
                                 break the loop.
                 no
-                    REMOTE_BACKUPS_MAIN_PATH is set AND has ongoing remote backup AND backup_integrity is ok?
+                    Dummy folder OR failed full backup
                     yes
-                        restarted_server?
-                        yes
-                            REMOTE BACKUP checkpoints = image bitmaps in ALL disks?
-                            yes
-                                move VM to RETRIEVE_BACKUPS_LIST
-                                break the loop.
-                            no
-                                Check for disk image(s) bitmaps, delete if any
-                                move VM to FULL_BACKUPS_LIST
-                                break the loop.
-                        no
-                            is VM ON?
-                                yes
-                                    QEMU checkpoints = REMOTE backup checkpoints?
-                                    yes
-                                        move VM to RETRIEVE_BACKUPS_LIST
-                                        break the loop.
-                                    no
-                                        move VM to FULL_BACKUPS_LIST
-                                        break the loop.
-                                no
-                                    QEMU checkpoints = REMOTE backup checkpoints = image bitmaps in ALL disks?
-                                    yes
-                                        move VM to RETRIEVE_BACKUPS_LIST
-                                        break the loop.
-                                    no
-                                        Delete checkpoint metadata, if any
-                                        Delete image bitmaps, if any
-                                        move VM to FULL_BACKUPS_LIST
-                                        break the loop.
-                    no
-                        restarted_server?
-                        yes
-                            Check for disk image(s) bitmaps, delete if any
-                            move to FULL_BACKUPS_LIST
-                            break the loop.
-                        no
-                            is VM ON?
-                            yes
-                                move to FULL_BACKUPS_LIST
-                                break the loop.
-                            no
-                                Delete checkpoint metadata, if any
-                                Delete image bitmaps, if any
-                                move to FULL_BACKUPS_LIST
-                                break the loop.
+                        delete backup
+                    move VM to FULL_BACKUPS_LIST
+
 
             4. Initialize:
             #------------------------------------------------------------------------------
@@ -277,7 +234,7 @@ end_of_specs
 ###############################################################################
 
 #------------------------------------------------------------------------------
-# Check if VMs are patched for incremental backups (and apply when possible):
+# Check if VMs of a given list (passed by name, along with elements) are patched for incremental backups (and apply when possible):
 #------------------------------------------------------------------------------
 check_vms_patch()
 {
@@ -378,6 +335,49 @@ check_vms_patch()
 
         echo "WARNING: ACTION REQUIRED for '${vm_patch_failed[@]}': 'Inconsistent settings, could not patch for incremental bakups. If this isn't expected, Run 'virsh edit <vm-name>' or use your Graphic UI to verify XML definitions (temporarily skipped)"
 
+}
+
+#------------------------------------------------------------------------------
+# Checks backup chains integrity of a given list (passed by name, along with elements) and determines which list each VM must be sent for further actions (incremental, full, retrieve backups):
+#------------------------------------------------------------------------------
+check_backups()
+{
+
+    # Imports the name of the list to process and its items
+    #(Bash cannot operate on global arrays by indirect reference):
+    local vm_list_name=$1
+    shift
+    local vm_list_content=($@)
+
+    local backup_chain_status=()
+
+    # Processes each VM. Looks for patch and applies actions as required:
+    local i=0
+    for domain in ${vm_list_content[@]}; do
+
+        while true; do
+
+            if [ ! -f $BACKUPS_MAIN_PATH/$domain/$domain.cpt ] || \
+               [ ! -d $BACKUPS_MAIN_PATH/$domain/checkpoints ]; then
+
+                # Discard dummy backups immediately:
+                rm -rf $BACKUPS_MAIN_PATH/$domain
+                continue
+
+            elif  [ ! -z $(find $BACKUPS_MAIN_PATH/$domain -type f -name "*.partial") ]; then
+
+                if [[ $(backup_checkpoint_list $BACKUPS_MAIN_PATH/$domain) -le 1 ]]; then
+
+                    # Also discard aborted full backups:
+                    rm -rf $BACKUPS_MAIN_PATH/$domain
+                    continue
+                else
+                    # Mark backup as corrupted and continue
+                fi
+            else
+            fi
+        done
+    done
 }
 
 #------------------------------------------------------------------------------
@@ -581,9 +581,11 @@ if [ $domains_list_status == OK ] && [ $backups_main_path_status == OK ] && [ ! 
     fi
 # Rest of the initial checkup between these lines:
 #------------------------------------------------------------------------------
-        # Check / apply VM patch
+        # Check / apply VM patch:
         check_vms_patch "check_vms_list" "${check_vms_list[@]}"
-        # Check VM backups
+
+        # When any VM is, or has been successfully patched, Check VM backups:
+        [ ! -z ${check_backups_list[@]} ] && check_backups "check_backups_list" "${check_backups_list[@]}"
 #------------------------------------------------------------------------------
 fi
 
