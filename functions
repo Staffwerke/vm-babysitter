@@ -202,6 +202,15 @@ domains_list()
 ###############################################################################
 
 # -----------------------------------------------------------------------------
+# Retrieves checkpoints listed in .cpt file at a given backup path:
+# -----------------------------------------------------------------------------
+backup_checkpoint_list()
+{
+    echo $(cat $domain_backup_path/$domain.cpt | sed sed -e 's/\[//g' -e 's/\"//g' -e 's/,//g' -e 's/\]//g')
+}
+
+
+# -----------------------------------------------------------------------------
 # For a given checkpoint file, returns a string value with (restorable) virtual drives (separated by spaces) (e.g. "hdc hdd")
 # -----------------------------------------------------------------------------
 backup_restorable_drives_list()
