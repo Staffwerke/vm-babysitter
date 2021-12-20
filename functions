@@ -225,6 +225,15 @@ dir_is_empty()
 {
     find $1 -maxdepth 0 -empty -exec echo {} yes \;
 }
+
+# -----------------------------------------------------------------------------
+# Returns a list of (ordered) bitmaps present into a given disk image:
+# -----------------------------------------------------------------------------
+disk_image_bitmap_list()
+{
+    sort_items $(qemu-img info $1 | grep -ow virtnbdbackup.*)
+}
+
 # -----------------------------------------------------------------------------
 # Returns a random, uppercase, MAC address, based upon (optional) base pattern 'XX:XX:XX'
 # -----------------------------------------------------------------------------
@@ -283,12 +292,12 @@ os_is_unraid()
 }
 
 # -----------------------------------------------------------------------------
-# Sorts unordered items lexicographically. This is used for user input not in order:
+# From a given list, sorts unordered items lexicographically, with numbers naturally sorted:
 # -----------------------------------------------------------------------------
 
 sort_items()
 {
-    echo $@ | xargs -n1 | sort | xargs
+    echo $@ | xargs -n1 | sort -V | xargs
 }
 
 ###############################################################################
