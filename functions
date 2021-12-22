@@ -24,7 +24,7 @@ ssh_port=""
 # -----------------------------------------------------------------------------
 domain_checkpoint_list()
 {
-    virsh checkpoint-list $1 --name --topological
+    echo $(virsh checkpoint-list $1 --name --topological)
 }
 
 # -----------------------------------------------------------------------------
@@ -32,23 +32,23 @@ domain_checkpoint_list()
 # -----------------------------------------------------------------------------
 domain_delete_checkpoint_metadata()
 {
-local domain_delete_checkpoint_metadata_status=1
+    local domain_delete_checkpoint_metadata_status=1
 
-local vm=$1
-local checkpoints_list=($(domain_checkpoint_list $1))
-local arguments="--metadata"
+    local vm=$1
+    local checkpoints_list=($(domain_checkpoint_list $1))
+    local arguments="--metadata"
 
-if [[ ! -z ${checkpoints_list[@]} ]]; then
+    if [[ ! -z ${checkpoints_list[@]} ]]; then
 
-    echo "INFO: Libvirt reports ${#checkpoints_list[@]} checkpoints for VM '$vm'. This info will be removed..."
+        echo "INFO: Libvirt reports ${#checkpoints_list[@]} checkpoints for VM '$vm'. This info will be removed..."
 
-    for checkpoint in ${checkpoints_list[@]}; do
-        &> /dev/null virsh checkpoint-delete $vm $checkpoint $arguments
-    done
-else
+        for checkpoint in ${checkpoints_list[@]}; do
+            &> /dev/null virsh checkpoint-delete $vm $checkpoint $arguments
+        done
+    else
 
-    echo "INFO: No checkpoints for VM '$vm' reported by libvirt to remove"
-fi
+        echo "INFO: No checkpoints for VM '$vm' reported by libvirt to remove"
+    fi
 
 }
 
@@ -57,7 +57,7 @@ fi
 #------------------------------------------------------------------------------
 domain_exists()
 {
-    [ ! -z $(virsh list --all --name --persistent | grep -w "$1") ] && echo "yes" || echo "no"
+    [[ ! -z $(virsh list --all --name --persistent | grep -w "$1") ]] && echo "yes" || echo "no"
 }
 
 # -----------------------------------------------------------------------------
@@ -80,7 +80,6 @@ domain_drives_list()
 # For a given VM name, returns a string value with absoulte path to its image disks (e.g. "/path-to/hdc.img /path-to/hdd.img")
 # -----------------------------------------------------------------------------
 domain_img_paths_list()
-#list_vm_img_paths()
 {
     echo $(virsh domblklist --details $1 | grep -e file | grep -e disk | sed -e 's/ file //g' -e 's/ disk //g' | rev | cut -d' ' -f1 | rev )
 }
@@ -97,7 +96,6 @@ domain_is_patched()
 # Returns a string that is a space separated list of mac addresses of a given VM:
 # -----------------------------------------------------------------------------
 domain_macaddr_list()
-#get_vm_macaddr()
 {
     echo $(virsh domiflist --inactive $1 | grep -o -E '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}')
 }
@@ -106,7 +104,6 @@ domain_macaddr_list()
 # Attempts a full power cycle onto a given domain. Returns '0' if success and '1' if it fails:
 #------------------------------------------------------------------------------
 domain_powercycle()
-#powercycle_domain()
 {
     local domain=$1
     local powercycle_domain_status=1
@@ -116,7 +113,7 @@ domain_powercycle()
     # Sends the shutdown signal to the given domain:
     virsh shutdown $domain
 
-    if [ $? == 0 ]; then
+    if [[ $? -eq 0 ]]; then
 
         local attempt=0
         while (( $attempt < $MAX_ATTEMPTS )); do
@@ -124,11 +121,11 @@ domain_powercycle()
             # Awaits for the VM (qemu guest service, actually) for being on
             sleep $wait_time
 
-            if [ $(domain_state $domain) == "shut off" ]; then
+            if [[ $(domain_state $domain) == "shut off" ]]; then
 
                 break
 
-            elif [ $attempt -eq $max_attempts ]; then
+            elif [[ $attempt -eq $max_attempts ]]; then
 
                 echo "WARNING: Unable to determine if VM $domain was completely shut down. Starting $domain anyway..."
 
@@ -137,7 +134,7 @@ domain_powercycle()
 
         # Turns on the domain again:
         virsh start $target_domain
-        [ $? == 0 ] && { powercycle_domain_status=0; echo "INFO: $domain successfully restarted"; } || echo "ERROR: User action is required: Verify VM $domain (or libvirt status) and restart the container (This VM could not be started to complete the power cycle)"
+        [[ $? -eq 0 ]] && { powercycle_domain_status=0; echo "INFO: $domain successfully restarted"; } || echo "ERROR: User action is required: Verify VM $domain (or libvirt status) and restart the container (This VM could not be started to complete the power cycle)"
 
     else
         echo "ERROR: Could not perform a power cycle to $domain"
@@ -206,7 +203,7 @@ domains_list()
 # -----------------------------------------------------------------------------
 backup_checkpoint_list()
 {
-    echo $(cat $domain_backup_path/$domain.cpt | sed sed -e 's/\[//g' -e 's/\"//g' -e 's/,//g' -e 's/\]//g')
+    echo $(cat $1/$(basename $1).cpt | sed -e 's/\[//g' -e 's/\"//g' -e 's/,//g' -e 's/\]//g')
 }
 
 
@@ -231,7 +228,7 @@ dir_is_empty()
 # -----------------------------------------------------------------------------
 disk_image_bitmap_list()
 {
-    sort_items $(qemu-img info $1 | grep -ow virtnbdbackup.*)
+    echo $(sort_items $(qemu-img info $1 | grep -ow virtnbdbackup.*))
 }
 
 # -----------------------------------------------------------------------------
@@ -376,7 +373,7 @@ choose_number()
         local question=$1
         local min_choice=$2
         local max_choice=$3
-        if [ ! -z $4 ] || [[ $min_choice -eq $max_choice ]]; then
+        if [[ ! -z $4 ]] || [[ $min_choice -eq $max_choice ]]; then
             local default_choice=" (defaults to '$4')"
         fi
         local choice
