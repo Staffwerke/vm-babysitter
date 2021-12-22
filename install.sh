@@ -1,15 +1,19 @@
 #!/bin/bash
 
+# Location of scripts
+source_path="scripts/"
+
 # Takes a list of files as $1 and an installation folder as $2. Returns '0' if success and '1' if failed:
 copy_files()
 {
-local list=$1
-local path=$2
+local source=$1
+local list=$2
+local path=$3
 local copy_files_status=1
 
 # Install files on host at given path:
 for file in $list; do
-    cp -f $file $path/ && copy_files_status=0
+    cp -f $source/$file $path/ && copy_files_status=0
 done
 
 return $copy_files_status
@@ -35,7 +39,7 @@ if [ ! -a $install_path/script ]; then
     mkdir -p $install_path
 
     # Install files on host at given path:
-    copy_files "$files_list" "$install_path"
+    copy_files "$source_path" "$files_list" "$install_path"
 
     status=$?
 
@@ -66,7 +70,7 @@ else
     cp $install_path/ .$install_path.old/
 
     # Install files on host at given path:
-    copy_files "$files_list" "$install_path"
+    copy_files "$source_path" "$files_list" "$install_path"
 
     status=$?
 
@@ -117,10 +121,10 @@ local install_path="/usr/local/bin"
 local script_name="virtnbdbackup-auto"
 
 # List of files to be copied and processed:
-local files_list="vm-patch vm-full-backup vm-inc-backup vm-restore vm-replicate virtnbdrestore-auto"
+local files_list="functions vm-patch vm-full-backup vm-inc-backup vm-restore vm-replicate virtnbdrestore-auto"
 
 # Install files on host at given path:
-copy_files "$files_list" "$install_path"
+copy_files "$source_path" "$files_list" "$install_path"
 
 status=$?
 
