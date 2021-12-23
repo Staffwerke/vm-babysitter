@@ -169,12 +169,10 @@ domain_shutdown()
         local max_attempts=10
         local attempt=1
 
+        virsh shutdown $1
         while (( $attempt < $max_attempts )); do
 
-            virsh shutdown $1
-
             sleep $wait_time
-
             [[ $(domain_state $1) == $vm_needed_state ]] && { domain_shutdown_status=0; break; } || ((attempt++))
         done
 
@@ -228,7 +226,16 @@ dir_is_empty()
 # -----------------------------------------------------------------------------
 disk_image_bitmap_list()
 {
-    echo $(sort_items $(qemu-img info $1 | grep -ow virtnbdbackup.*))
+    echo $(sort_items $(qemu-img info $1 |  grep "name:" | rev | cut -d' ' -f1 | rev))
+}
+
+# -----------------------------------------------------------------------------
+# From a given disk image, deletes a secific bitmap, returning the status of the command:
+# -----------------------------------------------------------------------------
+disk_image_delete_bitmap()
+{
+    qemu-img bitmap --remove $1 $2
+    return $?
 }
 
 # -----------------------------------------------------------------------------
