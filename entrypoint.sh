@@ -5,16 +5,24 @@
 # ENV:
 #------------------------------------------------------------------------------
 
-DOMAINS_LIST
+Required:
 BACKUPS_MAIN_PATH
+DOMAINS_LIST
+
+Optional:
+AUTOSTART_VMS_LIST
+CRON_SCHEDULE
+IGNORED_LIST
+MAX_BACKUP_CHAINS_PER_VM
+NO_BACKUP_COMPRESSION
+RAM_LIMIT_PER_VM
 REMOTE_BACKUPS_MAIN_PATH
 RESTART_VMS_IF_REQUIRED
-CRON_SCHEDULE
 
-MAX_BACKUP_CHAINS_KEEP
-BACKUP_COMPRESSION
+Internal:
+SCHEDULED_BACKUPS_LIST
+server_restarted
 
-MAX_ALLOWED_MEMORY
 MAX_ATTEMPTS
 WAIT_TIME
 
@@ -22,7 +30,7 @@ WAIT_TIME
 # TO DO:
 #------------------------------------------------------------------------------
 # (Re) create full backup on any error:
-        # PHYSICAL disk usage summa of declared disk images is less than (( $current_backup_chain_disk_usage * $some_multiplier )) (domblklist & domblkinfo)
+    # PHYSICAL disk usage summa of declared disk images is less than (( $current_backup_chain_disk_usage * $some_multiplier )) (domblklist & domblkinfo)
 
     # If a remote folder has been set:
         # For each $target_domain with a new full backup:
@@ -31,201 +39,30 @@ WAIT_TIME
             # If max numb of backups to save
 
 #------------------------------------------------------------------------------
-PROCEDURE:
+REMAINING PROCEDURE:
 #------------------------------------------------------------------------------
-
-
-1. Check parameters:
+4. Initialize:
 #------------------------------------------------------------------------------
-    is DOMAINS_LIST defined?
+For each VM in AUTOSTART_VMS_LIST and poweredroff_vms_list
+    Is VM OFF?
     yes
-        filter transient, diskless and unexistent domains (Warns the user about such VMs if any, it will be just ignored)
-        add the rest to check_vms_list, if no VMs in check_vms_list, it will fail with error: 'None of the VMs in DOMAINS_LIST can be backed up.'
-    no
-        It will fail with error: 'undefined DOMAINS_LIST'
+        start the VM
 
-    For VMs in check_vms_list:
-        Were ALL specified image disks (if any) in DOMAINS_LIST found?
-        yes
-            are ALL rw?
-            yes
-                add VM to check_VMs list
-            no
-                add the image(s) to permission_issues_list
-                It will fail with error: 'Permission issues with image(s) in permission_issues_list)'
-        no
-            add the image(s) not found to not_found_list
-            It will fail with error: ('Not found image(s) in not_found_list)'
+Process slacking backup chains:
+#------------------------------------------------------------------------------
+sleep for DELAY_BACKUP_CHAIN_START
 
-    is BACKUPS_MAIN_PATH defined?
+For VMs in FULL_BACKUPS_LIST
+    run a full backup chain procedure
+    Success?
     yes
-        is it a r/w folder?
-        yes
-            will be used as main path for backups
-        no
-            It will fail with error: 'Permission issues with BACKUPS_MAIN_PATH'
+        move VM to SCHEDULED_BACKUPS_LIST
     no
-        it will fail with error 'Undefined BACKUPS_MAIN_PATH'
+        Alert the user about the issue: 'ACTION REQUIRED: Unknown error while attempting to create a full backup chain of this VM'
+        move VM to action_required_vms_list
 
-    REMOTE_BACKUPS_MAIN_PATH is defined?
-    yes
-        its syntax is correct?
-        yes
-            remote server is reachable?
-            yes
-                REMOTE_BACKUPS_MAIN_PATH exists on the remote server?
-                yes
-                    is r/w?
-                    yes
-                        It will be used as main path for remote backups
-                    no
-                        It will fail with error: 'permission issues on REMOTE_BACKUPS_MAIN_PATH'
-                no
-                    Attempts to create REMOTE_BACKUPS_MAIN_PATH remotely
-                    Success?
-                    yes
-                        It will be used as main path for remote backups
-                    no
-                        It will fail with error: 'REMOTE_BACKUPS_MAIN_PATH doesn't exist and can't be created on the remote server'
-            no
-                It will fail with error: 'Remote server is unreachable'
-        no
-            It will fail with error 'Incorrect syntax for REMOTE_BACKUPS_MAIN_PATH'
-    no
-        Don't use REMOTE_BACKUPS_MAIN_PATH at all
-
-    OS is Unraid AND /var/lib/libvirt/qemu/checkpoint is empty?
-    yes
-        Any VM in check_vms_list is ON?
-        yes
-            It will fail with error: 'UnRaid: Server has just been restarted (or 1st time run): Power OFF all VMs you plan to backup, disable autostart and restart the container.'
-        no
-            restarted_server=true
-    no
-        restarted_server=false
-
-    Any error occured above OR no VMs in check_vms_list?
-        yes
-            List all the errors and exit
-        no
-            2. Check VMs:
-            #------------------------------------------------------------------------------
-            For VMs in check_vms_list:
-                is VM CURRENTLY patched for incremental backups?
-                yes
-                    move VM to check_backups_list
-                    break the loop.
-                no
-                    is VM ON?
-                    yes
-                        is VM patched for incremental backups in INACTIVE state?
-                        yes
-                            RESTART_VMS_IF_REQUIRED?
-                            yes
-                                Alert the user: 'VM is about to get a full power cycle'
-                                powercycle the VM
-                                Success?
-                                yes
-                                    break the loop.
-                                no
-                                    Alert the user: 'ACTION REQUIRED: VM powercycle was not successful. Check the VM for possible issues'
-                                    move VM to VMS_ISSUES_LIST
-                                    break the loop.
-                            no
-                                Alert the user: 'ACTION REQUIRED: 'VM requires a full power cycle in order to create any backup from it'
-                                move VM to VMS_ISSUES_LIST
-                                break the loop.
-                        no
-                            patch the VM
-                            patch successful?
-                            yes
-                                restart the loop.
-                            no
-                                Alert the user about the issue: 'ACTION REQUIRED: Unknown error when attempting to patch this VM. Redefine the VM, and keep it off.'
-                                break the loop.
-                    is VM set to autostart?
-                    yes
-                        set autostart to off
-                        Remind the user that VMs to be backed up must be kept with autostart off
-
-            Any VM in check_backups_list?
-            yes
-            3. Check Backups:
-            #------------------------------------------------------------------------------
-            For ALL VMs in check_backups_list:
-                has ongoing local backup AND backup_integrity is ok?
-                yes
-                    restarted_server?
-                    yes
-                        LOCAL BACKUP checkpoints = image bitmaps in ALL disks?
-                        yes
-                            move VM to SCHEDULED_BACKUPS_LIST
-                            break the loop.
-                        no
-                            Check for disk image(s) bitmaps, delete if any
-                            move VM to FULL_BACKUPS_LIST
-                            break the loop.
-                    no
-                        is VM ON?
-                        yes
-                            move VM to SCHEDULED_BACKUPS_LIST
-                            break the loop.
-                        no
-                            QEMU checkpoints = image bitmaps in ALL disks?
-                            yes
-                                move VM to SCHEDULED_BACKUPS_LIST
-                                break the loop.
-                            no
-                                Delete checkpoint metadata, if any
-                                Delete image bitmaps, if any
-                                move VM to FULL_BACKUPS_LIST
-                                break the loop.
-                no
-                    Dummy folder OR failed full backup
-                    yes
-                        delete backup
-                    move VM to FULL_BACKUPS_LIST
-
-
-            4. Initialize:
-            #------------------------------------------------------------------------------
-            For each VM in AUTOSTART_VMS_LIST
-                Is VM OFF?
-                yes
-                    start the VM
-
-            Is Cron task set for SCHEDULED_BACKUPS_LIST?
-            yes
-                Current cron schedule != CRON_SCHEDULE?
-                yes
-                    update cron task with current CRON_SCHEDULE
-            no
-                Create a new cron task with current CRON_SCHEDULE
-
-            5. Process slacking backup chains:
-            #------------------------------------------------------------------------------
-            sleep for DELAY_BACKUP_CHAIN_START
-
-            For VMs in FULL_BACKUPS_LIST
-                run a full backup chain procedure
-                Success?
-                yes
-                    move VM to SCHEDULED_BACKUPS_LIST
-                no
-                    Alert the user about the issue: 'ACTION REQUIRED: Unknown error while attempting to create a full backup chain of this VM'
-                    move VM to VMS_ISSUES_LIST
-
-                For VMs in RETRIEVE_BACKUPS_LIST
-                    Restore local backup chain from remote endpoint
-                    Success?
-                    yes
-                        move VM to SCHEDULED_BACKUPS_LIST
-                    no
-                        Alert the user about the issue: 'ACTION REQUIRED: Communication error while attempting to retrieve a full backup chain of this VM from remote endpoint'
-                        move VM to VMS_ISSUES_LIST
-
-            # From this point, monitoring VMS_ISSUES_LIST for changes (and trigger correspondent actions) would be viable.
-            Stand still, and await for termination (SIGSTOP / SIGKILL)
+# From this point, monitoring action_required_vms_list for changes (and trigger correspondent actions) would be viable.
+Stand still, and await for termination (SIGSTOP / SIGKILL)
 
 #------------------------------------------------------------------------------
 end_of_specs
@@ -246,9 +83,10 @@ check_vms_patch()
     local vm_list_content=($@)
 
     # Lists to add VMs (and summarize at the end):
-    local domain_shutdown_success=()
-    local domain_shutdown_failed=()
-    local vm_patch_failed=()
+    local domain_shutdown_success
+    local domain_shutdown_failed
+    local vm_patch_success
+    local vm_patch_failed
 
     # Processes each VM. Looks for patch and applies actions as required:
     local i=0
@@ -257,89 +95,106 @@ check_vms_patch()
         # For each VM, the loop repeats itself as needed until a VM has been successfully patched, or not:
         while true; do
 
-            if [ -z ${domain_shutdown_failed[$i]} ] && [ -z ${vm_patch_failed[$i]} ]; then
+            if [[ -z ${domain_shutdown_failed[$i]} ]] && [[ -z ${vm_patch_failed[$i]} ]]; then
 
-                # First loop iteration, or no errors has occured:
-                if [ $(domain_is_patched $domain --current) == yes ]; then
+                if [[ $(domain_is_patched $domain ) == yes ]]; then
 
-                    # VM is patched. Move to $check_backups_list (from wherever is listed):
-                    check_backups_list+=($domain)
-
-                    [ $vm_list_name == check_vms_list ] && unset check_vms_list[$(item_position $domain $vm_list_name)]
-
-                    [ $vm_list_name == action_required_vms_list ] && unset action_required_vms_list[$(item_position $domain $vm_list_name)]
-
-                    # Exits the loop:
+                    echo "$domain: Already patched"
+                    vm_patch_success[$i]+=$domain
                     break
 
-                elif [ $(domain_is_patched $domain --inactive) == yes ]; then
+                elif [[ $(domain_is_patched $domain --inactive) == yes ]]; then
 
-                    # VM is (presumably) running and was patched before, but needs a power cycle so changes can be applied:
+                    # VM is (presumably) running and was patched before (e.g. in past iteration inside this loop)
+                    # But needs a power cycle so changes can be applied:
 
-                    if [ ! -z $RESTART_VMS_IF_REQUIRED ]; then
+                    if [[ ! -z $RESTART_VMS_IF_REQUIRED ]]; then
 
                         # When permission is granted, and past iteration over the VM haven't triggered errors, attempts shuts down the VM temporarily:
                         domain_shutdown $domain
 
                         if [[ $? -eq 0 ]]; then
 
-                            # Adds VM to both display and global powered off VMs list
-                            domain_shutdown_success+=($domain)
-                            poweredroff_vms_list+=($domain)
+                            # Adds VM to shutdown success local list:
+                            domain_shutdown_success[$i]+=$domain
                         else
 
-                            # Triggers control variable for next iteration
+                            # Adds VM to failed to shutdown local list
                             # (This VM might shutdown eventually):
                             domain_shutdown_failed[$i]=$domain
                         fi
                     else
-                        # User must shutdown $domain manually:
+
+                        echo "$domain: Cannot apply changes about patch for incremental backup while VM running"
+                        # Adds VM to failed to shutdown local list
+                        # (User must shutdown the VM manually):
                         domain_shutdown_failed[$i]=$domain
                     fi
 
-                        # Restarts the loop (checks VM again under changed conditions):
-                        continue
+                    # Restarts the loop (checks VM again under changed conditions):
+                    continue
+
                 else
-                    # VM is not patched (or lost its patch at some point.)
-                    # Apply the patch for incremental backup:
+
+                    echo "$domain: Patch not detected. Attempting to patch for incremental backups..."
+
                     vm-patch $domain --quiet
 
-                    # Fail: Triggers control variable for next iteration:
-                    [[ $? -ne 0 ]] vm_patch_failed[$i]=$domain
+                    # Adds VM to failed to patch local list:
+                    [[ $? -ne 0 ]] && vm_patch_failed[$i]=$domain
 
                     # Restarts the loop (checks VM again under changed condition):
                     continue
                 fi
             else
 
-                # Cannot perform any actions on this VM.
-
-                if [ $vm_list_name == check_vms_list ]; then
-
-                    # Move from $check_vms_list to $action_required_vms_list:
-                    action_required_vms_list+=($domain)
-                    unset check_vms_list[$(item_position $domain $vm_list_name)]
-                fi
-                    # Exits the loop:
-                    break
+                # Failed either shutting down or applying the patch
+                # Nothing else possible to do:
+                break
             fi
         done
+
+        # Upon success, depending on the flow control, the global list name and data could be one of the following, so it is removed accordingly:
+        [[ $vm_list_name == check_vms_list ]] && unset check_vms_list[$(item_position $domain $vm_list_name)]
+        [[ $vm_list_name == action_required_vms_list ]] && unset action_required_vms_list[$(item_position $domain $vm_list_name)]
+
         # Increases the index to check the next VM:
         ((i++))
     done
 
     # Depending on the results, shows a brief summary with VMs with changed state or actions if required:
-    [ ! -z ${check_backups_list[@]} ] && \
-        echo "INFO: '${check_backups_list[@]}': On queue for backup chain check"
 
-    [ ! -z ${domain_shutdown_success[@]} ] && \
-        echo "INFO: '${domain_shutdown_success[@]}': Automatic powercycle to apply incremental backup patch is in progress (will be powered on shortly)"
+    if [[ ! -z ${vm_patch_success[@]} ]]; then
 
-    [ ! -z ${domain_shutdown_failed[@]} ] && \
-        echo "WARNING: ACTION REQUIRED for '${domain_shutdown_failed[@]}' (temporarily ignored): Shut down VM(s) to apply incremental backup patch"
+        echo "INFO: '${vm_patch_success[@]}': Correctly patched for incremental backups. On queue for backup chain check"
 
-    [ ! -z ${vm_patch_failed[@]} ] && \
-        echo "WARNING: ACTION REQUIRED for '${vm_patch_failed[@]}' (temporarily ignored): Inconsistent settings, could not patch for incremental bakups. If this isn't expected, Run 'virsh edit <vm-name>' or use your Graphic UI to verify XML definitions"
+        # Appends sub-list of (successfully) patched VMs to global check_backups_list:
+        check_backups_list+=(${vm_patch_success[@]})
+    fi
+
+    if [[ ! -z ${domain_shutdown_success[@]} ]]; then
+
+        echo "INFO: '${domain_shutdown_success[@]}': Into automatic powercycle (to apply incremental backup patch, will be powered on shortly)"
+
+        # Appends sub-list to the global list of powered OFF VMs:
+        poweredroff_vms_list+=(${domain_shutdown_success[@]})
+    fi
+
+    if [[ ! -z ${domain_shutdown_failed[@]} ]]; then
+
+        echo "WARNING: ACTION REQUIRED for '${domain_shutdown_failed[@]}': Perform a manual Shut down of VM(s) to apply incremental backup patch (temporarily ignored)"
+
+        # Appends sub list of VMs that failed to shutdoen to global action_required_vms_list:
+        action_required_vms_list+=(${domain_shutdown_failed[@]})
+    fi
+
+    if [[ ! -z ${vm_patch_failed[@]} ]]; then
+
+        echo "ERROR: ACTION REQUIRED for '${vm_patch_failed[@]}': Inconsistent settings, could not patch for incremental bakups. If this is unexpected, use your Graphic UI to redefine VM definitions, or check the README for help (temporarily ignored)"
+
+        # Appends sub list of VMs that failed attempting to be patched to global action_required_vms_list:
+        action_required_vms_list+=(${domain_shutdown_failed[@]})
+    fi
 
 }
 
@@ -356,13 +211,15 @@ check_backups()
     local vm_list_content=($@)
 
     # Local variables used for flow control:
-    local checkpoints_list=()
-    local check_failed
-    local broken_backup_chain=()
+    local checkpoints_list
+    local bitmaps_list
+    local backup_check_failed
+    local preserved_backup_chain
+    local broken_backup_chain
 
     # Lists to add VMs (and summarize at the end):
-    local domain_shutdown_success=()
-    local domain_shutdown_failed=()
+    local domain_shutdown_success
+    local domain_shutdown_failed
 
     # Processes each VM. Looks for patch and applies actions as required:
     local i=0
@@ -370,246 +227,309 @@ check_backups()
 
         while true; do
 
-            if [ -d $BACKUPS_MAIN_PATH/$domain ] \
-            && [ -z ${broken_backup_chain[$i]} ] \
-            && [ -z ${domain_shutdown_failed[$i]} ]; then
+            if [[ -d $BACKUPS_MAIN_PATH/$domain ]] \
+            && [[ -f $BACKUPS_MAIN_PATH/$domain/$domain.cpt ]] \
+            && [[ -d $BACKUPS_MAIN_PATH/$domain/checkpoints ]] \
+            && [[ -z $(find $BACKUPS_MAIN_PATH/$domain -type f -name "*.partial") ]]; then
 
-                # CREATE check_backup_integrity fuction for thoughtful check:
-                if [ -f $BACKUPS_MAIN_PATH/$domain/$domain.cpt ] \
-                && [ -d $BACKUPS_MAIN_PATH/$domain/checkpoints ] \
-                && [ -z $(find $BACKUPS_MAIN_PATH/$domain -type f -name "*.partial") ]; then
+                # - Folder exists
+                # - Summary file exists
+                # - Checkpoint folder exists
+                # - No *.partial files (left after cancel backup or some crash)
+                # Backup chain structure seems to be OK. Performs a more comprehensive check.
 
-                    # - $domain.cpt found
-                    # - ./checkpoints found
-                    # - No incomplete or aborted backups (*.partial)
-                    # Backup chain structure seems to be OK. Performs a more comprehensive check:
+                # Resets control flow variables, if used before:
+                checkpoints_list=()
+                backup_check_failed=""
 
-                    # Resets control flow variables, if used before:
-                    checkpoints_list=()
-                    check_failed=""
+                if [[ $(domain_state $domain) == "shut off" ]]; then
 
-                    if [ $restarted_server == true ]; then
+                    echo "$domain: VM is shut down, performing full check in backup chain..."
 
-                        # When Unraid server has been restarted, no checkpoints will be found in QEMU, so gather checkpoints directly from backup
-                        # (These will be, hopefully, restored to QEMU during next incremental backup):
+                    # No QEMU checkpoints are found when server comes from a restart under UnRaid, so uses backup checkpoints in backup
+                    if [[ $restarted_server == true ]] ; then
+
+                        echo "$domain: Using Checkpoint list in Backup (restarted_server detected)"
                         checkpoints_list=($(backup_checkpoint_list $BACKUPS_MAIN_PATH/$domain))
-
-                        # VM HAS TO BE OFF in order to check bitmaps on disk images, since it's the most common cause of broken backup chains (e.g. server crash):
-                        if [ $(domain_state $domain) != "shut off" ] && [ ! -z $RESTART_VMS_IF_REQUIRED ]; then
-
-                            # When permission is granted, and past iteration over the VM haven't triggered errors, attempts shuts down the VM temporarily:
-                            domain_shutdown $domain
-
-                            if [[ $? -eq 0 ]]; then
-
-                                # Adds VM to both display and global powered off VMs list
-                                domain_shutdown_success[$i]=$domain
-                                poweredroff_vms_list+=($domain)
-                            else
-
-                                # Triggers control variable for next iteration
-                                # (This VM might shutdown eventually):
-                                domain_shutdown_failed[$i]=$domain
-                                continue
-                            fi
-                        else
-                            # User must shutdown $domain manually:
-                            domain_shutdown_failed[$i]=$domain
-
-                            # Restarts the loop (checks VM again under changed conditions):
-                            continue
-                        fi
                     else
 
-                        # Otherwise, uses QEMU checkpoint list directly:
+                        echo "$domain: Using Checkpoint list in QEMU"
                         checkpoints_list=($(domain_checkpoint_list $domain))
                     fi
 
-                    if [ $(domain_state $domain) == "shut off" ]; then
 
-                        # VM is shutdown. Perform a full check of checkpoints vs bitmaps:
-                        for image in $(domain_drives_list $domain); do
+                    # Perform a full check of checkpoints vs bitmaps:
+                    for image in $(domain_img_paths_list $domain); do
 
-                            # Gets the bitmaps list on the given disk image:
-                            bitmaps_list=($(disk_image_bitmap_list $image))
+                        bitmaps_list=($(disk_image_bitmap_list $image))
+                        if [[ ${bitmaps_list[@]} != ${checkpoints_list[@]} ]]; then
 
-                            # When lists aren't identical for ALL disks, marks the entire check as failed (cancelling further checks for this VM):
-                            [ ${bitmaps_list[@]} != ${checkpoints_list[@]} ] && { check_failed="yes"; break; }
+                            # When bitmaps and checkpoint lists aren't identical for ALL disks, marks the entire check as failed
+                            backup_check_failed="yes"
+
+                            echo "$domain.$image: Checkpoint and Bitmap lists mismatch for this image (${#checkpoint_list[@]} vs. ${#bitmaps_list[@]})"
+
+                            # Cancelling further checks for this VM:
+                            break
+                        fi
+                    done
+
+                    if [[ $backup_check_failed == yes ]]; then
+
+
+                        if [[ $restarted_server != true ]]; then
+
+                            echo "$0 ($domain): Pruning existing Checkpoints in QEMU..."
+                            domain_delete_checkpoint_metadata $domain
+                        fi
+
+                        for image in $(domain_img_paths_list $domain); do
+
+                            # Then deletes all bitmaps, in all image disks:
+                            echo "$0 ($domain.$image): Deleting Bitmaps..."
+
+                            for bitmap in $(disk_image_bitmap_list $image); do
+
+                                disk_image_delete_bitmap $image $bitmap
+                            done
                         done
 
-                    elif [ $(domain_checkpoint_list $domain) != $(backup_checkpoint_list $domain) ]; then
-
-                        # VM is presumably running (and $restarted_server == false.)
-                        # Checkpoint lists in QEMU and backup aren't identical, marking check as failed:
-                        check_failed="yes"
-                    fi
-
-                    if [ $check_failed == yes ]; then
-
-                        # Mark backup chain as broken:
+                        # And marks backup chain as broken:
                         broken_backup_chain[$i]=$domain
 
-                        # Restarts the loop (checks VM again under changed conditions):
-                        continue
+                        # Exits the loop:
+                        break
+
                     else
 
-                        # Backup chain is OK. Move to $scheduled_backups_list:
-                        scheduled_backups_list+=($domain)
-                        unset check_backups_list[$(item_position $domain $vm_list_name)]
+                        echo "$domain: Checkpoints and Bitmaps lists match"
+                        preserved_backup_chain+=($domain)
 
                         # Exits the loop:
                         break
                     fi
 
+
+                elif [[ $restarted_server == true ]]; then
+
+                    if [[ ! -z $RESTART_VMS_IF_REQUIRED ]]; then
+
+                        # When permission is granted, attempts to shut down the VM temporarily:
+                        domain_shutdown $domain
+
+                        if [[ $? -eq 0 ]]; then
+
+                            # Adds VM to shutdown success local list:
+                            domain_shutdown_success[$i]=$domain
+
+                            # Restarts the loop (checks backup again under changed condition):
+                            continue
+                        else
+
+                            # Adds VM to failed to shutdown local list
+                            # (This VM might shutdown eventually):
+                            domain_shutdown_failed[$i]=$domain
+
+                            # Exits the loop (nothing else can be done):
+                            break
+                        fi
+                    else
+                        # (User must shutdown the VM manually):
+                        echo "$domain: Cannot check its backup chain while VM running (restarted_server detected)"
+
+                        # Adds VM to failed to shutdown local list
+                        domain_shutdown_failed[$i]=$domain
+
+                        # Exits the loop (nothing else can be done):
+                        break
+                    fi
+
                 else
-                    # Bakup chain integrity isn't good. Mark backup chain as broken:
-                    broken_backup_chain[$i]=$domain
 
-                    # Restarts the loop (checks VM again under changed conditions):
-                    continue
+                    echo "$domain: VM is (presumably) running, comparing Checkpoint lists in QEMU and Backup..."
+
+                    local qemu_checkpoint_list=($(domain_checkpoint_list $domain))
+                    local backup_chain_checkpoint_list=$(backup_checkpoint_list $BACKUPS_MAIN_PATH/$domain)
+
+                    # Checkpoint lists in QEMU and backup aren't identical.
+
+                    if [[ ${qemu_checkpoint_list[@]} != ${backup_chain_checkpoint_list[@]} ]]; then
+
+                        echo "$domain: QEMU and Backup Checkpoint lists mismatch (${#qemu_checkpoint_list[@]} vs. ${#backup_chain_checkpoint_list[@]})"
+
+                        # Mark backup chain as broken (can't check more in deep for bitmaps / checkpoints to delete:)
+                        broken_backup_chain[$i]=$domain
+
+                        # Exits the loop (nothing else can be done):
+                        break
+
+                    else
+
+                        echo "$domain: QEMU and Backup Checkpoint lists match (${#qemu_checkpoint_list[@]} vs. ${#backup_chain_checkpoint_list[@]})"
+                        # Backup chain is OK, mark as preserved:
+                        preserved_backup_chain+=($domain)
+
+                        # Exits the loop:
+                        break
+                    fi
                 fi
-
-            elif [ ! -z ${domain_shutdown_failed[$i]} ]; then
-
-                # $restarted_server true and VM could not be shutdown (or took too much) for backup check.
-                # Move VM back to $action_required_vms_list:
-
-                action_required_vms_list+=($domain)
-                unset $check_backups_list[$(item_position $domain $vm_list_name)]
-
-                # Exits the loop:
-                break
 
             else
 
-                # No backup folder or backup was marked as broken. Move to full_backups_list:
-                full_backups_list+=($domain)
-                unset $check_backups_list[$(item_position $domain $vm_list_name)]
+                echo "$domain: No backup chain folder, backup chain structure is damaged or a previous backup operation was unexpectedly cancelled."
 
-                # Exits the loop:
+                # Mark backup chain as broken:
+                broken_backup_chain[$i]=$domain
+
+                # Exits the loop (nothing else can be done):
                 break
             fi
         done
+
+        # VM is unlisted from check_backups_list after the while loop is broken:
+         unset check_backups_list[$(item_position $domain $vm_list_name)]
+
         # Increases the index to check the next VM:
         ((i++))
     done
 
-    # Depending on the results, shows a brief summary with VMs with changed state or actions if required:
+    # Depending on the results, shows a brief summary with VMs with changed states, and appends VMs to its respective lists:
 
-     [ ! -z ${scheduled_backups_list[@]} ] && \
-        echo "INFO: '${scheduled_backups_list[@]}': Backup chain(s) OK! (on schedule for incremental backups)"
+     if [[ ! -z ${preserved_backup_chain[@]} ]]; then
 
-    [ ! -z ${full_backups_list[@]} ] && \
-        echo "INFO: '${scheduled_backups_list[@]}': Backup chain(s) BROKEN or ABSENT! (on queue for full backup)"
+        echo "INFO: '${preserved_backup_chain[@]}': Backup chain(s) appears to be OK! (On schedule for incremental backup)"
 
-    [ ! -z ${domain_shutdown_success[@]} ] && \
-        echo "INFO: '${domain_shutdown_success[@]}': Automatic powercycle to check backup chain(s) is in progress (will be powered on shortly)"
+        # Appends / exports sub-list to SCHEDULED_BACKUPS_LIST for Cron task:
+        export SCHEDULED_BACKUPS_LIST="$SCHEDULED_BACKUPS_LIST ${preserved_backup_chain[@]}"
+    fi
 
-    [ ! -z ${domain_shutdown_failed[@]} ] && \
-        echo "WARNING: ACTION REQUIRED for '${domain_shutdown_failed[@]}' (temporarily ignored): Shut down VM(s) in order to check backup chain integrity"
+    if [[ ! -z ${broken_backup_chain[@]} ]]; then
+
+        echo "INFO: '${broken_backup_chain[@]}': Absent or Broken backup chain(s)! (on queue for backup chain creation)"
+
+        # Appends sub-list to global list of VMs in need of a new backup chain:
+        full_backups_list+=(${broken_backup_chain[@]})
+    fi
+
+    if [[ ! -z ${domain_shutdown_success[@]} ]]; then
+
+        echo "INFO: '${domain_shutdown_success[@]}': Into automatic Powercycle (for backup chain integrity check, will be powered on shortly)"
+
+        # Appends sub-list to the global list of powered OFF VMs:
+        poweredroff_vms_list+=(${domain_shutdown_success[@]})
+    fi
+
+    if [[ ! -z ${domain_shutdown_failed[@]} ]]; then
+
+        echo "WARNING: ACTION REQUIRED for '${domain_shutdown_failed[@]}': Perform a manual Shut down of VM(s) for backup chain(s) integrity check (temporarily ignored)"
+
+        # Appends sub-list of failed to shutdown VMs to global list of VMs with issues
+        action_required_vms_list+=(${domain_shutdown_failed[@]})
+    fi
 }
 
 #------------------------------------------------------------------------------
 # Internal global variables and common functions are managed via this script:
-source ./functions
+source functions
 #------------------------------------------------------------------------------
 # 1. Check input parameters (exits on error)
 #------------------------------------------------------------------------------
 
+echo "Started at: $(date "+%Y-%m-%d %H:%M:%S")"
+
 # 1.1 Check DOMAINS_LIST:
 #------------------------------------------------------------------------------
+if [[ ! -z $DOMAINS_LIST ]]; then
 
-if [ ! -z $DOMAINS_LIST ]; then
-
-    echo "INFO: Querying for domains in \$DOMAINS_LIST via libvirt..."
+    echo "INFO: Querying for Virtual Machines listed in \$DOMAINS_LIST via libvirt..."
     for domain in ${DOMAINS_LIST//,/ }; do
 
-        if [ $(domain_exists $domain) == yes ]; then
+        if [[ $(domain_exists $domain) == yes ]]; then
 
             # Domain exists, checks for drives that can actually be backed up
             drives_list=($(domain_drives_list $domain))
-            if [ ! -z ${drives_list[@]} ]; then
+            if [[ ! -z ${drives_list[@]} ]]; then
 
                 # Does have drives able to be backed up. Checks if such disk images are reachable inside the container:
                 images_list=($(domain_img_paths_list $domain))
                 for image in ${images_list[@]}; do
 
-                    if [ -f $image ]; then
+                    if [[ -f $image ]]; then
 
-                        # Dick images found. Check if has read/write permissions:
-                        if [ -r $image ] && [ -w $image ]; then
+                        # Disk images found. Check if has read/write permissions:
+                        if [[ -r $image ]] && [[ -w $image ]]; then
 
                             # All images are reachable. Add to list for next checkup:
                             check_vms_list+=($domain)
-                            message=""
                         else
                             failed_vms_list+=($domain)
-                            message="ERROR: '$domain': '$image': Permission issues (cannot read or write)"
+                            echo "ERROR: '$domain': '$image': Permission issues (cannot read or write)"
                         fi
                     else
                         failed_vms_list+=($domain)
-                        message="ERROR: '$domain': '$image': Not found"
+                        echo "ERROR: '$domain': '$image': Not found"
                     fi
                 done
             else
                 ignored_vms_list+=($domain)
-                message="WARNING: '$domain': No drives that can be backed up (ignored)"
+                echo "WARNING: '$domain': No drives that can be backed up (ignored)"
             fi
         else
             ignored_vms_list+=($domain)
-            message+="WARNING: '$domain': Does not exist or is a transient domain (ignored)"
+            echo "WARNING: '$domain': Does not exist or is a transient domain (ignored)"
         fi
 
-        [ ! -z $message ] && echo $message
     done
 
-    if [ ! -z $failed_vms_list ]; then
+    if [[ ! -z ${failed_vms_list[@]} ]]; then
 
-        echo "ERROR: One or more domains (${failed_vms_list[@]}) have issues that need to be solved before to run this container again."
-    elif [ -z $check_vms_list ]; then
+        echo "ERROR: Issues detected with VM(s) '${failed_vms_list[@]}' that need to be solved before to run this container again."
+    elif [[ -z ${check_vms_list[@]} ]]; then
 
-        echo "ERROR: No suitable domains to be backed up."
+        echo "ERROR: No suitable Virtual machines to be backed up."
     else
         # When no VM failed the test AND remained VMs to check (not ignored), then domain_list check is successful:
         domains_list_status="OK"
-        message=""
 
+        echo "INFO: VMs '${check_vms_list[@]}' able for further checking and monitoring"
+    fi
 else
-    echo "ERROR: Environment variable 'DOMAINS_LIST' is undefined."
+    echo "ERROR: Environment variable 'DOMAINS_LIST' not set."
 fi
 
 # 1.2 Check BACKUPS_MAIN_PATH
 #------------------------------------------------------------------------------
 
-if [ ! -z $BACKUPS_MAIN_PATH ]; then
+if [[ ! -z $BACKUPS_MAIN_PATH ]]; then
 
-    echo "INFO: Checking for BACKUPS_MAIN_PATH..."
-    if  [ -d $BACKUPS_MAIN_PATH ]; then
+    if  [[ -d $BACKUPS_MAIN_PATH ]]; then
 
         # $BACKUPS_MAIN_PATH found
-        if  [ -r $BACKUPS_MAIN_PATH ] && [ -w $BACKUPS_MAIN_PATH ]; then
+        if  [[ -r $BACKUPS_MAIN_PATH ]] && [[ -w $BACKUPS_MAIN_PATH ]]; then
 
             # $BACKUPS_MAIN_PATH has read/write permissions. backup check is successful:
             backups_main_path_status="OK"
+
+            echo "INFO: Path: '$BACKUPS_MAIN_PATH' found (with right read/write permissions)"
         else
-            message="ERROR: Backups main path: '$BACKUPS_MAIN_PATH': Permission issues (cannot read or write)"
+            echo "ERROR: Backups main path: '$BACKUPS_MAIN_PATH': Permission issues (cannot read or write)"
         fi
     else
-        message="ERROR: Backups main path: '$BACKUPS_MAIN_PATH': Not found or not a directory"
+        echo "ERROR: Backups main path: '$BACKUPS_MAIN_PATH': Not found or not a directory"
     fi
 else
-    echo "ERROR: Environment variable 'BACKUPS_MAIN_PATH' is undefined."
+    echo "ERROR: Environment variable 'BACKUPS_MAIN_PATH' is not set"
 fi
 
 # 1.3 Check REMOTE_BACKUPS_MAIN_PATH
 #------------------------------------------------------------------------------
 
-if [ -z $REMOTE_BACKUPS_MAIN_PATH ]; then
+if [[ -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
 
     remote_backups_main_path_status="OK"
-    "INFO: Environment variable REMOTE_BACKUPS_MAIN_PATH is undefined. No remote backup endpoint will be used"
+    echo "INFO: Environment variable REMOTE_BACKUPS_MAIN_PATH not set (no remote backup endpoint will be used)"
 
-elif [ $REMOTE_BACKUPS_MAIN_PATH == *@*:/* ]; then
+elif [[ $REMOTE_BACKUPS_MAIN_PATH == *@*:/* ]]; then
 
     # Apparently includes correct remote login and path. Separates ssh login from remote path:
     remote_server=$(echo $REMOTE_BACKUPS_MAIN_PATH | cut -d':' -f1)
@@ -619,15 +539,15 @@ elif [ $REMOTE_BACKUPS_MAIN_PATH == *@*:/* ]; then
     ssh_command $remote_server "exit 0"
     remote_server_status=$?
 
-    if [ $remote_server_status == 0 ]; then
+    if [[ $remote_server_status == 0 ]]; then
 
         # Attempts to perform similar checks as with $BACKUPS_MAIN_PATH, except it only returns "OK" if there was success:
-        remote_backups_main_path_status=$(ssh_command $remote_server "if [ ! -e $remote_backups_main_path ]; then; mkdir -p $remote_backups_main_path; [ $? == 0 ] && echo CREATED; elif [ -d $remote_backups_main_path ] && [ -r $remote_backups_main_path ] && [ -w $remote_backups_main_path ]; then; echo OK; fi")
+        remote_backups_main_path_status=$(ssh_command $remote_server "if [[ ! -e $remote_backups_main_path ]]; then; mkdir -p $remote_backups_main_path; [[ $? == 0 ]] && echo CREATED; elif [[ -d $remote_backups_main_path ]] && [[ -r $remote_backups_main_path ]] && [[ -w $remote_backups_main_path ]]; then; echo OK; fi")
 
-        if [ $remote_backups_main_path_status == OK ]; then
+        if [[ $remote_backups_main_path_status == OK ]]; then
 
             echo "INFO: Remote endpoint: $REMOTE_BACKUPS_MAIN_PATH exists and is usable for backups"
-        elif [ $remote_backups_main_path_status == CREATED ]; then
+        elif [[ $remote_backups_main_path_status == CREATED ]]; then
 
             echo "INFO: Remote endpoint: $REMOTE_BACKUPS_MAIN_PATH created"
         else
@@ -643,22 +563,24 @@ fi
 
 # 1.4 TO DO: Check CRON_SCHEDULE format:
 #------------------------------------------------------------------------------
-
 #------------------------------------------------------------------------------
 # 2. Only when input parameters doesn't require to restart the container, it continues the rest of the checks:
 #------------------------------------------------------------------------------
 
-if [ $domains_list_status == OK ] && [ $backups_main_path_status == OK ] && [ ! -z $remote_backups_main_path_status ]; then
+if [[ $domains_list_status == OK ]] && [[ $backups_main_path_status == OK ]] && [[ ! -z $remote_backups_main_path_status ]]; then
 
     # 2.1 Create/update Cron task for VMs to be (progressively) included in $scheduled_backups_list:
     #------------------------------------------------------------------------------
 
+    echo "INFO: Deploying Cron task..."
+
     crontab_file="/tmp/crontab"
     scheduled_logs_file="/logs/scheduled_backups.log"
-    [ -z $CRON_SCHEDULE ] && { $CRON_SCHEDULE="@daily"; echo "WARNING: Environment variable 'CRON_SCHEDULE' is undefined (scheduled backups will be performed with default '$CRON_SCHEDULE' parameter)"; }
 
-    # Deletes any previous cron task:
-    crontab -r
+    [[ -z $CRON_SCHEDULE ]] && { CRON_SCHEDULE="@daily"; echo "INFO: Environment variable 'CRON_SCHEDULE' is not set. Using default parameter ($CRON_SCHEDULE)"; }
+
+    # Silently deletes any previous cron task:
+    &> /dev/null crontab -r
 
     # Parses the actual cron task needed to run to $crontab_file:
     cat << end_of_crontab > $crontab_file
@@ -671,42 +593,40 @@ end_of_crontab
     crontab $crontab_file
 
     # Finally, runs cron and sends to background:
-    echo "INFO: Attempting to start container's cron process (Note: If it fails due to conflicts with hosts's cron, restart the container with more specific mounts instead of '/run' or '/var/run')"
     cron -f -l -L2 &
-
 
     # 2.2 Check if OS is Unraid and it has just been restarted (checking backups under this scenario assumes missing checkpoints / broken backup chains:
     #------------------------------------------------------------------------------
-    if [ $(os_is_unraid) == yes ]; then
 
-        echo "INFO: OS Unraid detected"
+    if [[ $(os_is_unraid) == yes ]]; then
+
+        echo "INFO: OS Unraid detected. Scanning for checkpoints..."
+
         for domain in ${check_vms_list[@]}; do
 
             # Looks for checkpoints in all VMs, only stopping if it finds something
-            # (does nto rely on expose checkpoints dir inside the container):
-            if [ ! -z $(domain_checkpoint_list $domain) ];
+            # (does not rely on expose checkpoints dir inside the container):
+            if [[ ! -z $(domain_checkpoint_list $domain) ]]; then
 
-                checkpoints_found="true"
+                checkpoints_found="yes"
                 break
-            else
-                checkpoints_found="false"
-            fi
+             fi
         done
 
-        if [ $checkpoints_found == true ]; then
+        if [[ -z $checkpoints_found ]]; then
 
             restarted_server="true"
-            echo "INFO: Unraid host has just been restarted recently or no backups has been performed yet on the server. Checking for running domains..."
+            echo "INFO: Server appears to have been restarted recently or no backup has been ever performed. Checking for running Virtual machines..."
 
             i=0
             for domain in ${check_vms_list[@]}; do
 
-                if [ $(domain_state $domain) != "shut off" ]; then
+                if [[ $(domain_state $domain) != "shut off" ]]; then
 
-                    if [ ! -z $RESTART_VMS_IF_REQUIRED ]; then
+                    if [[ ! -z $RESTART_VMS_IF_REQUIRED ]]; then
 
                         domain_shutdown $domain
-                        if [[ $? -eq 0 ]]
+                        if [[ $? -eq 0 ]]; then
 
                             # Added VMs list that were on and had to be shutdown temporarily in order to perform further checks:
                             poweredroff_vms_list+=($domain)
@@ -715,6 +635,7 @@ end_of_crontab
                             # VM Delayed too much without being shutdown
                             action_required_vms_list+=($domain)
                             unset check_vms_list[i]
+                        fi
                     else
                         # Uer needs to shutdown this VM before to perform any further checks o backups:
                         action_required_vms_list+=($domain)
@@ -726,32 +647,54 @@ end_of_crontab
             done
 
             # Notifies the user bout the result and if needs to perform further actions (VMs are temporarily ignored, but checked periodically if state changes):
-
-            [ ! -z $poweredroff_vms_list ] && echo "WARNING: Virtual machine(s) '${poweredroff_vms_list[@]}' has been temporarily shutdown in order to verify its correspondent backup chain integrity"
-
-            [ ! -z $action_required_vms_list ] && echo "WARNING: ACTION REQUIRED: Virtual machine(s) '${action_required_vms_list[@]} need to be SHUTDOWN in order to verify its correspondent backup chain integrity (state will be checked periodically)"
+            [[ ! -z $poweredroff_vms_list ]] && echo "INFO: VM(s) '${poweredroff_vms_list[@]}' Into automatic Powercycle for further checks (will be powered on shortly)"
+            [[ ! -z $action_required_vms_list ]] && echo "WARNING: ACTION REQUIRED for '${action_required_vms_list[@]}':  Perform a manual Shut down of VM(s) for further checks (temporarily ignored)"
 
         else
             restarted_server="false"
         fi
-
     fi
 
     # 2.3 Perform an initial check of VMs that are -in theory- able to be backed up:
     #------------------------------------------------------------------------------
-        # Check / apply VM patch:
-        check_vms_patch "check_vms_list" "${check_vms_list[@]}"
 
-        # When any VM is, or has been successfully patched, Check VM backups for such VMs:
-        [ ! -z ${check_backups_list[@]} ] && check_backups "check_backups_list" "${check_backups_list[@]}"
+    echo "INFO: Initial check of VM(s) '${check_vms_list[@]}' in progress..."
+    check_vms_patch "check_vms_list" "${check_vms_list[@]}"
 
-        # When any VM ends in $full_backups_list, creates a backup chain (this may take a lot o time)
-        #[ ! -z ${full_backups_list[@]} ] && create_backup_chain ${full_backups_list[@]}
+    if [[ ! -z ${poweredroff_vms_list[@]} ]]; then
+
+        echo "INFO: Powering on previously shut down, and configured for autostart Virtual machine(s)..."
+        for $domain in ${poweredroff_vms_list[@]}; do
+
+            virsh start $domain
+        done
+    fi
+
+    if [[ ! -z ${check_backups_list[@]} ]]; then
+
+        echo "INFO: Initial check of backup chains(s) of VM(s) '${check_backups_list[@]}' in progress..."
+        check_backups "check_backups_list" "${check_backups_list[@]}"
+    fi
+
+    # 2.4 Power on VMs marked for autostart, or shut down to perform the initial chacks:
+    #------------------------------------------------------------------------------
+
+    #------------------------------------------------------------------------------
+    #if [ ! -z ${full_backups_list[@]} ]]; then
+
+        #echo "INFO: Creation of new backup chain(s) for VM(s) '${full_backups_list[@]}' in progress (this may take some time...)"
+        #create_backup_chain ${full_backups_list[@]}
+
+
+    #fi
+
 
     # 2.4 Begin monitorization for changes in VMs moved to action_required_vms_list,
     # Until SIGSTOP if received, then closes all processes and goes off.
     #------------------------------------------------------------------------------
+else
+    echo "ERROR: Could not start due to errors on input parameters. Exited."
+    echo "#-----------------------------------------------------------------------------------------------------"
+fi
     #------------------------------------------------------------------------------
     # The End.
-fi
-
