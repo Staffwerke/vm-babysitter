@@ -15,12 +15,11 @@ ca-certificates cron git libvirt-clients python3-all python3-libnbd python3-libv
 git clone $VIRTNBDBACKUP_SOURCE.git && \
 cd virtnbdbackup && python3 setup.py install && cd .. && \
 apt-get purge -y git ca-certificates && apt-get -y autoremove --purge && apt-get clean && \
-rm -rf /var/lib/apt/lists/* /tmp/* /virtnbdbackup
+rm -rf /var/lib/apt/lists/* /tmp/* /virtnbdbackup && \
+mkdir -p /logs /root/.ssh
 
-COPY "./entrypoint.sh","../functions","..vm-*/","..virtnbd*/", "/"
+COPY entrypoint.sh scripts/functions scripts/vm-* scripts/virtnbd* /usr/local/bin/
 
-ENV ALLOW_RESTART="false"
-
-ENTRYPOINT ["entrypoint.sh","&>> /log/vm-babysitter.log"]
+CMD ["entrypoint.sh","&>> /logs/main.log"]
 
 WORKDIR /
