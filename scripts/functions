@@ -12,6 +12,9 @@ base_mac_addr="52:54:00"
 # Maximum time to await for a response in certain functions:
 wait_time=15
 
+# Maximum number of attempts for a response in certain functions:
+max_attempts=5
+
 # SSH port can be omitted if 22. Otherwise, '-p <port_number>' :
 ssh_port=""
 
@@ -144,6 +147,64 @@ domain_powercycle()
 }
 
 #------------------------------------------------------------------------------
+# Powers on a given domain and awaits (unless --nowait is passed) for internal qemu agent to return a response:
+#------------------------------------------------------------------------------
+domain_start()
+{
+
+local domain_start_status=0
+local vm_needed_state="running"
+
+    if [[ $(domain_state $1) == $vm_needed_state ]]; then
+
+        echo "INFO: VM '$1' is already $vm_needed_state"
+    else
+
+        echo "$1: Powering on..."
+
+        # Starts the VM if is powered off:
+         > /dev/null virsh start $target_domain
+
+        if [[ $2 != --nowait ]]
+
+            local attempt
+            local agent_status
+
+            # Await for QEMU agent response to exit successfully:
+            local attempt=1
+            while (( $attempt < $max_attempts )); do
+
+                # Awaits for the VM (qemu guest service, actually) for being on
+                sleep $wait_time
+
+                # (Silently) Gets VM output about its qemu agent:
+                > /dev/null virsh guestinfo $1
+                agent_status=$?
+
+                if [[ $agent_status -eq 0 ]]; then
+
+                    echo "$1: Connected to QEMU agent"
+                    break
+
+                elif [[ $attempt -lt $max_attempts ]]; then
+
+                    echo "$1: Awaiting for QEMU agent to begin... ($attempt/$max_attempts)"
+                    ((attempt++))
+
+                elif [[ $attempt -eq $max_attempts ]]; then
+
+                    echo "WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. awaiting for QEMU agent in VM $1. Ensure this service is installed and working on the guest OS to warrant concurrent data within backups."
+
+                    domain_start_status=0
+                fi
+            done
+        fi
+    fi
+
+    exit $domain_start_status
+}
+
+#------------------------------------------------------------------------------
 # Returns a string value with the state reported by libvirt (e.g. "running", "shut off", etc.)
 # -----------------------------------------------------------------------------
 domain_state()
@@ -166,7 +227,7 @@ domain_shutdown()
     else
 
         #local wait_time=15
-        local max_attempts=10
+        #local max_attempts=10
         local attempt=1
 
         virsh shutdown $1
