@@ -188,7 +188,7 @@ local vm_needed_state="running"
                 [[ $agent_status -ne 0 ]] && echo "WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. awaiting for QEMU agent in VM $1. Ensure this service is installed and working on the guest OS to warrant concurrent data within backups."
             fi
         else
-            echo "ERROR: Could not start VM $1!"
+            echo "ERROR: Libvirt failed to start VM $1!"
         fi
     fi
 
@@ -204,11 +204,11 @@ domain_state()
 }
 
 # -----------------------------------------------------------------------------
-# Sends shutdown signal and awaits until domain has been shutted down to return success:
+# Sends shutdown signal and awaits (unless --nowait is passed) until domain has been shutted down to return success:
 # -----------------------------------------------------------------------------
 domain_shutdown()
 {
-    local domain_shutdown_status=1
+    local domain_shutdown_status
     local vm_needed_state="shut off"
 
     if [[ $(domain_state $1) == $vm_needed_state ]]; then
@@ -217,22 +217,26 @@ domain_shutdown()
         domain_shutdown_status=0
     else
 
-        #local wait_time=15
-        #local max_attempts=10
-        local attempt=1
-
         virsh shutdown $1
-        while (( $attempt < $max_attempts )); do
 
-            sleep $wait_time
-            [[ $(domain_state $1) == $vm_needed_state ]] && { domain_shutdown_status=0; break; } || ((attempt++))
-        done
+        if [[ $domain_start_status -eq 0 ]]; then
 
-        local message=""
-        [[ $domain_shutdown_status -eq 0 ]] && message="INFO: VM '$1' powered off successfully" || message="WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. awaiting for VM '$1' to power off"
+            if [[ $2 != --nowait ]]; then
+
+                local attempt=1
+                while (( $attempt < $max_attempts )); do
+
+                    sleep $wait_time
+                    [[ $(domain_state $1) == $vm_needed_state ]] && { domain_shutdown_status=0; break; } || ((attempt++))
+                done
+
+                [[ $domain_shutdown_status -eq 0 ]] && echo "INFO: VM '$1' powered off successfully" || echo "WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. awaiting for VM '$1' to power off"
+            fi
+        else
+            echo "ERROR: Libvirt failed to shutdown VM $1!"
+        fi
     fi
 
-    echo $message
     return $domain_shutdown_status
 }
 
