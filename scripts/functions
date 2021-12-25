@@ -152,7 +152,7 @@ domain_powercycle()
 domain_start()
 {
 
-local domain_start_status=0
+local domain_start_status
 local vm_needed_state="running"
 
     if [[ $(domain_state $1) == $vm_needed_state ]]; then
@@ -160,48 +160,39 @@ local vm_needed_state="running"
         echo "INFO: VM '$1' is already $vm_needed_state"
     else
 
-        echo "$1: Powering on..."
-
         # Starts the VM if is powered off:
-         > /dev/null virsh start $target_domain
+        virsh start $1
+        domain_start_status=$?
 
-        if [[ $2 != --nowait ]]
+        if [[ $domain_start_status -eq 0 ]]; then
 
-            local attempt
-            local agent_status
+            if [[ $2 != --nowait ]]; then
 
-            # Await for QEMU agent response to exit successfully:
-            local attempt=1
-            while (( $attempt < $max_attempts )); do
+                local attempt
+                local agent_status
 
-                # Awaits for the VM (qemu guest service, actually) for being on
-                sleep $wait_time
+                # Await for QEMU agent response to exit successfully:
+                local attempt=1
+                while (( $attempt < $max_attempts )); do
 
-                # (Silently) Gets VM output about its qemu agent:
-                > /dev/null virsh guestinfo $1
-                agent_status=$?
+                    # Awaits for the VM (qemu guest service, actually) for being on
+                    sleep $wait_time
 
-                if [[ $agent_status -eq 0 ]]; then
+                    # (Silently) Gets VM output about its qemu agent:
+                    > /dev/null virsh guestinfo $1
+                    agent_status=$?
 
-                    echo "$1: Connected to QEMU agent"
-                    break
+                    [[ $agent_status -eq 0 ]] && { echo "$1: Connected to QEMU agent"; break } ||           ((attempt++))
+                done
 
-                elif [[ $attempt -lt $max_attempts ]]; then
-
-                    echo "$1: Awaiting for QEMU agent to begin... ($attempt/$max_attempts)"
-                    ((attempt++))
-
-                elif [[ $attempt -eq $max_attempts ]]; then
-
-                    echo "WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. awaiting for QEMU agent in VM $1. Ensure this service is installed and working on the guest OS to warrant concurrent data within backups."
-
-                    domain_start_status=0
-                fi
-            done
+                [[ $agent_status -ne 0 ]] && echo "WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. awaiting for QEMU agent in VM $1. Ensure this service is installed and working on the guest OS to warrant concurrent data within backups."
+            fi
+        else
+            echo "ERROR: Could not start VM $1!"
         fi
     fi
 
-    exit $domain_start_status
+    return $domain_start_status
 }
 
 #------------------------------------------------------------------------------
