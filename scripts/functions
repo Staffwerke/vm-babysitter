@@ -182,7 +182,7 @@ local vm_needed_state="running"
                     > /dev/null virsh guestinfo $1
                     agent_status=$?
 
-                    [[ $agent_status -eq 0 ]] && { echo "$1: Connected to QEMU agent"; break } ||           ((attempt++))
+                    [[ $agent_status -eq 0 ]] && { echo "$1: Connected to QEMU agent"; break; } || ((attempt++))
                 done
 
                 [[ $agent_status -ne 0 ]] && echo "WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. awaiting for QEMU agent in VM $1. Ensure this service is installed and working on the guest OS to warrant concurrent data within backups."
