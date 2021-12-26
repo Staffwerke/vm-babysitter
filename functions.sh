@@ -67,33 +67,6 @@ fi
 
 }
 
-# Creates a backup chain of given domain ($1) on $BACKUP_MAIN_PATH with given options
-#------------------------------------------------------------------------------
-create_backup_chain()
-{
-
-local domain=$1
-local domain_backup_path=$BACKUP_MAIN_PATH/$domain
-
-# Backup Mode:
-local backup_mode="full"
-
-# Extra options passed to virtnbdbackup:
-local options
-[ $BACKUP_COMPRESSION == yes ] && options=" --compress"
-
-# Notifies the user about the ongoing process:
-echo "INFO: Starting a $backup_mode backup of $domain (this may take some time, or even look freezed...)"
-
-virtnbdbackup -d $domain -l $backup_mode -o $domain_backup_path $options
-local create_backup_chain_status=$?
-
-[ $create_backup_chain_status != 0 ] && echo "INFO: $backup_mode backup of $domain successfully finished!" || { echo "ERROR: virtnbdbackup exited with status $status. Read the logs above to determine the problem"
-
-return $create_backup_chain_status
-
-}
-
 # Check for previously existing backups of VMs in $domains_list, deleting those with internal inconsistencies:
 #------------------------------------------------------------------------------
 check_backups()
