@@ -22,8 +22,9 @@ RESTART_VMS_IF_REQUIRED
 
 Advanced options:
 MAX_ATTEMPTS
-WAIT_TIME
+MONITORING_INTERVAL
 RSYNC_ARGS
+WAIT_TIME
 
 #------------------------------------------------------------------------------
 # TO DO:
@@ -40,12 +41,6 @@ RSYNC_ARGS
 #------------------------------------------------------------------------------
 REMAINING PROCEDURE:
 #------------------------------------------------------------------------------
-4. Initialize:
-#------------------------------------------------------------------------------
-For each VM in AUTOSTART_VMS_LIST and POWEREDOFF_VMS_LIST
-    Is VM OFF?
-    yes
-        start the VM
 
 Process slacking backup chains:
 #------------------------------------------------------------------------------
@@ -275,7 +270,6 @@ check_backups()
 
                     if [[ $backup_check_failed == yes ]]; then
 
-
                         if [[ $RESTARTED_SERVER != true ]]; then
 
                             echo "$0 ($domain): Pruning existing Checkpoints in QEMU..."
@@ -307,7 +301,6 @@ check_backups()
                         # Exits the loop:
                         break
                     fi
-
 
                 elif [[ $RESTARTED_SERVER == true ]]; then
 
@@ -674,8 +667,34 @@ end_of_crontab
         check_backups "CHECK_BACKUPS_LIST" "${CHECK_BACKUPS_LIST[@]}"
     fi
 
-    # 2.4 Power on VMs marked for autostart, or shut down to perform the initial chacks:
+    # 2.4 If any, Power on VMs marked for autostart, or shut down to perform the initial chacks:
     #------------------------------------------------------------------------------
+
+    if [[ ! -z ${AUTOSTART_VMS_LIST[@]} ]] then
+
+        echo "INFO: Starting Virtual machines marked for autostart in environment variable AUTOSTART_VMS_LIST..."
+
+        for domain in ${AUTOSTART_VMS_LIST[@]}; do
+
+            # Turn on the VM. Do not wait for Guest's QEMU agent:
+            domain_start $domain --nowait
+        done
+    fi
+
+    if [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]] then
+
+        echo "INFO: Starting Virtual machines previously Shut down to perform checks..."
+
+        i=0
+        for domain in ${POWEREDOFF_VMS_LIST[@]}; do
+
+            # Turn on the VM. Do not wait for Guest's QEMU agent:
+            domain_start $domain --nowait
+
+            # Upon success, remove the VM from the list is being read:
+            [[ $? -eq 0 ]] && unset POWEREDOFF_VMS_LIST[$i]
+        done
+    fi
 
     #------------------------------------------------------------------------------
     #if [ ! -z ${FULL_BACKUPS_LIST[@]} ]]; then
