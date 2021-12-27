@@ -63,6 +63,27 @@ domain_exists()
     [[ ! -z $(virsh list --all --name --persistent | grep -w "$1") ]] && echo "yes" || echo "no"
 }
 
+#------------------------------------------------------------------------------
+# From a given domain, returns max ('--max')  or used ('--used') memory depending on the second argument (returns both separated with space if no argument is given):
+#------------------------------------------------------------------------------
+domain_getmem()
+{
+
+    local max_memory=$(virsh dominfo $1 | grep -e "Max memory:" | rev | cut -d ' ' -f2 | rev)
+    local used_memory=$(virsh dominfo $1 | grep -e "Used memory:" | rev | cut -d ' ' -f2 | rev)
+    local result
+
+    if [[ -z $2 ]]; then
+        result="$max_memory $used_memory"
+    elif [[ $2 == --max ]]; then
+        result=$max_memory
+    elif [[ $2 == --used ]]; then
+        result=$used_memory
+    fi
+
+    echo $result
+}
+
 # -----------------------------------------------------------------------------
 # Returns a string value with the UUID of the given domain:
 # -----------------------------------------------------------------------------
@@ -144,6 +165,36 @@ domain_powercycle()
     fi
 
     return $powercycle_domain_status
+}
+
+#------------------------------------------------------------------------------
+# From a given domain and size, changes max ('--max')  or used ('--used') according the 3rd argument (changes both if no argument is given.) Returns status '0' if sucess and '1' if any of the operations failed:
+#------------------------------------------------------------------------------
+domain_setmem()
+{
+
+    local domain_setmem_status=0
+
+    if [[ -z $3 ]]; then
+
+        for range in setmaxmem setmem; do
+            > /dev/null virsh $range $1 $2 --config
+            [[ $? -ne 0 ]] && domain_setmem_status=$?
+        done
+
+    elif [[ $3 == --max ]]; then
+
+        > /dev/null virsh setmaxmem $1 $2 --config
+        domain_setmem_status=$?
+
+    elif [[ $3 == --used ]]; then
+
+        > /dev/null virsh setmem $1 $2 --config
+        domain_setmem_status=$?
+    fi
+
+    return $domain_setmem_status
+
 }
 
 #------------------------------------------------------------------------------
