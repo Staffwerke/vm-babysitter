@@ -670,18 +670,18 @@ end_of_crontab
     # 2.4 If any, Power on VMs marked for autostart, or shut down to perform the initial chacks:
     #------------------------------------------------------------------------------
 
-    if [[ ! -z ${AUTOSTART_VMS_LIST[@]} ]] then
+    if [[ ! -z $AUTOSTART_VMS_LIST ]]; then
 
         echo "INFO: Starting Virtual machines marked for autostart in environment variable AUTOSTART_VMS_LIST..."
 
-        for domain in ${AUTOSTART_VMS_LIST[@]}; do
+        for domain in ${AUTOSTART_VMS_LIST//,/ }; do
 
             # Turn on the VM. Do not wait for Guest's QEMU agent:
             domain_start $domain --nowait
         done
     fi
 
-    if [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]] then
+    if [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]]; then
 
         echo "INFO: Starting Virtual machines previously Shut down to perform checks..."
 
