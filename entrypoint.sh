@@ -93,7 +93,7 @@ check_vms_patch()
 
                 if [[ $(domain_is_patched $domain ) == yes ]]; then
 
-                    echo "$domain: Already patched"
+                    echo "$domain: Patch for incremental backups is correct"
                     vm_patch_success[$i]+=$domain
                     break
 
@@ -341,13 +341,13 @@ check_backups()
                     echo "$domain: VM is (presumably) running, comparing Checkpoint lists in QEMU and Backup..."
 
                     local qemu_checkpoint_list=($(domain_checkpoint_list $domain))
-                    local backup_chain_checkpoint_list=$(backup_checkpoint_list $BACKUPS_MAIN_PATH/$domain)
+                    local backup_chain_checkpoint_list=($(backup_checkpoint_list $BACKUPS_MAIN_PATH/$domain))
 
                     # Checkpoint lists in QEMU and backup aren't identical.
 
                     if [[ ${qemu_checkpoint_list[@]} != ${backup_chain_checkpoint_list[@]} ]]; then
 
-                        echo "$domain: QEMU and Backup Checkpoint lists mismatch (${#qemu_checkpoint_list[@]} vs. ${#backup_chain_checkpoint_list[@]})"
+                        echo "$domain: QEMU and Backup Checkpoint lists mismatch (${#qemu_checkpoint_list[@]} vs ${#backup_chain_checkpoint_list[@]})"
 
                         # Mark backup chain as broken (can't check more in deep for bitmaps / checkpoints to delete:)
                         broken_backup_chain[$i]=$domain
