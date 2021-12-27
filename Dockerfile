@@ -18,6 +18,9 @@ apt-get purge -y git ca-certificates && apt-get -y autoremove --purge && apt-get
 rm -rf /var/lib/apt/lists/* /tmp/* /virtnbdbackup && \
 mkdir -p /logs /root/.ssh
 
+# Default timer (in seconds) to perform pending actions and monitoring changes:
+ENV MONITORING_INTERVAL="60"
+
 COPY entrypoint.sh scripts/functions scripts/vm-* scripts/virtnbd* /usr/local/bin/
 
 CMD ["entrypoint.sh","&>> /logs/main.log"]
