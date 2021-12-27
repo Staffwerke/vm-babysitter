@@ -13,8 +13,8 @@ Optional:
 AUTOSTART_VMS_LIST
 CRON_SCHEDULE
 IGNORED_VMS_LIST
-MAX_LOCAL_BACKUP_CHAINS_PER_VM
-MAX_REMOTE_BACKUP_CHAINS_PER_VM
+MAX_BACKUP_CHAINS_PER_VM
+REMOTE_MAX_BACKUP_CHAINS_PER_VM
 NO_BACKUP_COMPRESSION
 RAM_LIMIT_PER_SCHED_BACKUP
 REMOTE_BACKUPS_MAIN_PATH
@@ -287,7 +287,8 @@ check_backups()
                             done
                         done
 
-                        # And marks backup chain as broken:
+                        # Process old backup and mark backup chain as broken:
+                        archive_backup $domain
                         broken_backup_chain[$i]=$domain
 
                         # Exits the loop:
@@ -329,7 +330,7 @@ check_backups()
                         # (User must shutdown the VM manually):
                         echo "$domain: Cannot check its backup chain while VM running (RESTARTED_SERVER detected)"
 
-                        # Adds VM to failed to shutdown local list
+                        # Adds VM to failed to shutdown local list:
                         domain_shutdown_failed[$i]=$domain
 
                         # Exits the loop (nothing else can be done):
@@ -349,7 +350,8 @@ check_backups()
 
                         echo "$domain: QEMU and Backup Checkpoint lists mismatch (${#qemu_checkpoint_list[@]} vs ${#backup_chain_checkpoint_list[@]})"
 
-                        # Mark backup chain as broken (can't check more in deep for bitmaps / checkpoints to delete:)
+                        # Process old backup and mark backup chain as broken (can't check more in deep for bitmaps / checkpoints to delete:)
+                        archive_backup $domain
                         broken_backup_chain[$i]=$domain
 
                         # Exits the loop (nothing else can be done):
@@ -368,10 +370,40 @@ check_backups()
 
             else
 
-                echo "$domain: No backup chain folder, backup chain structure is damaged or a previous backup operation was unexpectedly cancelled."
+                # Backup chain integrity failed. Look for recoverable ones to be archived:
+                local is_recoverable=""
+
+                if [[ -d $BACKUPS_MAIN_PATH/$domain ]]; then
+
+                    echo "$domain: No backup chain folder detected"
+
+                elif [[ -f $BACKUPS_MAIN_PATH/$domain/$domain.cpt ]] || [[ -d $BACKUPS_MAIN_PATH/$domain/checkpoints ]]; then
+
+                    echo "$domain: Current backup chain structure is inconsistent or damaged (deleted)"
+
+                elif [[ -z $(find $BACKUPS_MAIN_PATH/$domain -type f -name "*.partial") ]]; then
+
+                    # Gets the list of checkpoints:
+                    local damaged_backup_checkpoints_list=($(backup_checkpoint_list $domain))
+
+                    if [[ ${#damaged_backup_checkpoints_list[@]} -gt 1 ]]; then
+
+                        is_recoverable=yes
+                        echo "$domain: Current backup chain is dirty due an incremental operation was unexpectedly cancelled (all checkpoints but last are recoverable)"
+
+                    else
+                        echo "$domain: Current backup chain is incomplete due its creation was unexpectedly cancelled (deleted)"
+                    fi
+
+                else
+                    echo "$domain: Unknown error detected with its backup chain"
+                fi
 
                 # Mark backup chain as broken:
                 broken_backup_chain[$i]=$domain
+
+                # Archive only if the variable was set:
+                [[ $is_recoverable ]] && archive_backup $domain || rm -rf $BACKUPS_MAIN_PATH/$domain
 
                 # Exits the loop (nothing else can be done):
                 break
@@ -652,15 +684,6 @@ end_of_crontab
     echo "INFO: Initial check of VM(s) '${CHECK_VMS_LIST[@]}' in progress..."
     check_vms_patch "CHECK_VMS_LIST" "${CHECK_VMS_LIST[@]}"
 
-    if [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]]; then
-
-        echo "INFO: Powering on previously shut down, and configured for autostart Virtual machine(s)..."
-        for $domain in ${POWEREDOFF_VMS_LIST[@]}; do
-
-            virsh start $domain
-        done
-    fi
-
     if [[ ! -z ${CHECK_BACKUPS_LIST[@]} ]]; then
 
         echo "INFO: Initial check of backup chains(s) of VM(s) '${CHECK_BACKUPS_LIST[@]}' in progress..."
@@ -672,7 +695,7 @@ end_of_crontab
 
     if [[ ! -z $AUTOSTART_VMS_LIST ]]; then
 
-        echo "INFO: Starting Virtual machines marked for autostart in environment variable AUTOSTART_VMS_LIST..."
+        echo "INFO: Starting Virtual set in environment variable AUTOSTART_VMS_LIST..."
 
         for domain in ${AUTOSTART_VMS_LIST//,/ }; do
 
@@ -696,16 +719,29 @@ end_of_crontab
         done
     fi
 
+    # 2.5 Begin monitorization for changes in lists:
     #------------------------------------------------------------------------------
-    #if [ ! -z ${FULL_BACKUPS_LIST[@]} ]]; then
+    echo "INFO: Awaiting for $MONITORING_INTERVAL seconds to apply pending operations and check for changed status on Virtual machines..."
 
-        #echo "INFO: Creation of new backup chain(s) for VM(s) '${FULL_BACKUPS_LIST[@]}' in progress (this may take some time...)"
-        #create_backup_chain ${FULL_BACKUPS_LIST[@]}
+    while true; do
+
+        sleep $MONITORING_INTERVAL
+
+        if [[ ! -z ${FULL_BACKUPS_LIST[@]} ]]; then
+
+            echo "INFO: Creation of new backup chain(s) for VM(s) '${FULL_BACKUPS_LIST[@]}' in progress (this may take some time...)"
+            #create_backup_chain ${FULL_BACKUPS_LIST[@]}
 
 
-    #fi
+        fi
 
+        if [[ ! -z ${ACTION_REQUIRED_VMS_LIST[@]} ]]; then
 
+            echo "INFO: Scanning for changes in Virtual machines reported with issues..."
+
+        fi
+
+    done
     # 2.4 Begin monitorization for changes in VMs moved to ACTION_REQUIRED_VMS_LIST,
     # Until SIGSTOP if received, then closes all processes and goes off.
     #------------------------------------------------------------------------------
