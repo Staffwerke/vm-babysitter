@@ -239,7 +239,7 @@ local vm_needed_state="running"
                 [[ $agent_status -ne 0 ]] && echo "WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. awaiting for QEMU agent in VM $1. Ensure this service is installed and working on the guest OS to warrant concurrent data within backups."
             fi
         else
-            echo "ERROR: Libvirt failed to start VM $1!"
+            echo "ERROR: ACTION REQUIRED: Libvirt failed to start VM $1! Check both VM and libvirt settings are correct (unknown error)"
         fi
     fi
 
