@@ -306,37 +306,40 @@ domains_list()
 #------------------------------------------------------------------------------
 # Creates a backup chain of given domain ($1) on $BACKUP_MAIN_PATH with given options
 #------------------------------------------------------------------------------
-create_backup_chain()
+do_backup_chain()
 {
-
+    # VM name:
     local domain=$1
-    local domain_backup_path=$BACKUP_MAIN_PATH/$domain
+    shift
 
-    # Backup Mode:
-    local backup_mode="full"
+    # Backup Mode: 'full' or 'inc'
+    local backup_mode=$2
+    shift
 
-    # Extra options passed to virtnbdbackup:
-    local options
-    [[ -z  $NO_BACKUP_COMPRESSION ]] && options=" --compress"
+    # Full backup path:
+    local backup_path=$3
+    shift
+
+    # Remaining arguments are extra options passed to virtnbdbackup (if any):
+    local options=$@
 
     # Notifies the user about the ongoing process:
-    echo "INFO: Starting a $backup_mode backup of $domain (this may take some time, or even look freezed...)"
+    echo "$domain: Started $backup_mode backup (this may take some time, or even look freezed...)"
 
     # Executes the operation:
-    virtnbdbackup -d $domain -l $backup_mode -o $domain_backup_path $options
+    virtnbdbackup -d $domain -l $backup_mode -o $backup_path/$domain $options
     local create_backup_chain_status=$?
 
     if [[ $create_backup_chain_status -eq 0 ]]; then
 
-        echo "INFO: $backup_mode backup of $domain successfully finished!"
+        echo "$domain: $backup_mode backup of successfully finished!"
     else
 
-        echo "ERROR: virtnbdbackup exited with status $status. Read the logs above to determine the problem"
+        echo "WARNING: $domain: virtnbdbackup failed with status $status. Read the logs above to determine the problem."
 
     fi
 
     return $create_backup_chain_status
-
 }
 
 ###############################################################################
