@@ -11,7 +11,7 @@ ARG VIRTNBDBACKUP_SOURCE="https://github.com/abbbi/virtnbdbackup"
 RUN \
 apt-get update && \
 apt-get install -y --no-install-recommends \
-ca-certificates cron git libvirt-clients python3-all python3-libnbd python3-libvirt python3-lz4 python3-setuptools python3-tqdm qemu-utils rsync sshfs && \
+ca-certificates cron git libvirt-clients procps python3-all python3-libnbd python3-libvirt python3-lz4 python3-setuptools python3-tqdm qemu-utils rsync sshfs && \
 git clone $VIRTNBDBACKUP_SOURCE.git && \
 cd virtnbdbackup && python3 setup.py install && cd .. && \
 apt-get purge -y git ca-certificates && apt-get -y autoremove --purge && apt-get clean && \
@@ -23,6 +23,6 @@ ENV MONITORING_INTERVAL="60"
 
 COPY entrypoint.sh scripts/functions scripts/vm-* scripts/virtnbd* /usr/local/bin/
 
-CMD ["entrypoint.sh","&>> /logs/main.log"]
+CMD ["entrypoint.sh"]
 
 WORKDIR /
