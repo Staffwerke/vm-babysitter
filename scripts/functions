@@ -197,63 +197,6 @@ domain_setmem()
 
 }
 
-#------------------------------------------------------------------------------
-# Powers on a given domain and awaits (unless --nowait is passed) for internal qemu agent to return a response:
-#------------------------------------------------------------------------------
-domain_start()
-{
-
-local domain_start_status
-local vm_needed_state="running"
-
-    if [[ $(domain_state $1) == $vm_needed_state ]]; then
-
-        echo "INFO: VM '$1' is already $vm_needed_state"
-    else
-
-        # Starts the VM if is powered off:
-        virsh start $1
-        domain_start_status=$?
-
-        if [[ $domain_start_status -eq 0 ]]; then
-
-            if [[ $2 != --nowait ]]; then
-
-                local attempt
-                local agent_status
-
-                # Await for QEMU agent response to exit successfully:
-                local attempt=1
-                while (( $attempt < $max_attempts )); do
-
-                    # Awaits for the VM (qemu guest service, actually) for being on
-                    sleep $wait_time
-
-                    # (Silently) Gets VM output about its qemu agent:
-                    > /dev/null virsh guestinfo $1
-                    agent_status=$?
-
-                    [[ $agent_status -eq 0 ]] && { echo "$1: Connected to QEMU agent"; break; } || ((attempt++))
-                done
-
-                [[ $agent_status -ne 0 ]] && echo "WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. awaiting for QEMU agent in VM $1. Ensure this service is installed and working on the guest OS to warrant concurrent data within backups."
-            fi
-        else
-            echo "ERROR: ACTION REQUIRED: Libvirt failed to start VM $1! Check both VM and libvirt settings are correct (unknown error)"
-        fi
-    fi
-
-    return $domain_start_status
-}
-
-#------------------------------------------------------------------------------
-# Returns a string value with the state reported by libvirt (e.g. "running", "shut off", etc.)
-# -----------------------------------------------------------------------------
-domain_state()
-{
-    echo $(virsh domstate $1)
-}
-
 # -----------------------------------------------------------------------------
 # Sends shutdown signal and awaits (unless --nowait is passed) until domain has been shutted down to return success:
 # -----------------------------------------------------------------------------
@@ -268,20 +211,33 @@ domain_shutdown()
         domain_shutdown_status=0
     else
 
+        # VM is on. Send shutdown signal and catch status:
         virsh shutdown $1
+        domain_shutdown_status=$?
 
-        if [[ $domain_start_status -eq 0 ]]; then
+        if [[ $domain_shutdown_status -eq 0 ]]; then
 
+            # No extra arguments passed. Waits for effective shutdown of VM:
             if [[ $2 != --nowait ]]; then
 
+                local went_to_shutdown
                 local attempt=1
                 while (( $attempt < $max_attempts )); do
 
                     sleep $wait_time
-                    [[ $(domain_state $1) == $vm_needed_state ]] && { domain_shutdown_status=0; break; } || ((attempt++))
+
+                    # Checks VM state to be effectively OFF:
+                    [[ $(domain_state $1) == $vm_needed_state ]] && { went_to_shutdown=0; break; } || ((attempt++))
                 done
 
-                [[ $domain_shutdown_status -eq 0 ]] && echo "INFO: VM '$1' powered off successfully" || echo "WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. awaiting for VM '$1' to power off"
+                if [[ ! -z $went_to_shutdown ]]; then
+
+                    echo "INFO: VM '$1' has been powered off successfully"
+                else
+
+                    domain_shutdown_status=1
+                    echo "WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. awaiting for VM '$1' to shut down"
+                fi
             fi
         else
             echo "ERROR: Libvirt failed to shutdown VM $1!"
@@ -290,6 +246,67 @@ domain_shutdown()
 
     return $domain_shutdown_status
 }
+
+#------------------------------------------------------------------------------
+# Powers on a given domain and awaits (unless --nowait is passed) for internal qemu agent to return a response:
+#------------------------------------------------------------------------------
+domain_start()
+{
+    local domain_start_status
+    local vm_needed_state="running"
+
+    if [[ $(domain_state $1) == $vm_needed_state ]]; then
+
+        echo "INFO: VM '$1' is already $vm_needed_state"
+        domain_start_status=0
+    else
+
+        # Starts the VM if is powered off:
+        virsh start $1
+        domain_start_status=$?
+
+        if [[ $domain_start_status -eq 0 ]]; then
+
+            # No extra arguments passed. Waits for VM's QEMU agent response:
+            if [[ $2 != --nowait ]]; then
+
+                local attempt=1
+                local agent_status
+                while (( $attempt < $max_attempts )); do
+
+                    sleep $wait_time
+
+                    # (Silently) Gets VM output about its qemu agent:
+                    > /dev/null virsh guestinfo $1
+                    agent_status=$?
+
+                    [[ $agent_status -eq 0 ]] && break || ((attempt++))
+                done
+
+                if [[ $agent_status -eq 0 ]]; then
+
+                    echo "$1: Connected to QEMU agent"
+                else
+                    echo "WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. awaiting for QEMU agent in VM $1. Ensure this service is installed and working on the guest OS to warrant concurrent data within backups."
+                fi
+
+            fi
+        else
+            echo "ERROR: ACTION REQUIRED: Libvirt failed to start VM $1!"
+        fi
+    fi
+
+    return $domain_start_status
+}
+
+#------------------------------------------------------------------------------
+# Returns a string value with the state reported by libvirt (e.g. "running", "shut off", etc.)
+# -----------------------------------------------------------------------------
+domain_state()
+{
+    echo $(virsh domstate $1)
+}
+
 
 # -----------------------------------------------------------------------------
 # Returns a list with all persistent domains:
