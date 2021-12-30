@@ -39,8 +39,8 @@ domain_delete_checkpoint_metadata()
 
     local domain=$1
     shift
-    local checkpoints_list
-    [[ -z $@ ]] && checkpoints_list=($@) || checkpoints_list=($(domain_checkpoint_list $domain))
+    local checkpoints_list=($@)
+    [[ -z ${checkpoints_list[@]} ]] && checkpoints_list=($(domain_checkpoint_list $domain))
     local arguments="--metadata"
 
     if [[ ! -z ${checkpoints_list[@]} ]]; then
@@ -48,11 +48,11 @@ domain_delete_checkpoint_metadata()
         echo "INFO: Removing ${#checkpoints_list[@]} checkpoint(s) from VM '$domain'..."
 
         for checkpoint in ${checkpoints_list[@]}; do
-            &> /dev/null virsh checkpoint-delete $vm $checkpoint $arguments
+            &> /dev/null virsh checkpoint-delete $domain $checkpoint $arguments
         done
     else
 
-        echo "INFO: No checkpoints for VM '$domain' reported by libvirt to remove"
+        echo "INFO: No checkpoints for VM '$domain' reported by libvirt or by user to remove"
     fi
 
 }
