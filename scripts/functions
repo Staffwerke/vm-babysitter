@@ -31,26 +31,28 @@ domain_checkpoint_list()
 }
 
 # -----------------------------------------------------------------------------
-# Deletes checkpoints METADATA of a given VM:
+# Deletes checkpoints METADATA of a given VM. If no specific checkpoints are passed, takes all checkpoints for such VM listed by libvirt:
 # -----------------------------------------------------------------------------
 domain_delete_checkpoint_metadata()
 {
     local domain_delete_checkpoint_metadata_status=1
 
-    local vm=$1
-    local checkpoints_list=($(domain_checkpoint_list $1))
+    local domain=$1
+    shift
+    local checkpoints_list
+    [[ -z $@ ]] && checkpoints_list=($@) || checkpoints_list=($(domain_checkpoint_list $domain))
     local arguments="--metadata"
 
     if [[ ! -z ${checkpoints_list[@]} ]]; then
 
-        echo "INFO: Libvirt reports ${#checkpoints_list[@]} checkpoints for VM '$vm'. This info will be removed..."
+        echo "INFO: Removing ${#checkpoints_list[@]} checkpoint(s) from VM '$domain'..."
 
         for checkpoint in ${checkpoints_list[@]}; do
             &> /dev/null virsh checkpoint-delete $vm $checkpoint $arguments
         done
     else
 
-        echo "INFO: No checkpoints for VM '$vm' reported by libvirt to remove"
+        echo "INFO: No checkpoints for VM '$domain' reported by libvirt to remove"
     fi
 
 }
