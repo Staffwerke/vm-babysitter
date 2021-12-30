@@ -325,19 +325,24 @@ domains_list()
 #------------------------------------------------------------------------------
 do_backup_chain()
 {
+    # Status variable:
+    local create_backup_chain_status=1
+
+    # Consume initial arguments for each local variable below:
+
     # VM name:
     local domain=$1
     shift
 
     # Backup Mode: 'full' or 'inc'
-    local backup_mode=$2
+    local backup_mode=$1
     shift
 
     # Full backup path:
-    local backup_path=$3
+    local backup_path=$1
     shift
 
-    # Remaining arguments are extra options passed to virtnbdbackup (if any):
+    # Then, all remaining arguments (if any) are extra options passed to virtnbdbackup:
     local options=$@
 
     # Notifies the user about the ongoing process:
@@ -345,7 +350,7 @@ do_backup_chain()
 
     # Executes the operation:
     virtnbdbackup -d $domain -l $backup_mode -o $backup_path/$domain $options
-    local create_backup_chain_status=$?
+    create_backup_chain_status=$?
 
     if [[ $create_backup_chain_status -eq 0 ]]; then
 
