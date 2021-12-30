@@ -144,7 +144,7 @@ check_patch()
 
     if [[ ! -z ${vm_patch_success[@]} ]]; then
 
-        echo "INFO: '${vm_patch_success[@]}': Correctly patched for incremental backups. On queue for backup chain check"
+        #echo "INFO: '${vm_patch_success[@]}': Correctly patched for incremental backups. On queue for backup chain check"
 
         # Appends sub-list of (successfully) patched VMs to global CHECK_BACKUPS_LIST:
         CHECK_BACKUPS_LIST+=(${vm_patch_success[@]})
@@ -152,7 +152,7 @@ check_patch()
 
     if [[ ! -z ${domain_shutdown_success[@]} ]]; then
 
-        #echo "INFO: '${domain_shutdown_success[@]}': Into automatic powercycle (to apply incremental backup patch, will be powered on shortly)"
+        echo "INFO: '${domain_shutdown_success[@]}': Into automatic powercycle (to apply incremental backup patch, will be powered on shortly)"
 
         # Appends sub-list to the global list of powered OFF VMs:
         POWEREDOFF_VMS_LIST+=(${domain_shutdown_success[@]})
@@ -181,49 +181,96 @@ check_patch()
 check_backups()
 {
     # Local variables used for flow control:
-    local checkpoints_list
-    local bitmaps_list
     local backup_check_failed
-    local preserved_backup_chain
-    local broken_backup_chain
+    local bitmaps_list
+    local checkpoints_list
+    local backup_folder_exists
+    local recoverable_backup_chain
+    local partial_checkpoint
 
     # Lists to add VMs (and summarize at the end):
-    local domain_shutdown_success
+    local broken_backup_chain
     local domain_shutdown_failed
+    local domain_shutdown_success
+    local preserved_backup_chain
 
     # Processes each VM. Looks for patch and applies actions as required:
     local i=0
     for domain in ${CHECK_BACKUPS_LIST[@]}; do
 
+        backup_folder_exists=""
+        partial_checkpoint=""
+        recoverable_backup_chain=""
+
         while true; do
 
-            if [[ -d $BACKUPS_MAIN_PATH/$domain ]] \
-            && [[ -f $BACKUPS_MAIN_PATH/$domain/$domain.cpt ]] \
-            && [[ -d $BACKUPS_MAIN_PATH/$domain/checkpoints ]] \
-            && [[ -z $(find $BACKUPS_MAIN_PATH/$domain -type f -name "*.partial") ]]; then
+            if [[ -z $backup_folder_exists ]]; then
 
-                # - Folder exists
-                # - Summary file exists
-                # - Checkpoint folder exists
-                # - No *.partial files (left after cancel backup or some crash)
-                # Backup chain structure seems to be OK. Performs a more comprehensive check.
+                # Checks once for non existing, corrupted or dummy backup folders:
+                if [[ -d $BACKUPS_MAIN_PATH/$domain ]] \
+                && [[ -f $BACKUPS_MAIN_PATH/$domain/$domain.cpt ]] \
+                && [[ -d $BACKUPS_MAIN_PATH/$domain/checkpoints ]]; then
 
-                if [[ $(domain_state $domain) == "shut off" ]]; then
+                    # Backup chain structure seems to be OK. Performs a more comprehensive check:
+                    backup_folder_exists="true"
+                else
 
-                    # Resets control flow variables, if used before:
-                    checkpoints_list=()
-                    backup_check_failed=""
+                    # No backup folder, is corrupted or doesn't have backup data:
+                    backup_folder_exists="false"
+                    echo "$domain: No backup chain folder detected or backup chain structure is damaged, therefore will be removed"
+                fi
+            fi
 
-                    echo "$domain: VM is shut down, performing full check in backup chain..."
+            if [[ -z $partial_checkpoint ]] && [[ $backup_folder_exists == true ]]; then
 
-                    # No QEMU checkpoints are found when server comes from a restart under UnRaid, so uses backup checkpoints in backup
+                # Checks once for non cancelled backups::
+
+                if [[ -z $(find $BACKUPS_MAIN_PATH/$domain -type f -name "*.partial") ]]; then
+
+                    # Virtnbdbackup was cancelled in the middle of a backup chain task:
+                    partial_checkpoint="true"
+
+                    # Gets the list of checkpoints from failed backup chain:
+                    local damaged_backup_checkpoints_list=($(backup_checkpoint_list $domain))
+
+                    if [[ ${#damaged_backup_checkpoints_list[@]} -gt 1 ]]; then
+
+                        # There is a successful full backup Only the last link in the chain is damaged, so is worth of a recovery attempt:
+                        echo "$domain: An incremental backup operation was previously cancelled. It will attempt to fix this backup chain by deleting the last (non recoverable) checkpoint"
+                        recoverable_backup_chain="true"
+                    else
+
+                        # A full backup chain that was cancelled. Nothing to do but delete it, along with checkpoints and bitmaps:
+                        recoverable_backup_chain="false"
+                        echo "$domain: A full backup operation was previously cancelled. This backup chain is unrecoverable, therefore will be removed"
+                    fi
+                else
+
+                    # No cancelled backup operations detected:
+                    partial_checkpoint="no"
+                fi
+            fi
+
+            if [[ $(domain_state $domain) == "shut off" ]]; then
+
+                # Resets control flow variables, if used before:
+                checkpoints_list=()
+                backup_check_failed=""
+
+                echo "$domain: VM is shut down, performing full check in backup chain..."
+
+                if [[ $recoverable_backup_chain != false ]] || [[ $backup_folder_exists != false ]]; then
+
+                    # Backup chain is worth of being checked:
+
                     if [[ $RESTARTED_SERVER == true ]] ; then
 
-                        echo "$domain: Using Checkpoint list in Backup (RESTARTED_SERVER detected)"
+                        # No QEMU checkpoints are found when server comes from a restart under UnRaid, so uses backup checkpoints in backup
+                        echo "$domain: Reading Checkpoint list in Backup (RESTARTED_SERVER detected)"
                         checkpoints_list=($(backup_checkpoint_list $BACKUPS_MAIN_PATH/$domain))
                     else
 
-                        echo "$domain: Using Checkpoint list in QEMU"
+                        echo "$domain: Reading Checkpoint list in QEMU"
                         checkpoints_list=($(domain_checkpoint_list $domain))
                     fi
 
@@ -233,157 +280,181 @@ check_backups()
                         bitmaps_list=($(disk_image_bitmap_list $image))
                         if [[ ${bitmaps_list[@]} != ${checkpoints_list[@]} ]]; then
 
-                            # When bitmaps and checkpoint lists aren't identical for ALL disks, marks the entire check as failed
+                            # When bitmaps and checkpoint lists aren't identical for ALL disks, marks the entire check as failed:
                             backup_check_failed="yes"
 
-                            echo "$domain.$image: Checkpoint and Bitmap lists mismatch for this image (${#checkpoint_list[@]} vs. ${#bitmaps_list[@]})"
+                            echo "$domain.$image: Checkpoint and Bitmap lists mismatch for this image (${#checkpoint_list[@]} vs ${#bitmaps_list[@]})"
 
                             # Cancelling further checks for this VM:
                             break
                         fi
                     done
+                fi
 
-                    if [[ $backup_check_failed == yes ]]; then
+                if [[ $backup_check_failed == yes ]] || [[ $recoverable_backup_chain == false ]] || [[ $backup_folder_exists == false ]]; then
 
-                        if [[ $RESTARTED_SERVER != true ]]; then
+                    # Each scenario is exclusive (non recoverable backup chain is implicitly failed):
 
-                            echo "$0 ($domain): Pruning existing Checkpoints in QEMU..."
-                            domain_delete_checkpoint_metadata $domain
-                        fi
+                    if [[ $RESTARTED_SERVER != true ]]; then
 
-                        for image in $(domain_img_paths_list $domain); do
-
-                            # Then deletes all bitmaps, in all image disks:
-                            echo "$0 ($domain.$image): Deleting Bitmaps..."
-
-                            for bitmap in $(disk_image_bitmap_list $image); do
-
-                                disk_image_delete_bitmap $image $bitmap
-                            done
-                        done
-
-                        # Process old backup and mark backup chain as broken:
-                        archive_backup $BACKUPS_MAIN_PATH/$domain
-                        broken_backup_chain[$i]=$domain
-
-                        # Exits the loop:
-                        break
-
-                    else
-
-                        echo "$domain: Checkpoints and Bitmaps lists match"
-                        preserved_backup_chain+=($domain)
-
-                        # Exits the loop:
-                        break
+                        echo "$0 ($domain): Pruning existing Checkpoints in QEMU..."
+                        domain_delete_checkpoint_metadata $domain
                     fi
 
-                elif [[ $RESTARTED_SERVER == true ]]; then
+                    for image in $(domain_img_paths_list $domain); do
 
-                    if [[ ! -z $RESTART_VMS_IF_REQUIRED ]]; then
+                        # Then deletes all bitmaps, in all image disks:
+                        echo "$0 ($domain.$image): Deleting Bitmaps..."
 
-                        # When permission is granted, attempts to shut down the VM temporarily:
-                        domain_shutdown $domain
+                        for bitmap in $(disk_image_bitmap_list $image); do
 
-                        if [[ $? -eq 0 ]]; then
+                            disk_image_delete_bitmap $image $bitmap
+                        done
+                    done
 
-                            # Adds VM to shutdown success local list:
-                            domain_shutdown_success[$i]=$domain
+                    # Process old backup chain depending on the case:
+                    if [[ $recoverable_backup_chain == false ]] || [[ $backup_folder_exists == false ]]; then
 
-                            # Restarts the loop (checks backup again under changed condition):
-                            continue
-                        else
+                        # Unrecoverable or unexistent backup chain folder. Delete it:
+                        rm -rf $BACKUPS_MAIN_PATH/$domain
 
-                            # Adds VM to failed to shutdown local list
-                            # (This VM might shutdown eventually):
-                            domain_shutdown_failed[$i]=$domain
-
-                            # Exits the loop (nothing else can be done):
-                            break
-                        fi
                     else
-                        # (User must shutdown the VM manually):
-                        echo "$domain: Cannot check its backup chain while running (RESTARTED_SERVER detected)"
+                        # Backup chain is recoverable. Archive it:
+                        archive_backup $BACKUPS_MAIN_PATH/$domain
+                    fi
 
-                        # Adds VM to failed to shutdown local list:
+                    # Mark backup chain as broken:
+                    broken_backup_chain[$i]=$domain
+
+                    # Exits the loop:
+                    break
+
+                elif [[ $recoverable_backup_chain == true ]]; then
+
+                    # Checkpoints and bitmaps are matching despite the scenario.
+                    # Attempts to delete the last checkpoint (even from backup) and bitmap:
+
+                    # Gets the last index in $checkpoint_list:
+                    local index=${#checkpoint_list[@]}
+
+                    # Moves the last checkpoint name apart:
+                    local damaged_checkpoint=${checkpoint_list[$index]}
+                    unset checkpoint_list[$index]
+
+                    # Deletes this checkpoint from and QEMU (if exists), images and backup itself:
+
+                    for image in $(domain_img_paths_list $domain); do
+
+                        # Deletes this bitmap name from all drives in this VM
+                        disk_image_delete_bitmap $image $damaged_checkpoint
+                    done
+
+                    # Deletes QEMU checkpoint when it's supposed to exist:
+                    [[ $RESTARTED_SERVER != true ]] && domain_delete_checkpoint_metadata $domain $damaged_checkpoint
+
+                    # Finally, deletes all the files created by the incremental backup (except logs):
+
+                    for drive in $(domain_drives_list); do
+
+                        # Backup incremental data (all drives)
+                        rm -f $BACKUPS_MAIN_PATH/$domain/$drive.inc.$damaged_checkpoint.data.partial
+                    done
+
+                    # VM definitions XML file:
+                    rm -f $BACKUPS_MAIN_PATH/$domain/vmconfig.$damaged_checkpoint.xml
+
+                    # Checkpoint in backup:
+                    rm -f $BACKUPS_MAIN_PATH/$domain/checkpoints/$damaged_checkpoint.xml
+
+                    # Modifying the .cpt file with the new checkpoints list:
+                    local new_checkpoint_list="${checkpoints_list[@]}"
+                    echo "[\"${new_checkpoint_list// /\", \"}\"\]" > $BACKUPS_MAIN_PATH/$domain/$domain.cpt
+
+                    # Backup chain will be treated as preserved:
+                    preserved_backup_chain+=($domain)
+
+                    echo "$domain: Backup repaired (incomplete checkpoint '$damaged_checkpoint' removed from both VM and backup chain)"
+
+                    # Exits the loop:
+                    break
+
+                    # To DO: Remote sync after backup repair...
+                else
+
+                    preserved_backup_chain+=($domain)
+                    echo "$domain: Checkpoints and Bitmaps lists match"
+
+                    # Exits the loop:
+                    break
+                fi
+
+            elif [[ $RESTARTED_SERVER == true ]] || [[ $partial_checkpoint == true ]] || [[ $backup_folder_exists == false ]]; then
+
+                # Even on a non RESTARTED_SERVER scenario, cancelled and non existing / corrupted backups; all demands to shutdown the VM:
+
+                if [[ ! -z $RESTART_VMS_IF_REQUIRED ]]; then
+
+                    # When permission is granted, attempts to shut down the VM temporarily:
+                    domain_shutdown $domain
+
+                    if [[ $? -eq 0 ]]; then
+
+                        # Adds VM to shutdown success local list:
+                        domain_shutdown_success[$i]=$domain
+
+                        # Restarts the loop (checks backup again under changed condition):
+                        continue
+                    else
+
+                        # Adds VM to failed to shutdown local list
+                        # (This VM might shutdown eventually):
                         domain_shutdown_failed[$i]=$domain
 
                         # Exits the loop (nothing else can be done):
                         break
                     fi
-
                 else
+                    # (User must shutdown the VM manually):
+                    echo "$domain: Cannot check its backup chain while running (Restarted server, cancelled checkpoint, backup folder corrupt or doesn't exist)"
 
-                    echo "$domain: VM is (presumably) running, comparing Checkpoint lists in QEMU and Backup..."
+                    # Adds VM to failed to shutdown local list:
+                    domain_shutdown_failed[$i]=$domain
 
-                    # Gets both qemu and backup checkpoint lists:
-                    local qemu_checkpoint_list=($(domain_checkpoint_list $domain))
-                    local backup_chain_checkpoint_list=($(backup_checkpoint_list $BACKUPS_MAIN_PATH/$domain))
-
-
-                    if [[ ${qemu_checkpoint_list[@]} != ${backup_chain_checkpoint_list[@]} ]]; then
-
-                        # Checkpoint lists in QEMU and backup aren't identical:
-
-                        echo "$domain: QEMU and Backup Checkpoint lists mismatch (${#qemu_checkpoint_list[@]} vs ${#backup_chain_checkpoint_list[@]})"
-
-                        # Process old backup and mark backup chain as broken (can't check more in deep for bitmaps / checkpoints to delete:)
-                        archive_backup $BACKUPS_MAIN_PATH/$domain
-                        broken_backup_chain[$i]=$domain
-
-                        # Exits the loop (nothing else can be done):
-                        break
-
-                    else
-
-                        echo "$domain: QEMU and Backup Checkpoint lists match (${#qemu_checkpoint_list[@]} vs. ${#backup_chain_checkpoint_list[@]})"
-                        # Backup chain is OK, mark as preserved:
-                        preserved_backup_chain+=($domain)
-
-                        # Exits the loop:
-                        break
-                    fi
+                    # Exits the loop (nothing else can be done):
+                    break
                 fi
 
             else
 
-                # Backup chain integrity failed. Look for recoverable ones to be archived:
-                local is_recoverable=""
+                echo "$domain: VM is (presumably) running, comparing Checkpoint lists in QEMU and Backup..."
 
-                if [[ ! -d $BACKUPS_MAIN_PATH/$domain ]]; then
+                # Gets both qemu and backup checkpoint lists:
+                local qemu_checkpoint_list=($(domain_checkpoint_list $domain))
+                local backup_chain_checkpoint_list=($(backup_checkpoint_list $BACKUPS_MAIN_PATH/$domain))
 
-                    echo "$domain: No backup chain folder detected"
 
-                elif [[ ! -f $BACKUPS_MAIN_PATH/$domain/$domain.cpt ]] || [[ ! -d $BACKUPS_MAIN_PATH/$domain/checkpoints ]]; then
+                if [[ ${qemu_checkpoint_list[@]} != ${backup_chain_checkpoint_list[@]} ]]; then
 
-                    echo "$domain: Current backup chain structure is inconsistent or damaged (deleted)"
+                    # Checkpoint lists in QEMU and backup aren't identical:
 
-                elif [[ ! -z $(find $BACKUPS_MAIN_PATH/$domain -type f -name "*.partial") ]]; then
+                    echo "$domain: QEMU and Backup Checkpoint lists mismatch (${#qemu_checkpoint_list[@]} vs ${#backup_chain_checkpoint_list[@]})"
 
-                    # Gets the list of checkpoints:
-                    local damaged_backup_checkpoints_list=($(backup_checkpoint_list $domain))
+                    # Process old backup and mark backup chain as broken (can't check more in deep for bitmaps / checkpoints to delete:)
+                    archive_backup $BACKUPS_MAIN_PATH/$domain
+                    broken_backup_chain[$i]=$domain
 
-                    if [[ ${#damaged_backup_checkpoints_list[@]} -gt 1 ]]; then
-
-                        is_recoverable=yes
-                        echo "$domain: Current backup chain is dirty due an incremental operation was unexpectedly cancelled (all checkpoints but the last one caould be restored)"
-
-                    else
-                        echo "$domain: Current backup chain is incomplete due its creation was unexpectedly cancelled (deleted)"
-                    fi
+                    # Exits the loop (nothing else can be done):
+                    break
 
                 else
-                    echo "$domain: Unknown error detected with its backup chain"
+
+                    echo "$domain: QEMU and Backup Checkpoint lists match (${#qemu_checkpoint_list[@]} vs. ${#backup_chain_checkpoint_list[@]})"
+                    # Backup chain is OK, mark as preserved:
+                    preserved_backup_chain+=($domain)
+
+                    # Exits the loop:
+                    break
                 fi
-
-                # Mark backup chain as broken:
-                broken_backup_chain[$i]=$domain
-
-                # Archive only if recoverable:
-                [[ ! -z $is_recoverable ]] && archive_backup $BACKUPS_MAIN_PATH/$domain || rm -rf $BACKUPS_MAIN_PATH/$domain
-
-                # Exits the loop (nothing else can be done):
-                break
             fi
         done
 
@@ -445,7 +516,7 @@ create_backup_chain()
     local domain_poweron_failed
 
     i=0
-    for $domain in $CREATE_BACKUP_CHAIN_LIST[@]}; do
+    for domain in ${CREATE_BACKUP_CHAIN_LIST[@]}; do
 
         original_ram_size=""
         memlimit_active="no"
@@ -466,6 +537,8 @@ create_backup_chain()
                     export SCHEDULED_BACKUPS_LIST="$SCHEDULED_BACKUPS_LIST $domain"
 
                     echo "$domain: Backup chain created. On schedule for incremental backups"
+
+                    # To DO: Sync on remote endpoint when REMOTE_BACKUPS_MAIN_PATH is set and bring status.
                 else
 
                     # Failed to create a new backup chain:
@@ -474,7 +547,7 @@ create_backup_chain()
                     # Delete partial files (unusable garbage):
                     rm -rf $BACKUPS_MAIN_PATH/$domain
 
-                    echo "$domain: failed to create a new backup chain (unknown reason)"
+                    echo "$domain: Failed to create a new backup chain"
                 fi
 
                 if [[ ${domain_poweron_success[$i]} -eq $domain ]]; then
@@ -540,21 +613,31 @@ create_backup_chain()
         # Increases the index to check the next VM:
         ((i++))
     done
-#------------------------------------------------------------------------------
+
+    # Depending on the results, shows a brief summary with VMs with changed states, and appends VMs to its respective lists:
+
     if [[ ! -z ${backup_chain_success[@]} ]]; then
 
-        echo "INFO: '${backup_chain_success[@]}': Backup chains Correctly patched for incremental backups. On queue for backup chain check"
+        echo "INFO: '${backup_chain_success[@]}': Backup chain(s) creation was successful"
 
-            # VM Failed to start, can't perform any backups on it:
-            export FAILED_VMS_LIST="$FAILED_VMS_LIST $domain"
+        # Note: VMs already added to SCHEDULED_BACKUPS_LIST above.
+    fi
 
+    if [[ ! -z ${backup_chain_failed[@]} ]]; then
 
+        echo "WARNING: '${backup_chain_failed[@]}': Backup chain(s) creation failed"
 
+        # Add to CHECK_PATCH_LIST:
+        CHECK_PATCH_LIST+=(${backup_chain_failed[@]})
+    fi
 
+    if [[ ! -z ${domain_poweron_failed[@]} ]]; then
 
-    # TO DO: Sync remote endpoint
+        echo "ERROR: '${backup_chain_failed[@]}': Failed to start in order to create a backup chain"
 
-        echo "ERROR: Could not start $domain to create a new backup chain. A manual check of VM is required to discard issues (ignored until next docker restart)"
+        # Add to FAILED_VMS_LIST:
+        FAILED_VMS_LIST+=(${domain_poweron_failed[@]})
+    fi
 }
 
 ###############################################################################
@@ -584,7 +667,7 @@ echo "##########################################################################
 #------------------------------------------------------------------------------
 
 # The initial list of VMs to work:
-DOMAINS_LIST=$(domains_list)
+DOMAINS_LIST=($(domains_list))
 
 if [[ ! -z $DOMAINS_LIST ]]; then
 
@@ -922,10 +1005,11 @@ end_of_crontab
                     # Move to main queue for check:
                     CHECK_PATCH_LIST+=($domain)
                     unset SHUTDOWN_REQUIRED_VMS_LIST[$i]
+                fi
             done
         fi
 
-        if [[ ! -z ${CHECK_PATCH_LIST[@]} ]]; do
+        if [[ ! -z ${CHECK_PATCH_LIST[@]} ]]; then
 
             # Status of at least on VM has changed, and sent to this queue:
             echo "------------------------------------------------------------------------------"
@@ -940,7 +1024,7 @@ end_of_crontab
             check_backups
         fi
 
-        if [[ ! -z $CREATE_BACKUP_CHAIN_LIST ]]
+        if [[ ! -z $CREATE_BACKUP_CHAIN_LIST ]]; then
 
             create_backup_chain
         fi
