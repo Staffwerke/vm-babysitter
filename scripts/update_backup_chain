@@ -1,0 +1,161 @@
+#!/bin/bash
+#------------------------------------------------------------------------------
+# Updates backup chains for VMs in SCHEDULED_BACKUPS_LIST,
+# managing temporal RAM limits (when set) and powering on/off as necessary:
+#------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------
+# Internal global variables and common functions are managed via this script:
+source functions
+#------------------------------------------------------------------------------
+
+echo "###############################################################################"
+echo "Scheduled Incremental Backup started at: $(date \"+%Y-%m-%d %H:%M:%S\")"
+
+if [[ ! -z $SCHEDULED_BACKUPS_LIST ]]; then
+
+    echo "Virtual machines: '$SCHEDULED_BACKUPS_LIST'"
+    echo "###############################################################################"
+
+    i=0
+    for domain in ${SCHEDULED_BACKUPS_LIST[@]}; do
+
+        original_ram_size=""
+        memlimit_active="no"
+
+        while true; do
+
+            if [[ $(domain_state $domain) == running ]]; then
+
+                # Only when VM is running, attempts to perform an incremental backup:
+                do_backup_chain $domain "inc" $BACKUPS_MAIN_PATH $VIRTNBDBACKUP_GLOBAL_OPTIONS
+
+                if [[ $? -eq 0 ]]; then
+
+                    # Backup chain creation was successful!
+                    backup_chain_success[$i]=$domain
+
+                    # As cron task runs independently (and might run during the execution of this procedure) adds the VM to SCHEDULED_BACKUPS_LIST:
+                    export SCHEDULED_BACKUPS_LIST="$SCHEDULED_BACKUPS_LIST $domain"
+
+                    echo "$domain: Backup chain updated"
+
+                    # To DO: Sync on remote endpoint when REMOTE_BACKUPS_MAIN_PATH is set and bring status.
+                else
+
+                    # Failed to create a new backup chain:
+                    backup_chain_failed[$i]=$domain
+
+                    echo "$domain: Failed to create a new backup chain. (Read the logs above to determine the specific cause of fail)"
+                fi
+
+                if [[ ${domain_poweron_success[$i]} -eq $domain ]]; then
+
+                    # VM was previously shut off, revert to its previous state:
+                    domain_shutdown $domain --nowait
+
+                    if [[ $memlimit_active == yes ]]; then
+
+                        # RAM was previously throttled. Reverting to its original values:
+                        domain_setmem $domain $original_ram_size
+                        echo "$domain: Reverted RAM size to its original setting of $original_ram_size KiB"
+                    fi
+                fi
+
+                # Exits the loop:
+                break
+
+            else
+
+                # VM is presumably shut off. Will attempts to start it:
+
+                if [[ ! -z $RAM_LIMIT_PER_SCHED_BACKUP ]]; then
+
+                    # And needs to check how much memory uses by default, throttling it if limits are established:
+
+                    # Gets the original RAM size
+                    original_ram_size=$(domain_getmem $domain --max)
+
+                    # If the above value is greater than the established limit, sets the VM RAM temporarily to such limit:
+                    if [[ $original_ram_size -gt $RAM_LIMIT_PER_SCHED_BACKUP ]]; then
+
+                        memlimit_active="yes"
+                        domain_setmem $domain $RAM_LIMIT_PER_SCHED_BACKUP
+
+                        echo "$domain: RAM size temporarily throttled from $original_ram_size KiB to $RAM_LIMIT_PER_SCHED_BACKUP KiB for this task"
+                    fi
+                fi
+
+                # Attempts to start the VM (awaits for VM's QEMU agent):
+                domain_start $domain
+                if [[ $? -eq 0 ]]; then
+
+                    domain_poweron_success[$i]=$domain
+
+                    # Restarts the loop to chech VM under changed conditions:
+                    continue
+                else
+
+                    # VM failed to power on. This is an abnormal situation:
+                    echo "$domain: failed to start (backup chain update could not be performed)"
+                    domain_poweron_failed[$i]=$domain
+
+                    # Breaks the loop:
+                    break
+                fi
+            fi
+        done
+
+        # Increases the index to check the next VM:
+        ((i++))
+        echo "___________________________________________________________________________________________________"
+    done
+
+    # Depending on the results, shows a brief summary with VMs with changed states, and appends VMs to its respective lists:
+
+    if [[ ! -z ${backup_chain_failed[@]} ]]; then
+
+        # Move failed backup's involved VMs from SCHEDULED_BACKUPS_LIST to CHECK_PATCH_LIST:
+        # Creates a copies of external variables (Bash can't export arrays per se):
+        new_scheduled_backups_list=($SCHEDULED_BACKUPS_LIST)
+        new_check_patch_list=($CHECK_PATCH_LIST)
+
+        for domain in ${backup_chain_failed[@]}; do
+
+            # Then, moves VMs between internal lists::
+            unset new_scheduled_backups_list[$(item_position $domain "new_scheduled_backups_list")]
+            new_check_patch_list+=($domain)
+        done
+
+        # And exports updated arrays as string values:
+        export SCHEDULED_BACKUPS_LIST="${new_scheduled_backups_list[@]}"
+        export CHECK_PATCH_LIST="${new_check_patch_list[@]}"
+    fi
+
+    if [[ ! -z ${domain_poweron_failed[@]} ]]; then
+
+        # Move failed VMs from SCHEDULED_BACKUPS_LIST to FAILED_VMS_LIST:
+        # Creates a copies of external variables (Bash can't export arrays per se):
+        new_scheduled_backups_list=($SCHEDULED_BACKUPS_LIST)
+        new_failed_vms_list=($FAILED_VMS_LIST)
+
+        for domain in ${domain_poweron_failed[@]}; do
+
+            # Then, moves VMs between internal lists::
+            unset new_scheduled_backups_list[$(item_position $domain "new_scheduled_backups_list")]
+            new_failed_vms_list+=($domain)
+        done
+
+        # And exports updated arrays as string values:
+        export SCHEDULED_BACKUPS_LIST="${new_scheduled_backups_list[@]}"
+        export FAILED_VMS_LIST="${new_failed_vms_list[@]}"
+    fi
+
+    echo "Incremental Backup Summary:"
+    echo "Successful Backups:       ${backup_chain_success[@]:-"None"}"
+    echo "Failed Backups:           ${backup_chain_failed[@]:-"None"}"
+    echo "Failed Virtual machines:  ${domain_poweron_failed[@]:-"None"}"
+
+else
+    echo "No Virtual machines on schedule. Exited"
+fi
