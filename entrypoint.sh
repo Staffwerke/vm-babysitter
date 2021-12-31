@@ -839,6 +839,7 @@ if [[ $domains_list_status == OK ]] && [[ $backups_main_path_status == OK ]] && 
     echo "INFO: Deploying Cron task..."
 
     crontab_file="/tmp/crontab"
+    scheduled_backup_script="/usr/local/bin/update_backup_chain"
     scheduled_logs_file="/logs/scheduled_backups.log"
 
     [[ -z $CRON_SCHEDULE ]] && { CRON_SCHEDULE="@daily"; echo "INFO: Environment variable 'CRON_SCHEDULE' is not set. Using default parameter ($CRON_SCHEDULE)"; }
@@ -850,7 +851,7 @@ if [[ $domains_list_status == OK ]] && [[ $backups_main_path_status == OK ]] && 
     cat << end_of_crontab > $crontab_file
 # On run, performs incremental bakups for all VMs in SCHEDULED_BACKUPS_LIST at the moment of its execution:
 SHELL=/bin/bash
-$CRON_SCHEDULE ./virtnbdbackup-auto "\$SCHEDULED_BACKUPS_LIST" &>> $scheduled_logs_file"
+$CRON_SCHEDULE scheduled_backup_script &>> $scheduled_logs_file"
 end_of_crontab
 
     # Sets the cron task:
