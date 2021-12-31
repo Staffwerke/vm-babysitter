@@ -4,10 +4,15 @@
 # managing temporal RAM limits (when set) and powering on/off as necessary:
 #------------------------------------------------------------------------------
 
+logpath=$SCHEDULED_LOGPATH:-"/log/scheduled-backups.log"}
+
 #------------------------------------------------------------------------------
 # Internal global variables and common functions are managed via this script:
 source functions
 #------------------------------------------------------------------------------
+
+# Redirects all output to a log file:
+exec &>> $logpath
 
 echo "###############################################################################"
 echo "Scheduled Incremental Backup started at: $(date \"+%Y-%m-%d %H:%M:%S\")"

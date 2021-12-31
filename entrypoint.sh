@@ -21,7 +21,9 @@ RESTART_VMS_IF_REQUIRED..ok
 
 Advanced options:
 MAX_ATTEMPTS
+MOMITOR_LOGPATH..ok
 RSYNC_ARGS..ok
+SCHEDULED_LOGPATH..ok
 WAIT_TIME
 
 #------------------------------------------------------------------------------
@@ -40,6 +42,15 @@ Possible improvements:
 
 #------------------------------------------------------------------------------
 end_of_specs
+
+###############################################################################
+# Main variables:
+###############################################################################
+
+crontab_file="/tmp/crontab"
+logpath=${MOMITOR_LOGPATH:-"/log/vm-babysitter.log"}
+scheduled_backup_script="/usr/local/bin/update_backup_chain"
+scheduled_logs_file="/logs/scheduled_backups.log"
 
 ###############################################################################
 # Specific procedures:
@@ -652,7 +663,7 @@ source functions
 #------------------------------------------------------------------------------
 
 # Redirects all output to a log file:
-exec &>> /logs/main.log
+exec &>> $logpath
 
 # Catches the signal sent from docker to stop execution:
 # The most gracefully way to stop this container is with:
@@ -838,10 +849,6 @@ if [[ $domains_list_status == OK ]] && [[ $backups_main_path_status == OK ]] && 
 
     echo "INFO: Deploying Cron task..."
 
-    crontab_file="/tmp/crontab"
-    scheduled_backup_script="/usr/local/bin/update_backup_chain"
-    scheduled_logs_file="/logs/scheduled_backups.log"
-
     [[ -z $CRON_SCHEDULE ]] && { CRON_SCHEDULE="@daily"; echo "INFO: Environment variable 'CRON_SCHEDULE' is not set. Using default parameter ($CRON_SCHEDULE)"; }
 
     # Silently deletes any previous cron task:
@@ -851,7 +858,7 @@ if [[ $domains_list_status == OK ]] && [[ $backups_main_path_status == OK ]] && 
     cat << end_of_crontab > $crontab_file
 # On run, performs incremental bakups for all VMs in SCHEDULED_BACKUPS_LIST at the moment of its execution:
 SHELL=/bin/bash
-$CRON_SCHEDULE scheduled_backup_script &>> $scheduled_logs_file"
+$CRON_SCHEDULE $scheduled_backup_script &>> $scheduled_logs_file"
 end_of_crontab
 
     # Sets the cron task:
