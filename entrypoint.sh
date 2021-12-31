@@ -48,8 +48,9 @@ end_of_specs
 ###############################################################################
 
 crontab_file="/tmp/crontab"
-logpath=${MOMITOR_LOGPATH:-"/log/vm-babysitter.log"}
+logpath=${MONITOR_LOGPATH:-"/logs/vm-babysitter.log"}
 scheduled_backup_script="/usr/local/bin/update_backup_chain"
+scheuled_logpath=${SCHEDULED_LOGPATH:-"/logs/scheduled-backups.log"}
 
 ###############################################################################
 # Specific procedures:
@@ -235,13 +236,13 @@ check_backups()
 
                 # Checks once for non cancelled backups::
 
-                if [[ -z $(find $BACKUPS_MAIN_PATH/$domain -type f -name "*.partial") ]]; then
+                if [[ ! -z $(find $BACKUPS_MAIN_PATH/$domain -type f -name "*.partial") ]]; then
 
                     # Virtnbdbackup was cancelled in the middle of a backup chain task:
                     partial_checkpoint="true"
 
                     # Gets the list of checkpoints from failed backup chain:
-                    local damaged_backup_checkpoints_list=($(backup_checkpoint_list $domain))
+                    local damaged_backup_checkpoints_list=($(backup_checkpoint_list $BACKUPS_MAIN_PATH/$domain))
 
                     if [[ ${#damaged_backup_checkpoints_list[@]} -gt 1 ]]; then
 
@@ -257,7 +258,7 @@ check_backups()
                 else
 
                     # No cancelled backup operations detected:
-                    partial_checkpoint="no"
+                    partial_checkpoint="false"
                 fi
             fi
 
@@ -307,14 +308,14 @@ check_backups()
 
                     if [[ $RESTARTED_SERVER != true ]]; then
 
-                        echo "$0 ($domain): Pruning existing Checkpoints in QEMU..."
+                        echo "$domain: Pruning existing Checkpoints in QEMU..."
                         domain_delete_checkpoint_metadata $domain
                     fi
 
                     for image in $(domain_img_paths_list $domain); do
 
                         # Then deletes all bitmaps, in all image disks:
-                        echo "$0 ($domain.$image): Deleting Bitmaps..."
+                        echo "$domain.$image: Deleting Bitmaps..."
 
                         for bitmap in $(disk_image_bitmap_list $image); do
 
@@ -857,11 +858,14 @@ if [[ $domains_list_status == OK ]] && [[ $backups_main_path_status == OK ]] && 
     cat << end_of_crontab > $crontab_file
 # On run, performs incremental bakups for all VMs in SCHEDULED_BACKUPS_LIST at the moment of its execution:
 SHELL=/bin/bash
-$CRON_SCHEDULE $scheduled_backup_script"
+$CRON_SCHEDULE $scheduled_backup_script
 end_of_crontab
 
     # Sets the cron task:
     crontab $crontab_file
+
+    # Initializes the log file (in case doesn't exist):
+    touch -a $scheuled_logpath
 
     # Finally, runs cron and sends to background, catching its PID:
     cron -f -l -L2 &
