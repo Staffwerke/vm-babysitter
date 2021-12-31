@@ -425,7 +425,9 @@ archive_backup()
 # -----------------------------------------------------------------------------
 backup_checkpoint_list()
 {
-    echo $(cat $1/$(basename $1).cpt | sed -e 's/\[//g' -e 's/\"//g' -e 's/,//g' -e 's/\]//g')
+    local main_path=$1
+    local cpt_file="$(basename $main_path).cpt"
+    echo "$(cat $main_path/$cpt_file | sed -e 's/\[//g' -e 's/\"//g' -e 's/,//g' -e 's/\]//g')"
 }
 
 
