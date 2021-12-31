@@ -50,7 +50,6 @@ end_of_specs
 crontab_file="/tmp/crontab"
 logpath=${MOMITOR_LOGPATH:-"/log/vm-babysitter.log"}
 scheduled_backup_script="/usr/local/bin/update_backup_chain"
-scheduled_logs_file="/logs/scheduled_backups.log"
 
 ###############################################################################
 # Specific procedures:
@@ -858,7 +857,7 @@ if [[ $domains_list_status == OK ]] && [[ $backups_main_path_status == OK ]] && 
     cat << end_of_crontab > $crontab_file
 # On run, performs incremental bakups for all VMs in SCHEDULED_BACKUPS_LIST at the moment of its execution:
 SHELL=/bin/bash
-$CRON_SCHEDULE $scheduled_backup_script &>> $scheduled_logs_file"
+$CRON_SCHEDULE $scheduled_backup_script"
 end_of_crontab
 
     # Sets the cron task:
@@ -866,7 +865,7 @@ end_of_crontab
 
     # Finally, runs cron and sends to background, catching its PID:
     cron -f -l -L2 &
-    cron_pid=$!
+    #cron_pid=$!
 
     # 2.2 Check if OS is Unraid and it has just been restarted (checking backups under this scenario assumes missing checkpoints / broken backup chains:
     #------------------------------------------------------------------------------
