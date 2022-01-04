@@ -1005,6 +1005,18 @@ end_of_crontab
         # because it could ignore SIGTERM from Docker, thus being killed with SIGKILL:
         sleep 1
 
+        # WIll start monitoring only when some of the lists has been populated:
+        if [[ $ongoing_check -eq 0 ]] && [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] || [[ ! -z ${CHECK_PATCH_LIST[@]} ]] || [[ ! -z ${CHECK_BACKUPS_LIST[@]} ]] || [[ ! -z $CREATE_BACKUP_CHAIN_LIST ]]; then
+
+            ongoing_check=1
+
+            # Status of at least on VM has changed, and sent to one queue:
+            echo "------------------------------------------------------------------------------"
+            echo "INFO: Status change detected at $(date "+%Y-%m-%d %H:%M:%S")"
+            echo "Automatic check for VM(s) '${CHECK_PATCH_LIST[@]} in progress..."
+            echo "------------------------------------------------------------------------------"
+        fi
+
         # Check for VMs which are in need of shutdown first:
         if [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
 
@@ -1020,24 +1032,17 @@ end_of_crontab
             done
         fi
 
-        if [[ ! -z ${CHECK_PATCH_LIST[@]} ]]; then
+        [[ ! -z ${CHECK_PATCH_LIST[@]} ]] &&    check_patch
+        [[ ! -z ${CHECK_BACKUPS_LIST[@]} ]] &&  check_backups
+        [[ ! -z $CREATE_BACKUP_CHAIN_LIST ]] && create_backup_chain
 
-            # Status of at least on VM has changed, and sent to this queue:
+        if [[ $ongoing_check -eq 1 ]] && [[ -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] && [[ -z ${CHECK_PATCH_LIST[@]} ]] && [[ -z ${CHECK_BACKUPS_LIST[@]} ]] && [[ -z $CREATE_BACKUP_CHAIN_LIST ]]; then
+
+            ongoing_check=0
+            # Status of at least on VM has changed, and sent to one queue:
             echo "------------------------------------------------------------------------------"
-            echo "INFO: Status change detected at $(date "+%Y-%m-%d %H:%M:%S")"
-            echo "Automatic check for VM(s) '${CHECK_PATCH_LIST[@]} in progress..."
+            echo "INFO: Finished processing all VMs with status changed at $(date "+%Y-%m-%d %H:%M:%S")"
             echo "------------------------------------------------------------------------------"
-            check_patch
-        fi
-
-        if [[ ! -z ${CHECK_BACKUPS_LIST[@]} ]]; then
-
-            check_backups
-        fi
-
-        if [[ ! -z $CREATE_BACKUP_CHAIN_LIST ]]; then
-
-            create_backup_chain
         fi
     done
 
