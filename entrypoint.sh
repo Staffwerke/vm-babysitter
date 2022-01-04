@@ -986,9 +986,9 @@ end_of_crontab
                 # Turn on the VM. Do not wait for Guest's QEMU agent:
                 domain_start $domain --nowait
 
-                # Upon success, remove the VM from the list is being read:
-                [[ $? -eq 0 ]] && unset POWEREDOFF_VMS_LIST[$i]
             fi
+                # Remove the VM from the list is being read:
+                [[ $? -eq 0 ]] && unset POWEREDOFF_VMS_LIST[$i]
         done
     fi
 
