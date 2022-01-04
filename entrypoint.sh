@@ -888,7 +888,8 @@ end_of_crontab
 
         if [[ -z $checkpoints_found ]]; then
 
-            RESTARTED_SERVER="true"
+            # Exports the variable, since it's modified by the scheduled script:
+            export RESTARTED_SERVER="true"
             echo "INFO: Server appears to have been restarted recently or no backup has been ever performed. Checking for running Virtual machines..."
 
             for domain in ${DOMAINS_LIST[@]}; do
@@ -925,7 +926,9 @@ end_of_crontab
             # Fortunately there's not a 'RESTARTED_SERVER' scenario.
             # Add all remaining VMs in DOMAINS_LIST to the first queue:
             CHECK_PATCH_LIST=(${DOMAINS_LIST[@]})
-            RESTARTED_SERVER="false"
+
+            # Exports the variable, since it's modified by the scheduled script:
+            export RESTARTED_SERVER="false"
         fi
     else
 

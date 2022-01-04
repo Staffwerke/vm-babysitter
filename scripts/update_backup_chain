@@ -40,9 +40,6 @@ if [[ ! -z $SCHEDULED_BACKUPS_LIST ]]; then
                     # Backup chain creation was successful!
                     backup_chain_success[$i]=$domain
 
-                    # As cron task runs independently (and might run during the execution of this procedure) adds the VM to SCHEDULED_BACKUPS_LIST:
-                    export SCHEDULED_BACKUPS_LIST="$SCHEDULED_BACKUPS_LIST $domain"
-
                     echo "$domain: Backup chain updated"
 
                     # To DO: Sync on remote endpoint when REMOTE_BACKUPS_MAIN_PATH is set and bring status.
