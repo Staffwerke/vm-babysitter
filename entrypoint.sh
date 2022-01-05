@@ -713,16 +713,16 @@ if [[ ! -z $DOMAINS_LIST ]]; then
 
                 # Remove the VM from DOMAINS_LIST
                 unset DOMAINS_LIST[$(item_position $domain "DOMAINS_LIST")]
-                echo "INFO: Ignoring VM '$domain' (into IGNORED_VMS_LIST)"
+                echo "Ignoring VM $domain declared into IGNORED_VMS_LIST"
             else
 
                 unset IGNORED_VMS_LIST[$(item_position $domain "IGNORED_VMS_LIST")]
-                echo "WARNING: VM '$domain' declared in IGNORED_VMS_LIST was not found"
+                echo "WARNING: VM $domain declared into IGNORED_VMS_LIST not found!"
             fi
         done
     fi
 
-    echo "INFO: Querying for Virtual Machines listed by libvirt..."
+    echo "Querying for persistent Virtual machines from libvirt..."
     i=0
     for domain in ${DOMAINS_LIST[@]}; do
 
@@ -738,19 +738,19 @@ if [[ ! -z $DOMAINS_LIST ]]; then
 
                     FAILED_VMS_LIST+=($domain)
                     unset DOMAINS_LIST[$i]
-                    echo "ERROR: '$domain': '$image': Not found"
+                    echo "ERROR: $domain's disk image: $image not found"
 
                 elif [[ ! -r $image ]] && [[ ! -w $image ]]; then
 
                     FAILED_VMS_LIST+=($domain)
                     unset DOMAINS_LIST[$i]
-                    echo "ERROR: '$domain': '$image': Permission issues (cannot read or write)"
+                    echo "ERROR: $domain's disk image: $image has permission issues (cannot be read or written)"
                 fi
             done
         else
             IGNORED_VMS_LIST+=($domain)
             unset DOMAINS_LIST[$i]
-            echo "WARNING: '$domain': No drives that can be backed up (ignored)"
+            echo "WARNING: VM $domain has no drives that can be backed up (ignored)"
         fi
         # Increases the counter:
         ((i++))
@@ -758,14 +758,14 @@ if [[ ! -z $DOMAINS_LIST ]]; then
 
     if [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
 
-        echo "ERROR: Issues detected with VM(s) '${FAILED_VMS_LIST[@]}' that need to be solved before to run this container again."
+        echo "ERROR: Issues were detected with VM(s) '${FAILED_VMS_LIST[@]}' that need to be solved before to run this container again."
 
     else
         # When no VM failed the test AND remained VMs to check (not ignored), then domain_list check is successful:
         domains_list_status="OK"
     fi
 else
-    echo "ERROR: No persistent Virtual machines to check!"
+    echo "ERROR: No persistent Virtual machines found!"
 fi
 
 # 1.2 Check BACKUPS_MAIN_PATH
@@ -780,17 +780,18 @@ if [[ ! -z $BACKUPS_MAIN_PATH ]]; then
 
             # $BACKUPS_MAIN_PATH has read/write permissions.
             backups_main_path_status="OK"
+            echo "Backups main path set to: $BACKUPS_MAIN_PATH"
             # Check for MAX_BACKUP_CHAINS_PER_VM:
 
             if [[ $MAX_BACKUP_CHAINS_PER_VM =~ [0-9] ]]; then
 
                 # Is an integer number:
-                echo "INFO: Max # of backup chains per VM to be kept locally: $MAX_BACKUP_CHAINS_PER_VM"
+                echo "Max # of backup chains per VM to keep locally: $MAX_BACKUP_CHAINS_PER_VM"
 
             elif [[ -z $MAX_BACKUP_CHAINS_PER_VM ]]; then
 
                 # Was not set:
-                echo "INFO: Environment variable 'MAX_BACKUP_CHAINS_PER_VM' not set (all backup chains will be kept locally)"
+                echo "Environment variable MAX_BACKUP_CHAINS_PER_VM not set. ALL backup chains that are recoverable will be kept locally"
 
             else
 
@@ -799,13 +800,13 @@ if [[ ! -z $BACKUPS_MAIN_PATH ]]; then
                 echo "ERROR: Incorrect syntax for environment variable MAX_BACKUP_CHAINS_PER_VM (must be a natural integer)"
             fi
         else
-            echo "ERROR: Backups main path: '$BACKUPS_MAIN_PATH': Permission issues (cannot be read or written)"
+            echo "ERROR: Backups main path: $BACKUPS_MAIN_PATH has permission issues (cannot be read or written)"
         fi
     else
-        echo "ERROR: Backups main path: '$BACKUPS_MAIN_PATH': Not found or not a directory (must be an absolute path)"
+        echo "ERROR: Backups main path: $BACKUPS_MAIN_PATH  not found or not a directory (must be an absolute path)"
     fi
 else
-    echo "ERROR: Environment variable 'BACKUPS_MAIN_PATH' is not set"
+    echo "ERROR: Environment variable BACKUPS_MAIN_PATH is not set"
 fi
 
 # 1.3 Check REMOTE_BACKUPS_MAIN_PATH
@@ -813,8 +814,8 @@ fi
 
 if [[ -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
 
-    remote_backups_main_path_status="OK"
-    echo "INFO: Environment variable REMOTE_BACKUPS_MAIN_PATH not set (no remote backup endpoint will be used)"
+    remote_backups_main_path_status="UNUSED"
+    echo "Environment variable REMOTE_BACKUPS_MAIN_PATH not set. No remote backup endpoint will be used"
 
 elif [[ $REMOTE_BACKUPS_MAIN_PATH == *@*:/* ]]; then
 
@@ -833,19 +834,19 @@ elif [[ $REMOTE_BACKUPS_MAIN_PATH == *@*:/* ]]; then
 
         case $remote_backups_main_path_status in
 
-        OK|CREATED)
+        EXISTS|CREATED)
 
-            echo "INFO: Remote endpoint $REMOTE_BACKUPS_MAIN_PATH status: '$remote_backups_main_path_status'"
+            echo "Remote endpoint $REMOTE_BACKUPS_MAIN_PATH status: '$remote_backups_main_path_status'"
 
             if [[ $REMOTE_MAX_BACKUP_CHAINS_PER_VM =~ [0-9] ]]; then
 
                 # Is an integer number:
-                echo "INFO: Max # of backup chains per VM to be kept remotely: $REMOTE_MAX_BACKUP_CHAINS_PER_VM"
+                echo "Max # of backup chains per VM to be kept remotely: $REMOTE_MAX_BACKUP_CHAINS_PER_VM"
 
             elif [[ -z $REMOTE_MAX_BACKUP_CHAINS_PER_VM ]]; then
 
                 # Was not set:
-                echo "INFO: Environment variable 'REMOTE_MAX_BACKUP_CHAINS_PER_VM' not set (all backup chains will be kept remotely)"
+                echo "Environment variable REMOTE_MAX_BACKUP_CHAINS_PER_VM not set. ALL backup chains that are recoverable will be kept remotely"
 
             else
 
@@ -856,7 +857,7 @@ elif [[ $REMOTE_BACKUPS_MAIN_PATH == *@*:/* ]]; then
             fi
         ;;
         *)
-            echo "ERROR: Remote endpoint: $REMOTE_BACKUPS_MAIN_PATH has not insufficient read/write permissions or is not a directory"
+            echo "ERROR: Remote endpoint: $REMOTE_BACKUPS_MAIN_PATH has permission issues (cannot be read or written) or is not a directory"
         ;;
         esac
 
@@ -864,7 +865,7 @@ elif [[ $REMOTE_BACKUPS_MAIN_PATH == *@*:/* ]]; then
         echo "ERROR: Connection with $remote_server failed with status $remote_server_status"
     fi
 else
-    echo "ERROR: Incorrect syntax for '$REMOTE_BACKUPS_MAIN_PATH'"
+    echo "ERROR: Incorrect syntax for $REMOTE_BACKUPS_MAIN_PATH (must be an SSH-like absolute path)"
 fi
 
 # 1.4 TO DO: Check other ENV variables, and SSH key:
@@ -878,7 +879,7 @@ if [[ $domains_list_status == OK ]] && [[ $backups_main_path_status == OK ]] && 
     # 2.1 Create/update Cron task for VMs to be (progressively) included in $scheduled_backups_list:
     #------------------------------------------------------------------------------
 
-    echo "INFO: Deploying Cron task..."
+    echo "Deploying Cron task..."
 
     [[ -z $CRON_SCHEDULE ]] && { CRON_SCHEDULE="@daily"; echo "INFO: Environment variable 'CRON_SCHEDULE' is not set. Using default parameter ($CRON_SCHEDULE)"; }
 
@@ -904,12 +905,14 @@ end_of_crontab
     # Initializes the log file (in case doesn't exist):
     touch -a $scheuled_logpath
 
-    # Finally, runs cron and sends to background, catching its PID:
+    # Finally, runs cron and sends to background:
     cron -f -l -L2 &
+
+    # Catching its PID:
     #cron_pid=$!
 
     # 2.2 Initializes a file with variables externally stored, to be shared with the scheduler
-    # (This aren't used until when enters in Monitoring mode:)
+    # (These aren't read or updated until it has entered into Monitoring mode:)
     #------------------------------------------------------------------------------
     cat << 'end_of_external_variables' > $external_vars
 # These values are shared (and constantly updated) by main and scheduler scripts:
@@ -923,7 +926,7 @@ end_of_external_variables
 
     if [[ $(os_is_unraid) == yes ]]; then
 
-        echo "INFO: OS Unraid detected. Scanning for checkpoints..."
+        echo "OS Unraid detected. Scanning for checkpoints..."
 
         for domain in ${DOMAINS_LIST[@]}; do
 
@@ -937,7 +940,12 @@ end_of_external_variables
 
             # Exports the variable, since it's modified by the scheduled script:
             export RESTARTED_SERVER="true"
-            echo "INFO: Server appears to have been restarted recently or no backup has been ever performed. Checking for running Virtual machines..."
+            echo "___________________________________________________________________________________________________"
+            echo ""
+            echo "Unraid server appears to have been restarted recently or this is the very first usage, since no checkpoints were found by libvirt at all!"
+            echo ""
+            echo "All Virtual machines (except those ignored by thsi script, and declared in environment variable IGNORED_VMS_LIST) are in need to be Shut Down in order to check backup chains integrity more comprehensively, attempting to fixup or (re)creating as needed"
+            echo ""
 
             for domain in ${DOMAINS_LIST[@]}; do
 
@@ -963,12 +971,27 @@ end_of_external_variables
                         # User needs to shutdown this VM before to perform any further checks:
                         SHUTDOWN_REQUIRED_VMS_LIST+=($domain)
                     fi
+                else
+
+                    # Adds already shut down VMs to the initial queue:
+                    CHECK_PATCH_LIST+=($domain)
                 fi
             done
 
-            # Notifies the user about the result and if needs to perform further actions (VMs are temporarily ignored, but checked periodically if state changes):
-            [[ ! -z $POWEREDOFF_VMS_LIST ]] && echo "INFO: VM(s) '${POWEREDOFF_VMS_LIST[@]}' Into automatic Powercycle for further checks (will be powered on shortly)"
-            [[ ! -z $SHUTDOWN_REQUIRED_VMS_LIST ]] && echo "WARNING: ACTION REQUIRED for '${SHUTDOWN_REQUIRED_VMS_LIST[@]}':  Perform a manual Shut down of for further checks (will be checked periodically for changes)"
+            echo ""
+            echo "RESTARTED_SERVER mode Summary:"
+            echo ""
+            echo "Ready for patch and backup chain check: ${CHECK_PATCH_LIST[@]:-"None"}"
+            [[ ! -z $RESTART_VMS_IF_REQUIRED ]] && \
+            echo "Into automatic power cycle: ${POWEREDOFF_VMS_LIST[@]:-"None"}"
+            echo "Manual shut down is needed before to proceed: ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
+
+            if [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]]; then
+
+                echo ""
+                echo "USER ACTION IS REQUIRED!"
+                echo "Shut down the following VM(s):'${POWEREDOFF_VMS_LIST[@]}' so they can be automatically checked"
+            fi
 
         else
             # Fortunately there's not a 'RESTARTED_SERVER' scenario.
@@ -988,12 +1011,12 @@ end_of_external_variables
     # 2.4 Perform an initial check of VMs that are -in theory- able to be backed up:
     #------------------------------------------------------------------------------
 
-    echo "INFO: Initial check of VM(s) '${CHECK_PATCH_LIST[@]}' in progress..."
+    echo "Initial check of VM(s) '${CHECK_PATCH_LIST[@]}' in progress..."
     check_patch
 
     if [[ ! -z ${CHECK_BACKUPS_LIST[@]} ]]; then
 
-        echo "INFO: Initial check of backup chains(s) of VM(s) '${CHECK_BACKUPS_LIST[@]}' in progress..."
+        echo "Initial check of backup chains(s) of VM(s) '${CHECK_BACKUPS_LIST[@]}' in progress..."
         check_backups
     fi
 
@@ -1011,13 +1034,13 @@ end_of_external_variables
 
                 if [[ $(domain_state $domain) != running ]]; then
 
-                    echo "INFO: Starting VM '$domain' (into AUTOSTART_VMS_LIST)"
+                    echo "Auto-starting VM $domain declared into AUTOSTART_VMS_LIST"
                     domain_start $domain --nowait
                 fi
             else
 
-                echo "WARNING: VM '$domain' declared in AUTOSTART_VMS_LIST was not found"
                 unset AUTOSTART_VMS_LIST[$(item_position $domain "AUTOSTART_VMS_LIST")]
+                echo "WARNING: VM $domain declared in AUTOSTART_VMS_LIST not found!"
             fi
         done
     fi
@@ -1099,8 +1122,7 @@ end_of_external_variables
 
         if [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]]; then
 
-            # Turn off all VMs that was previously shutdown for checks
-            #(RESTART_VMS_IF_REQUIRED is set):
+            # Turn off all VMs that was previously shutdown for checks:
 
              i=0
             for domain in ${POWEREDOFF_VMS_LIST[@]}; do
@@ -1118,6 +1140,8 @@ end_of_external_variables
                 ((i++))
             done
         fi
+
+        # AUTOSTART_VMS_LIST
 
         # Those VMs in need of a full backup chain, will run this process:
         [[ ! -z ${CREATE_BACKUP_CHAIN_LIST[@]} ]] && create_backup_chain
@@ -1138,6 +1162,7 @@ end_of_external_variables
 
 else
     # Initial checks have proven non-recoverable errors:
-    echo "ERROR: Could not start due to errors on input parameters. Exited."
+    echo "ERROR: Could not start due to errors on input parameters"
+    stop_container
 fi
     # The End.
