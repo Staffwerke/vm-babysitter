@@ -550,7 +550,7 @@ create_backup_chain()
     echo ""
     echo "Creating new Backup chains for Virtual machines: ${CREATE_BACKUP_CHAIN_LIST[@]}"
 
-    i=0
+    local i=0
     for domain in ${CREATE_BACKUP_CHAIN_LIST[@]}; do
 
         original_ram_size=""
