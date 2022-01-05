@@ -3,12 +3,16 @@
 # Updates backup chains for VMs in SCHEDULED_BACKUPS_LIST,
 # managing temporal RAM limits (when set) and powering on/off as necessary:
 #------------------------------------------------------------------------------
-
+functions_path="functions"
+external_vars="/tmp/vm-babysit-vars"
 logpath=${SCHEDULED_LOGPATH:-"/logs/scheduled-backups.log"}
 
 #------------------------------------------------------------------------------
 # Internal global variables and common functions are managed via this script:
-source functions
+source $functions_path
+
+# And SCHEDULED_BACKUPS_LIST is loaded from file (written by the main script):
+source $external_vars
 #------------------------------------------------------------------------------
 
 # Redirects all output to a log file:
@@ -17,9 +21,9 @@ exec &>> $logpath
 echo "###############################################################################"
 echo "Scheduled Incremental Backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
 
-if [[ ! -z $SCHEDULED_BACKUPS_LIST ]]; then
+if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
 
-    echo "Virtual machines: '$SCHEDULED_BACKUPS_LIST'"
+    echo "Virtual machines: '${SCHEDULED_BACKUPS_LIST[@]}'"
     echo "###############################################################################"
 
     i=0
@@ -40,7 +44,7 @@ if [[ ! -z $SCHEDULED_BACKUPS_LIST ]]; then
                     # Backup chain creation was successful!
                     backup_chain_success[$i]=$domain
 
-                    echo "$domain: Backup chain updated"
+                    echo "$domain: Incremental backup successfully added to the backup chain"
 
                     # To DO: Sync on remote endpoint when REMOTE_BACKUPS_MAIN_PATH is set and bring status.
                 else
@@ -48,7 +52,7 @@ if [[ ! -z $SCHEDULED_BACKUPS_LIST ]]; then
                     # Failed to create a new backup chain:
                     backup_chain_failed[$i]=$domain
 
-                    echo "$domain: Failed to create a new backup chain. (Read the logs above to determine the specific cause of fail)"
+                    echo "$domain: Failed to perform incremental backup. Read the logs above to determine the specific cause of fail)"
                 fi
 
                 if [[ ${domain_poweron_success[$i]} -eq $domain ]]; then
@@ -108,55 +112,48 @@ if [[ ! -z $SCHEDULED_BACKUPS_LIST ]]; then
             fi
         done
 
+        # VM is unlisted from SCHEDULED_BACKUPS_LIST:
+        unset SCHEDULED_BACKUPS_LIST[$i]
+
         # Increases the index to check the next VM:
         ((i++))
-        echo "___________________________________________________________________________________________________"
     done
 
-    # Depending on the results, shows a brief summary with VMs with changed states, and appends VMs to its respective lists:
+    # Appends updated values
+    # (as a string, since sed can't expand arrays correctly):
+    SCHEDULED_BACKUPS_LIST="${backup_chain_success[@]}"
 
-    if [[ ! -z ${backup_chain_failed[@]} ]]; then
+    CHECK_PATCH_LIST+=(${backup_chain_failed[@]})
+    CHECK_PATCH_LIST="${CHECK_PATCH_LIST[@]}"
 
-        # Move failed backup's involved VMs from SCHEDULED_BACKUPS_LIST to CHECK_PATCH_LIST:
-        # Creates a copies of external variables (Bash can't export arrays per se):
-        new_scheduled_backups_list=($SCHEDULED_BACKUPS_LIST)
-        new_check_patch_list=($CHECK_PATCH_LIST)
+    FAILED_VMS_LIST+=(${domain_poweron_failed[@]})
+    FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
 
-        for domain in ${backup_chain_failed[@]}; do
+    # And updates them all at once:
+    sed -i \
+    -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
+    -e "s/CHECK_PATCH_LIST=.*/CHECK_PATCH_LIST=($CHECK_PATCH_LIST)/" \
+    -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
+    $external_vars
 
-            # Then, moves VMs between internal lists::
-            unset new_scheduled_backups_list[$(item_position $domain "new_scheduled_backups_list")]
-            new_check_patch_list+=($domain)
-        done
+    # And shows the summary at the very end:
 
-        # And exports updated arrays as string values:
-        export SCHEDULED_BACKUPS_LIST="${new_scheduled_backups_list[@]}"
-        export CHECK_PATCH_LIST="${new_check_patch_list[@]}"
-    fi
-
-    if [[ ! -z ${domain_poweron_failed[@]} ]]; then
-
-        # Move failed VMs from SCHEDULED_BACKUPS_LIST to FAILED_VMS_LIST:
-        # Creates a copies of external variables (Bash can't export arrays per se):
-        new_scheduled_backups_list=($SCHEDULED_BACKUPS_LIST)
-        new_failed_vms_list=($FAILED_VMS_LIST)
-
-        for domain in ${domain_poweron_failed[@]}; do
-
-            # Then, moves VMs between internal lists::
-            unset new_scheduled_backups_list[$(item_position $domain "new_scheduled_backups_list")]
-            new_failed_vms_list+=($domain)
-        done
-
-        # And exports updated arrays as string values:
-        export SCHEDULED_BACKUPS_LIST="${new_scheduled_backups_list[@]}"
-        export FAILED_VMS_LIST="${new_failed_vms_list[@]}"
-    fi
-
+    echo "___________________________________________________________________________________________________"
+    echo ""
     echo "Incremental Backup Summary:"
-    echo "Successful Backups:       ${backup_chain_success[@]:-"None"}"
-    echo "Failed Backups:           ${backup_chain_failed[@]:-"None"}"
-    echo "Failed Virtual machines:  ${domain_poweron_failed[@]:-"None"}"
+    echo ""
+    echo "Successful Backups (on schedule): ${backup_chain_success[@]:-"None"}"
+    echo "Failed Backups (will be checked ASAP): ${backup_chain_failed[@]:-"None"}"
+    echo "Failed Virtual machines (user action is required): ${domain_poweron_failed[@]:-"None"}"
+
+    if [[ -z ${backup_chain_failed[@]} ]] && [[ -z ${domain_poweron_failed[@]} ]]; then
+
+        echo ""
+        echo "ALL VMs WERE BACKED UP SUCCESSFULLY!"
+    fi
+
+    echo ""
+    echo "Scheduled Incremental Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
 
 else
     echo "No Virtual machines on schedule. Exited"
