@@ -104,7 +104,7 @@ check_patch()
 
                 if [[ $(domain_is_patched $domain ) == yes ]]; then
 
-                    #echo "$domain: Patch for incremental backups is correct"
+                    echo "$domain: Patch for incremental backups is correct"
                     vm_patch_success[$i]+=$domain
                     break
 
@@ -130,7 +130,7 @@ check_patch()
                         fi
                     else
 
-                        #echo "$domain: Cannot apply changes about patch for incremental backup while VM running"
+                        echo "$domain: Cannot apply changes about patch for incremental backup while VM running"
                         # Adds VM to failed to shutdown local list
                         # (User must shutdown the VM manually):
                         domain_shutdown_failed[$i]=$domain
@@ -141,7 +141,7 @@ check_patch()
 
                 else
 
-                    #echo "$domain: Patch not detected. Attempting to patch for incremental backups..."
+                    echo "$domain: Patch not detected. Attempting to patch for incremental backups..."
 
                     vm-patch $domain --quiet
 
@@ -506,7 +506,7 @@ check_backups()
 
 
     echo ""
-    echo "Backup chain integrity summary:"
+    echo "Backup Chain Integrity Summary:"
     echo ""
     echo "On schedule for incremental backups: ${preserved_backup_chain[@]:-"None"}"
     echo "In need of new backup chain (current is absent or was broken): ${broken_backup_chain[@]:-"None"}"
@@ -702,6 +702,8 @@ DOMAINS_LIST=($(domains_list))
 
 if [[ ! -z $DOMAINS_LIST ]]; then
 
+    # 1.1.1 Check IGNORED_VMS_LIST:
+    #------------------------------------------------------------------------------
     if [[ ! -z $IGNORED_VMS_LIST ]]; then
 
         # Debugging VMs to be ignored (set into a bash array):
@@ -722,6 +724,26 @@ if [[ ! -z $DOMAINS_LIST ]]; then
         done
     fi
 
+    # 1.1.2 Check AUTOSTART_VMS_LIST:
+    #------------------------------------------------------------------------------
+
+    if [[ ! -z $AUTOSTART_VMS_LIST ]]; then
+
+        # Debugging VMs to be powered on on container's start (set into a bash array):
+        AUTOSTART_VMS_LIST=($AUTOSTART_VMS_LIST)
+
+        for domain in ${AUTOSTART_VMS_LIST[@]}; do
+
+            if [[ $(domain_exists $domain) == no ]]; then
+
+                unset AUTOSTART_VMS_LIST[$(item_position $domain "AUTOSTART_VMS_LIST")]
+                echo "WARNING: VM $domain declared in AUTOSTART_VMS_LIST not found!"
+            fi
+        done
+    fi
+
+    # 1.1.3 Check DOMAINS_LIST VM's disk images:
+    #------------------------------------------------------------------------------
     echo "Querying for persistent Virtual machines from libvirt..."
     i=0
     for domain in ${DOMAINS_LIST[@]}; do
@@ -911,17 +933,7 @@ end_of_crontab
     # Catching its PID:
     #cron_pid=$!
 
-    # 2.2 Initializes a file with variables externally stored, to be shared with the scheduler
-    # (These aren't read or updated until it has entered into Monitoring mode:)
-    #------------------------------------------------------------------------------
-    cat << 'end_of_external_variables' > $external_vars
-# These values are shared (and constantly updated) by main and scheduler scripts:
-CHECK_PATCH_LIST=()
-SCHEDULED_BACKUPS_LIST=()
-FAILED_VMS_LIST=()
-end_of_external_variables
-
-    # 2.3 Check if OS is Unraid and it has just been restarted (checking backups under this scenario assumes missing checkpoints / broken backup chains:
+    # 2.2 Check if OS is Unraid and it has just been restarted (checking backups under this scenario assumes missing checkpoints / broken backup chains:
     #------------------------------------------------------------------------------
 
     if [[ $(os_is_unraid) == yes ]]; then
@@ -1008,74 +1020,20 @@ end_of_external_variables
         CHECK_PATCH_LIST=${DOMAINS_LIST[@]}
     fi
 
-    # 2.4 Perform an initial check of VMs that are -in theory- able to be backed up:
+    # 2.3 Initializes a file with variables externally stored, to be shared with the scheduler:
+    #------------------------------------------------------------------------------
+    cat << end_of_external_variables > $external_vars
+# These values are shared (and constantly updated) by main and scheduler scripts:
+CHECK_PATCH_LIST=(${CHECK_PATCH_LIST[@]})
+SCHEDULED_BACKUPS_LIST=()
+FAILED_VMS_LIST=()
+end_of_external_variables
+
+    # 3. Begin monitorization for VMs in lists, performing operations as required:
     #------------------------------------------------------------------------------
 
-    echo "Initial check of VM(s) '${CHECK_PATCH_LIST[@]}' in progress..."
-    check_patch
-
-    if [[ ! -z ${CHECK_BACKUPS_LIST[@]} ]]; then
-
-        echo "Initial check of backup chains(s) of VM(s) '${CHECK_BACKUPS_LIST[@]}' in progress..."
-        check_backups
-    fi
-
-    # 2.5 If any, start VMs marked for autostart (debugging the list at the same time):
-    #------------------------------------------------------------------------------
-
-    if [[ ! -z $AUTOSTART_VMS_LIST ]]; then
-
-        # Debugging VMs to be powered on on container's start (set into a bash array):
-        AUTOSTART_VMS_LIST=($AUTOSTART_VMS_LIST)
-
-        for domain in ${AUTOSTART_VMS_LIST[@]}; do
-
-            if [[ $(domain_exists $domain) == yes ]]; then
-
-                if [[ $(domain_state $domain) != running ]]; then
-
-                    echo "Auto-starting VM $domain declared into AUTOSTART_VMS_LIST"
-                    domain_start $domain --nowait
-                fi
-            else
-
-                unset AUTOSTART_VMS_LIST[$(item_position $domain "AUTOSTART_VMS_LIST")]
-                echo "WARNING: VM $domain declared in AUTOSTART_VMS_LIST not found!"
-            fi
-        done
-    fi
-
-    # 2.6.1 If any, start VMs previiously shut down for checks:
-    #------------------------------------------------------------------------------
-
-    if [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]]; then
-
-        echo "INFO: Starting Virtual machines previously Shut down to perform checks..."
-
-        i=0
-        for domain in ${POWEREDOFF_VMS_LIST[@]}; do
-
-            if [[ $(domain_state $domain) != running ]]; then
-
-                # Turn on the VM. Do not wait for Guest's QEMU agent:
-                domain_start $domain --nowait
-
-            fi
-
-            # Remove the VM from the list is being read:
-            [[ $? -eq 0 ]] && unset POWEREDOFF_VMS_LIST[$i]
-
-            # Increases the counter:
-            ((i++))
-        done
-    fi
-
-    # 2.7 Begin monitorization for changes in lists:
-    #------------------------------------------------------------------------------
-
-    echo "------------------------------------------------------------------------------"
+    "___________________________________________________________________________________________________"
     echo "Starting Monitoring mode..."
-    echo "------------------------------------------------------------------------------"
 
     while true; do
 
@@ -1083,15 +1041,17 @@ end_of_external_variables
         # because it could ignore SIGTERM from Docker, thus being killed with SIGKILL:
         sleep 1
 
-        # Reads all external variables, once per iteration:
+        # 3.1 (Re)reads all external variables:
+        #------------------------------------------------------------------------------
         source $external_vars
 
         # TO DO: Pause monitoring when Scheduled backup is running!
 
-        # Check for VMs which are in need of shutdown first.
-        # (This normally happens when the user took the action, or when a VM took long time to shutdown):
         if [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
 
+            # 3.2 Check for VMs which are in need of shutdown first.
+            # (This normally happens when the user took the action, or when a VM took long time to shutdown):
+            #------------------------------------------------------------------------------
             i=0
             for domain in ${SHUTDOWN_REQUIRED_VMS_LIST[@]}; do
 
@@ -1106,25 +1066,45 @@ end_of_external_variables
 
         if [[ ! -z ${CHECK_PATCH_LIST[@]} ]]; then
 
+            # 3.3 Status of at least on VM has changed, and sent to one queue:
+            #------------------------------------------------------------------------------
+
+            # Marks an ongoing check starting:
             ongoing_check="true"
 
-            # Status of at least on VM has changed, and sent to one queue:
-            echo "------------------------------------------------------------------------------"
+            echo "___________________________________________________________________________________________________"
             echo "Status change detected at $(date "+%Y-%m-%d %H:%M:%S")"
             echo "Automatic check for VM(s) '${CHECK_PATCH_LIST[@]} in progress..."
-            echo "------------------------------------------------------------------------------"
 
             check_patch
         fi
 
-        # Backups of VMs that passed check_patch successfuly will be checked for integrity (and fixed, when possible):
+        # 3.4 Backups of VMs that passed check_patch successfuly will be checked for integrity (and fixed, when possible):
+        #------------------------------------------------------------------------------
         [[ ! -z ${CHECK_BACKUPS_LIST[@]} ]] && check_backups
+
+
+        if [[ ! -z ${AUTOSTART_VMS_LIST[@]} ]]; then
+
+        # 3.5 When debugged AUTOSTART_VMS_LIST is set and VMs in list are shut down,
+        # Turns them on:
+        #------------------------------------------------------------------------------
+        for domain in ${AUTOSTART_VMS_LIST[@]}; do
+
+            if [[ $(domain_state $domain) != running ]]; then
+
+                echo "$domain: Performing Auto start (declared into AUTOSTART_VMS_LIST)"
+                domain_start $domain --nowait
+            fi
+        done
+        fi
 
         if [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]]; then
 
-            # Turn off all VMs that was previously shutdown for checks:
-
-             i=0
+            # 3.6 Turns on all VMs that was previously shutdown for checks:
+            #------------------------------------------------------------------------------
+            echo "Starting (remaining) Virtual machines previously shut down for checks..."
+            i=0
             for domain in ${POWEREDOFF_VMS_LIST[@]}; do
 
                 if [[ $(domain_state $domain) != running ]]; then
@@ -1141,13 +1121,12 @@ end_of_external_variables
             done
         fi
 
-        # AUTOSTART_VMS_LIST
-
-        # Those VMs in need of a full backup chain, will run this process:
+        # 3.7 Those VMs in need of a full backup chain, will run this process:
+        #------------------------------------------------------------------------------
         [[ ! -z ${CREATE_BACKUP_CHAIN_LIST[@]} ]] && create_backup_chain
 
 
-        if [[ $ongoing_check == true ]] && [[ -z ${CHECK_PATCH_LIST[@]} ]] && [[ -z ${CHECK_BACKUPS_LIST[@]} ]] && [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]] && [[ -z ${CREATE_BACKUP_CHAIN_LIST[@]} ]]; then
+        if [[ $ongoing_check == true ]] && [[ -z ${CHECK_PATCH_LIST[@]} ]] ; then
 
             # All checks finished successfully:
             ongoing_check="false"
@@ -1156,7 +1135,7 @@ end_of_external_variables
             echo "Finished processing all VMs with status changed at $(date "+%Y-%m-%d %H:%M:%S")"
         fi
 
-        # And run infinitely, until receives SIGTERM or SIGKILL from Docker...
+        # 3.8 Restarts the loop from 3.1, until receives SIGTERM or SIGKILL from Docker
         #------------------------------------------------------------------------------
     done
 
@@ -1165,4 +1144,3 @@ else
     echo "ERROR: Could not start due to errors on input parameters"
     stop_container
 fi
-    # The End.
