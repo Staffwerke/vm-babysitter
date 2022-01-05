@@ -74,7 +74,9 @@ scheuled_logpath=${SCHEDULED_LOGPATH:-"/logs/scheduled-backups.log"}
 #------------------------------------------------------------------------------
 stop_container()
 {
-    echo "INFO: SIGTERM signal received at: $(date "+%Y-%m-%d %H:%M:%S")"
+    echo "############################################################################################################"
+    echo ""
+    echo "SIGTERM signal received at: $(date "+%Y-%m-%d %H:%M:%S")"
     # To DO: Terminate or kill background processes before to exit.
     echo "Container Stopped."
     exit 0
@@ -92,7 +94,8 @@ check_patch()
     local vm_patch_failed
 
     echo "___________________________________________________________________________________________________"
-    echo "Checking / patching Virtual machines: ${CHECK_PATCH_LIST[@]}"
+    echo ""
+    echo "Checking / Patching for incremental backups Virtual machines: ${CHECK_PATCH_LIST[@]}"
 
     local i=0
     for domain in ${CHECK_PATCH_LIST[@]}; do
@@ -104,14 +107,14 @@ check_patch()
 
                 if [[ $(domain_is_patched $domain ) == yes ]]; then
 
-                    echo "$domain: Patch for incremental backups is correct"
+                    echo "$domain: Patch for incremental backups was found and it is active"
                     vm_patch_success[$i]+=$domain
                     break
 
                 elif [[ $(domain_is_patched $domain --inactive) == yes ]]; then
 
                     # VM is (presumably) running and was patched before (e.g. in past iteration inside this loop)
-                    # But needs a power cycle so changes can be applied:
+                    echo "$domain: Patch for incremental backups was performed, but a power cycle is required to apply changes"
 
                     if [[ ! -z $RESTART_VMS_IF_REQUIRED ]]; then
 
@@ -130,7 +133,6 @@ check_patch()
                         fi
                     else
 
-                        echo "$domain: Cannot apply changes about patch for incremental backup while VM running"
                         # Adds VM to failed to shutdown local list
                         # (User must shutdown the VM manually):
                         domain_shutdown_failed[$i]=$domain
@@ -141,7 +143,7 @@ check_patch()
 
                 else
 
-                    echo "$domain: Patch not detected. Attempting to patch for incremental backups..."
+                    echo "$domain: Patch for incremental backups was not found. Attempting to patch now..."
 
                     vm-patch $domain --quiet
 
@@ -184,14 +186,14 @@ check_patch()
     echo ""
     echo "Ready for incremental backups: ${vm_patch_success[@]:-"None"}"
     [[ ! -z $RESTART_VMS_IF_REQUIRED ]] && \
-    echo "Into automatic power cycle, to apply patch: ${domain_shutdown_success[@]:-"None"}"
-    echo "Manual power cycle is needed to apply patch: ${domain_shutdown_failed[@]:-"None"}"
-    echo "Manual VM definitions check is needed, could not be patched: ${vm_patch_failed[@]:-"None"}"
+    echo "Into automatic power cycle: ${domain_shutdown_success[@]:-"None"}"
+    echo "Manual shut down is required: ${domain_shutdown_failed[@]:-"None"}"
+    echo "Failed to apply patch: ${vm_patch_failed[@]:-"None"}"
 
     if [[ -z ${domain_shutdown_failed[@]} ]] && [[ -z ${vm_patch_failed[@]} ]]; then
 
         echo ""
-        echo "ALL VMs WERE PATCHED SUCCESSFULLY!"
+        echo "All VMs Patched!"
     fi
 }
 
@@ -239,7 +241,7 @@ check_backups()
 
                     # No backup folder, is corrupted or doesn't have backup data:
                     backup_folder_exists="false"
-                    echo "$domain: No backup chain folder detected or backup chain structure is damaged"
+                    echo "$domain: No backup chain folder detected (or backup chain structure is damaged)"
                 fi
             fi
 
@@ -279,7 +281,7 @@ check_backups()
                 checkpoint_list=()
                 backup_check_failed=""
 
-                echo "$domain: VM is shut down, performing full check in backup chain..."
+                echo "$domain: Is shut down, performing full check into its backup chain..."
 
                 if [[ $recoverable_backup_chain != false ]] || [[ $backup_folder_exists != false ]]; then
 
@@ -288,11 +290,11 @@ check_backups()
                     if [[ $RESTARTED_SERVER == true ]] ; then
 
                         # No QEMU checkpoints are found when server comes from a restart under UnRaid, so uses backup checkpoints in backup
-                        echo "$domain: Reading Checkpoint list in Backup (RESTARTED_SERVER detected)"
+                        echo "$domain: Reading checkpoints list from backup (RESTARTED_SERVER detected)"
                         checkpoint_list=($(backup_checkpoint_list $BACKUPS_MAIN_PATH/$domain))
                     else
 
-                        echo "$domain: Reading Checkpoint list in QEMU"
+                        echo "$domain: Reading checkpoints list from QEMU"
                         checkpoint_list=($(domain_checkpoint_list $domain))
                     fi
 
@@ -305,7 +307,7 @@ check_backups()
                             # When bitmaps and checkpoint lists aren't identical for ALL disks, marks the entire check as failed:
                             backup_check_failed="yes"
 
-                            echo "$domain.$image: Checkpoint and Bitmap lists mismatch for this image"
+                            echo "$domain's disk $image: Checkpoints and bitmaps lists MISMATCH!"
 
                             # Cancelling further checks for this VM:
                             break
@@ -313,20 +315,22 @@ check_backups()
                     done
                 fi
 
-                if [[ $backup_check_failed == yes ]] || [[ $recoverable_backup_chain == false ]] || [[ $backup_folder_exists == false ]]; then
+                if [[ $backup_check_failed == yes ]] \
+                || [[ $recoverable_backup_chain == false ]] \
+                || [[ $backup_folder_exists == false ]]; then
 
                     # Each scenario is exclusive (non recoverable backup chain is implicitly failed):
 
                     if [[ $RESTARTED_SERVER != true ]]; then
 
-                        echo "$domain: Pruning existing Checkpoints in QEMU..."
+                        echo "$domain: Pruning existing checkpoints in QEMU..."
                         domain_delete_checkpoint_metadata $domain
                     fi
 
                     for image in $(domain_img_paths_list $domain); do
 
                         # Then deletes all bitmaps, in all image disks:
-                        echo "$domain.$image: Deleting Bitmaps..."
+                        echo "$domain's disk $image: Deleting bitmaps..."
 
                         for bitmap in $(disk_image_bitmap_list $image); do
 
@@ -353,6 +357,7 @@ check_backups()
 
                 elif [[ $recoverable_backup_chain == true ]]; then
 
+                    echo "$domain: Attempting backup chain recovery..."
                     # Checkpoints and bitmaps are matching despite the scenario.
                     # Attempts to delete the last checkpoint (even from backup) and bitmap:
 
@@ -367,12 +372,15 @@ check_backups()
 
                     for image in $(domain_img_paths_list $domain); do
 
-                        # Deletes this bitmap name from all drives in this VM
                         disk_image_delete_bitmap $image $damaged_checkpoint
+                        echo "$domain's disk $image: Bitmap '$damaged_checkpoint' deleted"
                     done
 
                     # Deletes QEMU checkpoint when it's supposed to exist:
-                    [[ $RESTARTED_SERVER != true ]] && domain_delete_checkpoint_metadata $domain $damaged_checkpoint
+                    if [[ $RESTARTED_SERVER != true ]] ; then
+
+                        domain_delete_checkpoint_metadata $domain $damaged_checkpoint
+                        echo "$domain: Checkpoint '$damaged_checkpoint' metadata removed from QEMU"
 
                     # Finally, deletes all the files created by the incremental backup (except logs):
 
@@ -380,22 +388,24 @@ check_backups()
 
                         # Backup incremental data (all drives)
                         rm -f $BACKUPS_MAIN_PATH/$domain/$drive.inc.$damaged_checkpoint.data.partial
+                        echo "$domain: Incremental backup $BACKUPS_MAIN_PATH/$domain/$drive.inc.$damaged_checkpoint.data.partial deleted"
                     done
 
                     # VM definitions XML file:
                     rm -f $BACKUPS_MAIN_PATH/$domain/vmconfig.$damaged_checkpoint.xml
+                    echo "$domain: VM definitions XML file $BACKUPS_MAIN_PATH/$domain/vmconfig.$damaged_checkpoint.xml deleted"
 
                     # Checkpoint in backup:
                     rm -f $BACKUPS_MAIN_PATH/$domain/checkpoints/$damaged_checkpoint.xml
+                    echo "$domain: Backup checkpoint $BACKUPS_MAIN_PATH/$domain/checkpoints/$damaged_checkpoint.xml deleted"
 
                     # Modifying the .cpt file with the new checkpoints list:
                     local new_checkpoint_list="${checkpoint_list[@]}"
                     echo "[\"${new_checkpoint_list// /\", \"}\"\]" > $BACKUPS_MAIN_PATH/$domain/$domain.cpt
+                    echo "$domain: Updated checkpoints in $BACKUPS_MAIN_PATH/$domain/$domain.cpt"
 
                     # Backup chain will be treated as preserved:
                     preserved_backup_chain+=($domain)
-
-                    echo "$domain: Backup repaired (incomplete checkpoint '$damaged_checkpoint' removed from both VM and backup chain)"
 
                     # Exits the loop:
                     break
@@ -404,7 +414,7 @@ check_backups()
                 else
 
                     preserved_backup_chain+=($domain)
-                    echo "$domain: Checkpoints and Bitmaps lists match"
+                    echo "$domain: Checkpoints and bitmaps lists MATCH"
 
                     # Exits the loop:
                     break
@@ -437,7 +447,7 @@ check_backups()
                     fi
                 else
                     # (User must shutdown the VM manually):
-                    echo "$domain: Cannot check its backup chain while running (Restarted server, cancelled checkpoint, backup folder corrupt or doesn't exist)"
+                    echo "$domain: Cannot check backup chain integrity while running"
 
                     # Adds VM to failed to shutdown local list:
                     domain_shutdown_failed[$i]=$domain
@@ -448,7 +458,7 @@ check_backups()
 
             else
 
-                echo "$domain: VM is (presumably) running, comparing Checkpoint lists in QEMU and Backup..."
+                echo "$domain: VM is (presumably) running, comparing checkpoint lists in both QEMU and backup chain..."
 
                 # Gets both qemu and backup checkpoint lists:
                 local qemu_checkpoint_list=($(domain_checkpoint_list $domain))
@@ -459,7 +469,7 @@ check_backups()
 
                     # Checkpoint lists in QEMU and backup aren't identical:
 
-                    echo "$domain: QEMU and Backup Checkpoint lists mismatch (${#qemu_checkpoint_list[@]} vs ${#backup_chain_checkpoint_list[@]})"
+                    echo "$domain: QEMU and backup checkpoints lists MISMATCH"
 
                     # Process old backup and mark backup chain as broken (can't check more in deep for bitmaps / checkpoints to delete:)
                     archive_backup $BACKUPS_MAIN_PATH/$domain
@@ -470,7 +480,7 @@ check_backups()
 
                 else
 
-                    echo "$domain: QEMU and Backup Checkpoint lists match (${#qemu_checkpoint_list[@]} vs. ${#backup_chain_checkpoint_list[@]})"
+                    echo "$domain: QEMU and Backup Checkpoint lists MATCH"
                     # Backup chain is OK, mark as preserved:
                     preserved_backup_chain+=($domain)
 
@@ -509,15 +519,15 @@ check_backups()
     echo "Backup Chain Integrity Summary:"
     echo ""
     echo "On schedule for incremental backups: ${preserved_backup_chain[@]:-"None"}"
-    echo "In need of new backup chain (current is absent or was broken): ${broken_backup_chain[@]:-"None"}"
+    echo "In need of new backup chain: ${broken_backup_chain[@]:-"None"}"
     [[ ! -z $RESTART_VMS_IF_REQUIRED ]] && \
-    echo "Into automatic power cycle, allowed to check backup integrity: ${domain_shutdown_success[@]:-"None"}"
-    echo "Manual power cycle is needed to check backup integrity: ${domain_shutdown_failed[@]:-"None"}"
+    echo "Into automatic power cycle: ${domain_shutdown_success[@]:-"None"}"
+    echo "Manual shut down is required: ${domain_shutdown_failed[@]:-"None"}"
 
     if [[ -z ${domain_shutdown_failed[@]} ]]; then
 
         echo ""
-        echo "ALL BACKUP CHAINS WERE CHECKED SUCCESSFULLY!"
+        echo "All Backup Chains Checked!"
     fi
 }
 
@@ -535,6 +545,10 @@ create_backup_chain()
     local backup_chain_failed
     local domain_poweron_success
     local domain_poweron_failed
+
+    echo "___________________________________________________________________________________________________"
+    echo ""
+    echo "Creating new Backup chains for Virtual machines: ${CREATE_BACKUP_CHAIN_LIST[@]}"
 
     i=0
     for domain in ${CREATE_BACKUP_CHAIN_LIST[@]}; do
@@ -556,7 +570,7 @@ create_backup_chain()
 
                     # To DO: Sync on remote endpoint when REMOTE_BACKUPS_MAIN_PATH is set and bring status.
 
-                    echo "$domain: Backup chain successfully created"
+                    echo "$domain: Backup chain successfully created!"
                 else
 
                     # Failed to create a new backup chain:
@@ -616,7 +630,7 @@ create_backup_chain()
                 else
 
                     # VM failed to power on. This is an abnormal situation:
-                    echo "$domain: failed to start (no backup chain could be created)"
+                    echo "$domain: Failed to proceed (no backup chain could be created)"
                     domain_poweron_failed[$i]=$domain
 
                     # Breaks the loop:
@@ -658,16 +672,16 @@ create_backup_chain()
     # And shows the summary at the very end:
 
     echo ""
-    echo "Backup chain creation Summary:"
+    echo "Backup Chain Creation Summary:"
     echo ""
-    echo "Successful Backups (on schedule): ${backup_chain_success[@]:-"None"}"
-    echo "Failed Backups (will be checked ASAP): ${backup_chain_failed[@]:-"None"}"
-    echo "Failed Virtual machines (user action is required): ${domain_poweron_failed[@]:-"None"}"
+    echo "On schedule for incremental backups: ${backup_chain_success[@]:-"None"}"
+    echo "Failed to create backup chain: ${backup_chain_failed[@]:-"None"}"
+    echo "Failed to power on: ${domain_poweron_failed[@]:-"None"}"
 
     if [[ -z ${backup_chain_failed[@]} ]] && [[ -z ${domain_poweron_failed[@]} ]]; then
 
         echo ""
-        echo "ALL BACKUP CHAINS WERE CREATED SUCCESSFULLY!"
+        echo "All Backup Chains Created!"
     fi
 }
 
@@ -689,10 +703,10 @@ exec &>> $logpath
 # The most gracefully way to stop this container is with:
 # 'docker kill --signal=SIGTERM <docker-name-or-id>'
 trap 'stop_container' SIGTERM
-
-echo "###############################################################################"
+############################################################################################################
+echo "############################################################################################################"
 echo "Container started at: $(date "+%Y-%m-%d %H:%M:%S")"
-echo "###############################################################################"
+echo "############################################################################################################"
 
 # 1.1 Check DOMAINS_LIST:
 #------------------------------------------------------------------------------
@@ -993,17 +1007,10 @@ end_of_crontab
             echo ""
             echo "RESTARTED_SERVER mode Summary:"
             echo ""
-            echo "Ready for patch and backup chain check: ${CHECK_PATCH_LIST[@]:-"None"}"
+            echo "Ready for further checks: ${CHECK_PATCH_LIST[@]:-"None"}"
             [[ ! -z $RESTART_VMS_IF_REQUIRED ]] && \
             echo "Into automatic power cycle: ${POWEREDOFF_VMS_LIST[@]:-"None"}"
             echo "Manual shut down is needed before to proceed: ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
-
-            if [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]]; then
-
-                echo ""
-                echo "USER ACTION IS REQUIRED!"
-                echo "Shut down the following VM(s):'${POWEREDOFF_VMS_LIST[@]}' so they can be automatically checked"
-            fi
 
         else
             # Fortunately there's not a 'RESTARTED_SERVER' scenario.
@@ -1032,7 +1039,7 @@ end_of_external_variables
     # 3. Begin monitorization for VMs in lists, performing operations as required:
     #------------------------------------------------------------------------------
 
-    "___________________________________________________________________________________________________"
+    "############################################################################################################"
     echo "Starting Monitoring mode..."
 
     while true; do
@@ -1073,6 +1080,7 @@ end_of_external_variables
             ongoing_check="true"
 
             echo "___________________________________________________________________________________________________"
+            echo ""
             echo "Status change detected at $(date "+%Y-%m-%d %H:%M:%S")"
             echo "Automatic check for VM(s) '${CHECK_PATCH_LIST[@]} in progress..."
 
@@ -1126,13 +1134,52 @@ end_of_external_variables
         [[ ! -z ${CREATE_BACKUP_CHAIN_LIST[@]} ]] && create_backup_chain
 
 
-        if [[ $ongoing_check == true ]] && [[ -z ${CHECK_PATCH_LIST[@]} ]] ; then
+        if [[ $ongoing_check == true ]]; then
 
-            # All checks finished successfully:
+            # Only checked when status changes were initially detected:
+            if [[ -z ${CHECK_PATCH_LIST[@]} ]]; then
+
+            # No VMs in CHECK_PATCH_LIST (string or array, as comes up)
+            # It means that all checks finished successfully, entering in 'silent' mode:
             ongoing_check="false"
 
-            echo "------------------------------------------------------------------------------"
-            echo "Finished processing all VMs with status changed at $(date "+%Y-%m-%d %H:%M:%S")"
+            echo "############################################################################################################"
+            echo ""
+            echo "All VMs with status changed finished to be processed at $(date "+%Y-%m-%d %H:%M:%S")"
+            echo ""
+            echo "VM-Babysitter Global Summary:"
+            echo ""
+            echo "Current Scheduled Backups: ${SCHEDULED_BACKUPS_LIST[@]:-"None"}"
+            echo "Manual Shut Down Required: ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
+            echo "Failing Virtual Machines: ${FAILED_VMS_LIST[@]:-"None"}"
+
+            if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]] && \
+            [[ -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] && \
+            [[ -z ${FAILED_VMS_LIST[@]} ]]; then
+
+                echo ""
+                echo "All Virtual Machines Running Under Incremental Backups!"
+                echo ""
+
+            elif [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] || [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
+
+                echo ""
+                echo "WARNING: USER ACTION IS REQUIRED!"
+                echo ""
+
+                [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] && \
+                echo "Perform a MANUAL SHUT DOWN of the following VM(s):'$SHUTDOWN_REQUIRED_VMS_LIST[@]}' to allow being checked automatically."
+
+                [[ ! -z ${FAILED_VMS_LIST[@]} ]] && \
+                echo "VM(s): '${FAILED_VMS_LIST[@]}' FAILED or behave ABNORMALLY during the checks. Do a manual check and ensure proper functioning; then restart this container in order to check again."
+            fi
+
+            if [[ -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
+
+                echo ""
+                echo "At the moment, NO Virtual Machine is on schedule for incremental backup."
+                echo ""
+            fi
         fi
 
         # 3.8 Restarts the loop from 3.1, until receives SIGTERM or SIGKILL from Docker
