@@ -779,24 +779,25 @@ if [[ ! -z $BACKUPS_MAIN_PATH ]]; then
         if  [[ -r $BACKUPS_MAIN_PATH ]] && [[ -w $BACKUPS_MAIN_PATH ]]; then
 
             # $BACKUPS_MAIN_PATH has read/write permissions.
+            backups_main_path_status="OK"
             # Check for MAX_BACKUP_CHAINS_PER_VM:
 
-            if [[ ! -z $MAX_BACKUP_CHAINS_PER_VM ]]; then
+            if [[ $MAX_BACKUP_CHAINS_PER_VM =~ [0-9] ]]; then
 
-                if [[ $MAX_BACKUP_CHAINS_PER_VM =~ [0-9] ]]; then
+                # Is an integer number:
+                echo "INFO: Max # of backup chains per VM to be kept locally: $MAX_BACKUP_CHAINS_PER_VM"
 
-                    backups_main_path_status="OK"
-                    echo "INFO: Max # of backup chains per VM to be kept locally: $MAX_BACKUP_CHAINS_PER_VM"
-                else
+            elif [[ -z $MAX_BACKUP_CHAINS_PER_VM ]]; then
 
-                    echo "ERROR: Incorrect syntax for environment variable MAX_BACKUP_CHAINS_PER_VM (must be a natural integer)"
-                fi
+                # Was not set:
+                echo "INFO: Environment variable 'MAX_BACKUP_CHAINS_PER_VM' not set (all backup chains will be kept locally)"
+
             else
 
-                # MAX_BACKUP_CHAINS_PER_VM was not set.
-                backups_main_path_status="OK"
+                # Invalid value (unsets the 'OK' status):
+                unset backups_main_path_status
+                echo "ERROR: Incorrect syntax for environment variable MAX_BACKUP_CHAINS_PER_VM (must be a natural integer)"
             fi
-
         else
             echo "ERROR: Backups main path: '$BACKUPS_MAIN_PATH': Permission issues (cannot be read or written)"
         fi
@@ -830,24 +831,34 @@ elif [[ $REMOTE_BACKUPS_MAIN_PATH == *@*:/* ]]; then
         # Attempts to perform similar checks as with $BACKUPS_MAIN_PATH, except it only returns "OK" if there was success:
         remote_backups_main_path_status=$(ssh_command $remote_server "if [[ ! -e $remote_backups_main_path ]]; then; mkdir -p $remote_backups_main_path; [[ $? == 0 ]] && echo CREATED; elif [[ -d $remote_backups_main_path ]] && [[ -r $remote_backups_main_path ]] && [[ -w $remote_backups_main_path ]]; then; echo EXISTS; fi")
 
-        if [[ $remote_backups_main_path_status == OK ]] || [[ $remote_backups_main_path_status == CREATED ]]; then
+        case $remote_backups_main_path_status in
+
+        OK|CREATED)
 
             echo "INFO: Remote endpoint $REMOTE_BACKUPS_MAIN_PATH status: '$remote_backups_main_path_status'"
 
             if [[ $REMOTE_MAX_BACKUP_CHAINS_PER_VM =~ [0-9] ]]; then
 
-                    echo "INFO: Max # of backup chains per VM to be kept remotely: $REMOTE_MAX_BACKUP_CHAINS_PER_VM"
-                else
+                # Is an integer number:
+                echo "INFO: Max # of backup chains per VM to be kept remotely: $REMOTE_MAX_BACKUP_CHAINS_PER_VM"
 
-                    # Unset status variable to prevent keep running:
-                    unset remote_backups_main_path_status
+            elif [[ -z $REMOTE_MAX_BACKUP_CHAINS_PER_VM ]]; then
 
-                    echo "ERROR: Incorrect syntax for environment variable REMOTE_MAX_BACKUP_CHAINS_PER_VM (must be a natural integer)"
-                fi
+                # Was not set:
+                echo "INFO: Environment variable 'REMOTE_MAX_BACKUP_CHAINS_PER_VM' not set (all backup chains will be kept remotely)"
 
-        else
+            else
+
+                # Unset status variable to prevent keep running:
+                unset remote_backups_main_path_status
+
+                echo "ERROR: Incorrect syntax for environment variable REMOTE_MAX_BACKUP_CHAINS_PER_VM (must be a natural integer)"
+            fi
+        ;;
+        *)
             echo "ERROR: Remote endpoint: $REMOTE_BACKUPS_MAIN_PATH has not insufficient read/write permissions or is not a directory"
-        fi
+        ;;
+        esac
 
     else
         echo "ERROR: Connection with $remote_server failed with status $remote_server_status"
