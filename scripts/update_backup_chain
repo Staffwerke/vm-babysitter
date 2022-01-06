@@ -18,6 +18,27 @@ source $external_vars
 # Redirects all output to a log file:
 exec &>> $logpath
 
+# If main script is performing a check, will enter into this loop:
+while [[ $ONGOING_CHECK = true ]]; do
+
+    if [[ -z $messaged ]]; then
+
+        # Message this once:
+        echo ""
+        echo "Scheduled backup execution will be delayed until ongoing checks had finished..."
+        echo ""
+        messaged=1
+    fi
+    sleep 1
+    source $external_vars
+done
+
+# When ongoing check is false, marks ONGOING_BACKUP as started externally,
+# so the main process gets paused temporarily:
+ONGOING_BACKUP="true"
+
+sed -i -e "s/ONGOING_BACKUP=.*/ONGOING_BACKUP=\"$ONGOING_BACKUP\"/" $external_vars
+
 echo "###############################################################################"
 echo "Scheduled Incremental Backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
 
@@ -129,11 +150,14 @@ if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
     FAILED_VMS_LIST+=(${domain_poweron_failed[@]})
     FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
 
+    ONGOING_BACKUP="false"
+
     # And updates them all at once:
     sed -i \
     -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
     -e "s/CHECK_PATCH_LIST=.*/CHECK_PATCH_LIST=($CHECK_PATCH_LIST)/" \
     -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
+    -e "s/ONGOING_BACKUP=.*/ONGOING_BACKUP=\"$ONGOING_BACKUP\"/" \
     $external_vars
 
     # And shows the summary at the very end:
@@ -154,6 +178,7 @@ if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
 
     echo ""
     echo "Scheduled Incremental Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
+    echo ""
 
 else
     echo "No Virtual machines on schedule. Exited"

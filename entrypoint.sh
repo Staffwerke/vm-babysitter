@@ -168,9 +168,17 @@ check_patch()
         ((i++))
     done
 
+    # Writes updated CHECK_PATCH_LIST value (actually, should be empty)
+    # as a string, since sed can't expand arrays correctly:
+    CHECK_PATCH_LIST="${CHECK_PATCH_LIST[@]}"
+
+    # And updates it externally:
+    sed -i \
+    -e "s/CHECK_PATCH_LIST=.*/CHECK_PATCH_LIST=($CHECK_PATCH_LIST)/" \
+    $external_vars
+
     # Appends sub-list of (successfully) patched VMs to global CHECK_BACKUPS_LIST:
     CHECK_BACKUPS_LIST+=(${vm_patch_success[@]})
-    # Depending on the results, shows a brief summary with VMs with changed state or actions if required:
 
     # Appends sub-list to the global list of powered OFF VMs:
     POWEREDOFF_VMS_LIST+=(${domain_shutdown_success[@]})
@@ -217,6 +225,7 @@ check_backups()
     local preserved_backup_chain
 
     echo "___________________________________________________________________________________________________"
+    echo ""
     echo "Checking backup chain ingtegrity for Virtual machines: ${CHECK_BACKUPS_LIST[@]}"
 
     local i=0
@@ -381,6 +390,7 @@ check_backups()
 
                         domain_delete_checkpoint_metadata $domain $damaged_checkpoint
                         echo "$domain: Checkpoint '$damaged_checkpoint' metadata removed from QEMU"
+                    fi
 
                     # Finally, deletes all the files created by the incremental backup (except logs):
 
@@ -410,7 +420,7 @@ check_backups()
                     # Exits the loop:
                     break
 
-                    # To DO: Remote sync after backup repair...
+                # To DO: Remote sync after backup repair...
                 else
 
                     preserved_backup_chain+=($domain)
@@ -455,7 +465,6 @@ check_backups()
                     # Exits the loop (nothing else can be done):
                     break
                 fi
-
             else
 
                 echo "$domain: VM is (presumably) running, comparing checkpoint lists in both QEMU and backup chain..."
@@ -497,10 +506,12 @@ check_backups()
         ((i++))
     done
 
-    # Send to schedule the VMs which backup integrity is OK
-    # (as a string, since sed can't expand arrays correctly):
+    # Writes updated SCHEDULED_BACKUPS_LIST value:
+    # as a string, since sed can't expand arrays correctly:
     SCHEDULED_BACKUPS_LIST+=(${preserved_backup_chain[@]})
     SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
+
+    # And updates it externally:
     sed -i \
     -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
     $external_vars
@@ -1034,12 +1045,14 @@ end_of_crontab
 CHECK_PATCH_LIST=(${CHECK_PATCH_LIST[@]})
 SCHEDULED_BACKUPS_LIST=()
 FAILED_VMS_LIST=()
+ONGOING_CHECK="false"
+ONGOING_BACKUP="false"
 end_of_external_variables
 
     # 3. Begin monitorization for VMs in lists, performing operations as required:
     #------------------------------------------------------------------------------
 
-    "############################################################################################################"
+    echo "############################################################################################################"
     echo "Starting Monitoring mode..."
 
     while true; do
@@ -1053,135 +1066,149 @@ end_of_external_variables
         source $external_vars
 
         # TO DO: Pause monitoring when Scheduled backup is running!
+        if [[ $ONGOING_BACKUP == false ]]; then
 
-        if [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
+            messaged=""
 
-            # 3.2 Check for VMs which are in need of shutdown first.
-            # (This normally happens when the user took the action, or when a VM took long time to shutdown):
-            #------------------------------------------------------------------------------
-            i=0
-            for domain in ${SHUTDOWN_REQUIRED_VMS_LIST[@]}; do
+            if [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
 
-                if [[ $(domain_state $domain) == "shut off" ]]; then
+                # 3.2 Check for VMs which are in need of shutdown first.
+                # (This normally happens when the user took the action, or when a VM took long time to shutdown):
+                #------------------------------------------------------------------------------
+                i=0
+                for domain in ${SHUTDOWN_REQUIRED_VMS_LIST[@]}; do
 
-                    # Move to main queue for check:
-                    CHECK_PATCH_LIST+=($domain)
-                    unset SHUTDOWN_REQUIRED_VMS_LIST[$i]
-                fi
-            done
-        fi
+                    if [[ $(domain_state $domain) == "shut off" ]]; then
 
-        if [[ ! -z ${CHECK_PATCH_LIST[@]} ]]; then
-
-            # 3.3 Status of at least on VM has changed, and sent to one queue:
-            #------------------------------------------------------------------------------
-
-            # Marks an ongoing check starting:
-            ongoing_check="true"
-
-            echo "___________________________________________________________________________________________________"
-            echo ""
-            echo "Status change detected at $(date "+%Y-%m-%d %H:%M:%S")"
-            echo "Automatic check for VM(s) '${CHECK_PATCH_LIST[@]} in progress..."
-
-            check_patch
-        fi
-
-        # 3.4 Backups of VMs that passed check_patch successfuly will be checked for integrity (and fixed, when possible):
-        #------------------------------------------------------------------------------
-        [[ ! -z ${CHECK_BACKUPS_LIST[@]} ]] && check_backups
-
-
-        if [[ ! -z ${AUTOSTART_VMS_LIST[@]} ]]; then
-
-        # 3.5 When debugged AUTOSTART_VMS_LIST is set and VMs in list are shut down,
-        # Turns them on:
-        #------------------------------------------------------------------------------
-        for domain in ${AUTOSTART_VMS_LIST[@]}; do
-
-            if [[ $(domain_state $domain) != running ]]; then
-
-                echo "$domain: Performing Auto start (declared into AUTOSTART_VMS_LIST)"
-                domain_start $domain --nowait
+                        # Move to main queue for check:
+                        CHECK_PATCH_LIST+=($domain)
+                        unset SHUTDOWN_REQUIRED_VMS_LIST[$i]
+                    fi
+                done
             fi
-        done
-        fi
 
-        if [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]]; then
+            if [[ ! -z ${CHECK_PATCH_LIST[@]} ]]; then
 
-            # 3.6 Turns on all VMs that was previously shutdown for checks:
+                # 3.3 Status of at least on VM has changed, and sent to one queue:
+                #------------------------------------------------------------------------------
+
+                # Marks an ongoing check starting:
+                ONGOING_CHECK="true"
+                sed -i \
+                -e "s/ONGOING_CHECK=.*/ONGOING_CHECK=\"$ONGOING_CHECK\"/" $external_vars
+
+                echo "___________________________________________________________________________________________________"
+                echo ""
+                echo "Status change detected at $(date "+%Y-%m-%d %H:%M:%S")"
+                echo "Automatic check for VM(s) '${CHECK_PATCH_LIST[@]} in progress..."
+
+                check_patch
+            fi
+
+            # 3.4 Backups of VMs that passed check_patch successfuly will be checked for integrity (and fixed, when possible):
             #------------------------------------------------------------------------------
-            echo "Starting (remaining) Virtual machines previously shut down for checks..."
-            i=0
-            for domain in ${POWEREDOFF_VMS_LIST[@]}; do
+            [[ ! -z ${CHECK_BACKUPS_LIST[@]} ]] && check_backups
+
+
+            if [[ ! -z ${AUTOSTART_VMS_LIST[@]} ]]; then
+
+            # 3.5 When debugged AUTOSTART_VMS_LIST is set and VMs in list are shut down,
+            # Turns them on:
+            #------------------------------------------------------------------------------
+            for domain in ${AUTOSTART_VMS_LIST[@]}; do
 
                 if [[ $(domain_state $domain) != running ]]; then
 
-                    # Turn on the VM. Do not wait for Guest's QEMU agent:
+                    echo "$domain: Performing Auto start (declared into AUTOSTART_VMS_LIST)"
                     domain_start $domain --nowait
                 fi
-
-                # Remove the VM from the list is being read:
-                unset POWEREDOFF_VMS_LIST[$i]
-
-                # Increases the counter:
-                ((i++))
             done
-        fi
-
-        # 3.7 Those VMs in need of a full backup chain, will run this process:
-        #------------------------------------------------------------------------------
-        [[ ! -z ${CREATE_BACKUP_CHAIN_LIST[@]} ]] && create_backup_chain
-
-
-        if [[ $ongoing_check == true ]]; then
-
-            # Only checked when status changes were initially detected:
-            if [[ -z ${CHECK_PATCH_LIST[@]} ]]; then
-
-            # No VMs in CHECK_PATCH_LIST (string or array, as comes up)
-            # It means that all checks finished successfully, entering in 'silent' mode:
-            ongoing_check="false"
-
-            echo "############################################################################################################"
-            echo ""
-            echo "All VMs with status changed finished to be processed at $(date "+%Y-%m-%d %H:%M:%S")"
-            echo ""
-            echo "VM-Babysitter Global Summary:"
-            echo ""
-            echo "Current Scheduled Backups: ${SCHEDULED_BACKUPS_LIST[@]:-"None"}"
-            echo "Manual Shut Down Required: ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
-            echo "Failing Virtual Machines: ${FAILED_VMS_LIST[@]:-"None"}"
-
-            if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]] && \
-            [[ -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] && \
-            [[ -z ${FAILED_VMS_LIST[@]} ]]; then
-
-                echo ""
-                echo "All Virtual Machines Running Under Incremental Backups!"
-                echo ""
-
-            elif [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] || [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
-
-                echo ""
-                echo "WARNING: USER ACTION IS REQUIRED!"
-                echo ""
-
-                [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] && \
-                echo "Perform a MANUAL SHUT DOWN of the following VM(s):'$SHUTDOWN_REQUIRED_VMS_LIST[@]}' to allow being checked automatically."
-
-                [[ ! -z ${FAILED_VMS_LIST[@]} ]] && \
-                echo "VM(s): '${FAILED_VMS_LIST[@]}' FAILED or behave ABNORMALLY during the checks. Do a manual check and ensure proper functioning; then restart this container in order to check again."
             fi
 
-            if [[ -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
+            if [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]]; then
 
-                echo ""
-                echo "At the moment, NO Virtual Machine is on schedule for incremental backup."
-                echo ""
+                # 3.6 Turns on all VMs that was previously shutdown for checks:
+                #------------------------------------------------------------------------------
+                echo "Starting (remaining) Virtual machines previously shut down for checks..."
+                i=0
+                for domain in ${POWEREDOFF_VMS_LIST[@]}; do
+
+                    if [[ $(domain_state $domain) != running ]]; then
+
+                        # Turn on the VM. Do not wait for Guest's QEMU agent:
+                        domain_start $domain --nowait
+                    fi
+
+                    # Remove the VM from the list is being read:
+                    unset POWEREDOFF_VMS_LIST[$i]
+
+                    # Increases the counter:
+                    ((i++))
+                done
             fi
-        fi
 
+            # 3.7 Those VMs in need of a full backup chain, will run this process:
+            #------------------------------------------------------------------------------
+            [[ ! -z ${CREATE_BACKUP_CHAIN_LIST[@]} ]] && create_backup_chain
+
+
+            if [[ $ONGOING_CHECK == true ]]; then
+
+                # Only checked when status changes were initially detected:
+                if [[ -z ${CHECK_PATCH_LIST[@]} ]]; then
+
+                    # No VMs in CHECK_PATCH_LIST (string or array, as comes up)
+                    # It means that all checks finished successfully, entering in 'silent' mode:
+                    ONGOING_CHECK="false"
+                    sed -i \
+                    -e "s/ONGOING_CHECK=.*/ONGOING_CHECK=\"$ONGOING_CHECK\"/" $external_vars
+
+                    echo "############################################################################################################"
+                    echo ""
+                    echo "All VMs with status changed finished to be processed at $(date "+%Y-%m-%d %H:%M:%S")"
+                    echo ""
+                    echo "VM-Babysitter Global Summary:"
+                    echo ""
+                    echo "Current Scheduled Backups: ${SCHEDULED_BACKUPS_LIST[@]:-"None"}"
+                    echo "Manual Shut Down Required: ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
+                    echo "Failing Virtual Machines: ${FAILED_VMS_LIST[@]:-"None"}"
+
+                    if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]] && \
+                    [[ -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] && \
+                    [[ -z ${FAILED_VMS_LIST[@]} ]]; then
+
+                        echo ""
+                        echo "All Virtual Machines Running Under Incremental Backups!"
+                        echo ""
+
+                    elif [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] || [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
+
+                        echo ""
+                        echo "WARNING: USER ACTION IS REQUIRED!"
+                        echo ""
+
+                        [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] && \
+                        echo "Perform a MANUAL SHUT DOWN of the following VM(s):'$SHUTDOWN_REQUIRED_VMS_LIST[@]}' to allow being checked automatically."
+
+                        [[ ! -z ${FAILED_VMS_LIST[@]} ]] && \
+                        echo "VM(s): '${FAILED_VMS_LIST[@]}' FAILED or behave ABNORMALLY during the checks. Do a manual check and ensure proper functioning; then restart this container in order to check again."
+                    fi
+
+                    if [[ -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
+
+                        echo ""
+                        echo "At the moment, NO Virtual Machine is on schedule for incremental backup."
+                        echo ""
+                    fi
+                fi
+            fi
+        elif [[ -z $messaged ]]; then
+
+            echo ""
+            echo "Monitoring mode will be paused until scheduled incremental backups task had finished..."
+            echo ""
+            messaged=1
+        fi
         # 3.8 Restarts the loop from 3.1, until receives SIGTERM or SIGKILL from Docker
         #------------------------------------------------------------------------------
     done
