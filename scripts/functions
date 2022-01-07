@@ -348,7 +348,9 @@ do_backup_chain()
     local options=$@
 
     # Notifies the user about the ongoing process:
+    echo ""
     echo "$domain: Started $backup_mode backup (this may take some time, or even look freezed...)"
+    echo ""
 
     # Executes the operation:
     virtnbdbackup -d $domain -l $backup_mode -o $backup_path/$domain $options
@@ -359,7 +361,7 @@ do_backup_chain()
         echo "$domain: $backup_mode backup of successfully finished!"
     else
 
-        echo "WARNING: $domain: virtnbdbackup failed with status $status. Read the logs above to determine the problem."
+        echo "WARNING: $domain: virtnbdbackup failed with status $create_backup_chain_status. Read the logs above to determine the problem."
 
     fi
 
@@ -381,26 +383,26 @@ archive_backup()
     local backup_path=$(dirname $1)
     local domain=$(basename $1)
 
-    if [[ $MAX_LOCAL_BACKUP_CHAINS_PER_VM != 0 ]]; then
+    if [[ $MAX_BACKUP_CHAINS_PER_VM != 0 ]]; then
 
         # When env variable is not set, or greater than zero, archives the current backup chain with current timestamp name:
         local timestamp=$(date '+%Y-%m-%d.%H:%M:%S')
         mv $backup_path/$domain $backup_path/$domain.$timestamp
         echo "$domain: Latest backup chain archived as $backup_path/$domain.$timestamp"
 
-        if [[ $MAX_LOCAL_BACKUP_CHAINS_PER_VM -ge 1 ]]; then
+        if [[ $MAX_BACKUP_CHAINS_PER_VM -ge 1 ]]; then
 
             # And when is greater than zero, deletes older backup chains, except the last ones as defined in the same variable:
 
             # Position of the first folder to delete, ordered from most recent timestamp
-            local index=$( expr $MAX_BACKUP_CHAINS_KEEP + 1 )
+            local index=$( expr $MAX_BACKUP_CHAINS_PER_VM + 1 )
 
             # Creates a list with exact match of archived folders to delete (manually archived backup chains without this match aren't touched):
             local old_backups_list=($(find $backup_path -type d -name "$domain.*" | sort -r | grep -E "^$domain.[0-9]{4}-[0-9]{2}-[0-9]{2}.[0-9]{2}:[0-9]{2}:[0-9]{2}$" | tail -n +$index))
 
             if [[ ! -z ${old_backups_list[@]} ]]; then
 
-                echo "$domain: Deleting old backup chains, except latest $MAX_BACKUP_CHAINS_KEEP..."
+                echo "$domain: Deleting old backup chains, except latest $MAX_BACKUP_CHAINS_PER_VM..."
 
                 for old_backup in ${old_backups_list[@]}; do
                     echo "$old_backup"
@@ -413,7 +415,7 @@ archive_backup()
 
         # Env variable is 0. Remove backup chain directly:
         rm -rf $backup_path/$domain
-        echo "$domain: Deleted backup chain at $backup_path/$domain (MAX_LOCAL_BACKUP_CHAINS_PER_VM = $MAX_LOCAL_BACKUP_CHAINS_PER_VM))"
+        echo "$domain: Deleted backup chain at $backup_path/$domain (MAX_BACKUP_CHAINS_PER_VM = $MAX_BACKUP_CHAINS_PER_VM)"
     fi
 
     # To DO: REMOTE_MAX_BACKUP_CHAINS_PER_VM
