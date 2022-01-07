@@ -107,7 +107,7 @@ check_patch()
 
                 if [[ $(domain_is_patched $domain ) == yes ]]; then
 
-                    echo "$domain: Patch for incremental backups was found and it is active"
+                    echo "$domain: Patch for incremental backup is OK"
                     vm_patch_success[$i]+=$domain
                     break
 
@@ -176,6 +176,9 @@ check_patch()
     sed -i \
     -e "s/CHECK_PATCH_LIST=.*/CHECK_PATCH_LIST=($CHECK_PATCH_LIST)/" \
     $external_vars
+
+    # Turn again stringified variables back into lists:
+    CHECK_PATCH_LIST=($CHECK_PATCH_LIST)
 
     # Appends sub-list of (successfully) patched VMs to global CHECK_BACKUPS_LIST:
     CHECK_BACKUPS_LIST+=(${vm_patch_success[@]})
@@ -269,7 +272,7 @@ check_backups()
                     if [[ ${#damaged_backup_checkpoint_list[@]} -gt 1 ]]; then
 
                         # There is a successful full backup Only the last link in the chain is damaged, so is worth of a recovery attempt:
-                        echo "$domain: An incremental backup operation was previously cancelled. It will attempt to fix this backup chain by deleting the last (non recoverable) checkpoint"
+                        echo "$domain: An incremental backup operation was previously cancelled. If checkpoints and bitmaps lists coincide, it will attempt to fix this backup chain by deleting the (non recoverable) partial checkpoint"
                         recoverable_backup_chain="true"
                     else
 
@@ -299,7 +302,7 @@ check_backups()
                     if [[ $RESTARTED_SERVER == true ]] ; then
 
                         # No QEMU checkpoints are found when server comes from a restart under UnRaid, so uses backup checkpoints in backup
-                        echo "$domain: Reading checkpoints list from backup (RESTARTED_SERVER detected)"
+                        echo "$domain: Reading checkpoints list from backup (RESTARTED_SERVER mode)"
                         checkpoint_list=($(backup_checkpoint_list $BACKUPS_MAIN_PATH/$domain))
                     else
 
@@ -316,10 +319,12 @@ check_backups()
                             # When bitmaps and checkpoint lists aren't identical for ALL disks, marks the entire check as failed:
                             backup_check_failed="yes"
 
-                            echo "$domain's disk $image: Checkpoints and bitmaps lists MISMATCH!"
+                            echo "$domain's disk $image: Checkpoints and bitmaps lists MISMATCH"
 
                             # Cancelling further checks for this VM:
                             break
+                        else
+                            echo "$domain's disk $image: Checkpoints and bitmaps lists match"
                         fi
                     done
                 fi
@@ -371,11 +376,11 @@ check_backups()
                     # Attempts to delete the last checkpoint (even from backup) and bitmap:
 
                     # Gets the last index in $checkpoint_list:
-                    local index=${#checkpoint_list[@]}
+                    #local index=$( ((${#checkpoint_list[@]} - 1)) )
 
                     # Moves the last checkpoint name apart:
-                    local damaged_checkpoint=${checkpoint_list[$index]}
-                    unset checkpoint_list[$index]
+                    local damaged_checkpoint=${checkpoint_list[-1]}
+                    unset checkpoint_list[-1]
 
                     # Deletes this checkpoint from and QEMU (if exists), images and backup itself:
 
@@ -394,7 +399,7 @@ check_backups()
 
                     # Finally, deletes all the files created by the incremental backup (except logs):
 
-                    for drive in $(domain_drives_list); do
+                    for drive in $(domain_drives_list $domain); do
 
                         # Backup incremental data (all drives)
                         rm -f $BACKUPS_MAIN_PATH/$domain/$drive.inc.$damaged_checkpoint.data.partial
@@ -411,7 +416,7 @@ check_backups()
 
                     # Modifying the .cpt file with the new checkpoints list:
                     local new_checkpoint_list="${checkpoint_list[@]}"
-                    echo "[\"${new_checkpoint_list// /\", \"}\"\]" > $BACKUPS_MAIN_PATH/$domain/$domain.cpt
+                    echo "[\"${new_checkpoint_list// /\", \"}\"]" > $BACKUPS_MAIN_PATH/$domain/$domain.cpt
                     echo "$domain: Updated checkpoints in $BACKUPS_MAIN_PATH/$domain/$domain.cpt"
 
                     # Backup chain will be treated as preserved:
@@ -423,8 +428,8 @@ check_backups()
                 # To DO: Remote sync after backup repair...
                 else
 
+                    # Marks the backup chain as preserved:
                     preserved_backup_chain+=($domain)
-                    echo "$domain: Checkpoints and bitmaps lists MATCH"
 
                     # Exits the loop:
                     break
@@ -515,6 +520,9 @@ check_backups()
     sed -i \
     -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
     $external_vars
+
+    # Turn again stringified variables back into lists:
+    SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)
 
     # Appends sub-list to global list of VMs in need of a new backup chain:
     CREATE_BACKUP_CHAIN_LIST+=(${broken_backup_chain[@]})
@@ -679,6 +687,11 @@ create_backup_chain()
     -e "s/CHECK_PATCH_LIST=.*/CHECK_PATCH_LIST=($CHECK_PATCH_LIST)/" \
     -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
     $external_vars
+
+    # Turn again stringified variables back into lists:
+    CHECK_PATCH_LIST=($CHECK_PATCH_LIST)
+    SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)
+    FAILED_VMS_LIST=($FAILED_VMS_LIST)
 
     # And shows the summary at the very end:
 
@@ -1035,7 +1048,7 @@ end_of_crontab
 
         # OS is not Unraid.
         # Add all remaining VMs in DOMAINS_LIST to this queue:
-        CHECK_PATCH_LIST=${DOMAINS_LIST[@]}
+        CHECK_PATCH_LIST=(${DOMAINS_LIST[@]})
     fi
 
     # 2.3 Initializes a file with variables externally stored, to be shared with the scheduler:
@@ -1052,6 +1065,7 @@ end_of_external_variables
     # 3. Begin monitorization for VMs in lists, performing operations as required:
     #------------------------------------------------------------------------------
 
+    echo ""
     echo "############################################################################################################"
     echo "Starting Monitoring mode..."
 
@@ -1115,6 +1129,7 @@ end_of_external_variables
             # 3.5 When debugged AUTOSTART_VMS_LIST is set and VMs in list are shut down,
             # Turns them on:
             #------------------------------------------------------------------------------
+            i=0
             for domain in ${AUTOSTART_VMS_LIST[@]}; do
 
                 if [[ $(domain_state $domain) != running ]]; then
@@ -1122,6 +1137,12 @@ end_of_external_variables
                     echo "$domain: Performing Auto start (declared into AUTOSTART_VMS_LIST)"
                     domain_start $domain --nowait
                 fi
+
+                    # Remove the VM from the list is being read:
+                    unset AUTOSTART_VMS_LIST[$i]
+
+                    # Increases the counter:
+                    ((i++))
             done
             fi
 
@@ -1163,6 +1184,7 @@ end_of_external_variables
                     sed -i \
                     -e "s/ONGOING_CHECK=.*/ONGOING_CHECK=\"$ONGOING_CHECK\"/" $external_vars
 
+                    echo ""
                     echo "############################################################################################################"
                     echo ""
                     echo "All VMs with status changed finished to be processed at $(date "+%Y-%m-%d %H:%M:%S")"
@@ -1188,7 +1210,7 @@ end_of_external_variables
                         echo ""
 
                         [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] && \
-                        echo "Perform a MANUAL SHUT DOWN of the following VM(s):'$SHUTDOWN_REQUIRED_VMS_LIST[@]}' to allow being checked automatically."
+                        echo "Perform a MANUAL SHUT DOWN of the following VM(s):'${SHUTDOWN_REQUIRED_VMS_LIST[@]}' to allow being checked automatically."
 
                         [[ ! -z ${FAILED_VMS_LIST[@]} ]] && \
                         echo "VM(s): '${FAILED_VMS_LIST[@]}' FAILED or behave ABNORMALLY during the checks. Do a manual check and ensure proper functioning; then restart this container in order to check again."
@@ -1204,9 +1226,9 @@ end_of_external_variables
             fi
         elif [[ -z $messaged ]]; then
 
-            echo ""
-            echo "Monitoring mode will be paused until scheduled incremental backups task had finished..."
-            echo ""
+            #echo ""
+            #echo "Monitoring mode will be paused until scheduled incremental backups task had finished..."
+            #echo ""
             messaged=1
         fi
         # 3.8 Restarts the loop from 3.1, until receives SIGTERM or SIGKILL from Docker
