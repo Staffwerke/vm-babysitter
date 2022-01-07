@@ -253,7 +253,7 @@ check_backups()
 
                     # No backup folder, is corrupted or doesn't have backup data:
                     backup_folder_exists="false"
-                    echo "$domain: No backup chain folder detected (or backup chain structure is damaged)"
+                    echo "$domain: No backup chain folder detected, or internal structure is damaged!"
                 fi
             fi
 
@@ -266,19 +266,29 @@ check_backups()
                     # Virtnbdbackup was cancelled in the middle of a backup chain task:
                     partial_checkpoint="true"
 
+                    # Except in a very specific scenario (below) it's not viable to attempt to recover the backup chain:
+                    recoverable_backup_chain="false"
+
                     # Gets the list of checkpoints from failed backup chain:
                     local damaged_backup_checkpoint_list=($(backup_checkpoint_list $BACKUPS_MAIN_PATH/$domain))
 
-                    if [[ ${#damaged_backup_checkpoint_list[@]} -gt 1 ]]; then
+                    if [[ ${#damaged_backup_checkpoint_list[@]} -eq 1 ]]; then
 
-                        # There is a successful full backup Only the last link in the chain is damaged, so is worth of a recovery attempt:
-                        echo "$domain: An incremental backup operation was previously cancelled. If checkpoints and bitmaps lists coincide, it will attempt to fix this backup chain by deleting the (non recoverable) partial checkpoint"
-                        recoverable_backup_chain="true"
+                        # Prematurely cancelled backup chain creation. Must be deleted:
+                        echo "$domain: A full backup operation was previously cancelled. This backup chain is unrecoverable, therefore will be removed"
+                    elif [[ $RESTARTED_SERVER == true ]]; then
+
+                        # Most likely, server crashed during an incremental backup process. No ways to attempt recovery (no checkpoints in libvirt, bitmaps could be broken:
+                        echo "$domain: An incremental backup operation was previously cancelled and RESTARTED_SERVER mode is active, not leaving chances to repair it. A new backup chain will be created"
+                    elif [[ ! -z $RESTART_VMS_IF_REQUIRED ]]; then
+
+                        # Backup chain could be recoverable, but can't proceed (needs a full powercycle):
+                        echo "$domain: An incremental backup operation was previously cancelled. Cannot proceed to attempt to repair since environment variable RESTART_VMS_IF_REQUIRED is not set. A new backup chain will be created"
                     else
 
-                        # A full backup chain that was cancelled. Nothing to do but delete it, along with checkpoints and bitmaps:
-                        recoverable_backup_chain="false"
-                        echo "$domain: A full backup operation was previously cancelled. This backup chain is unrecoverable, therefore will be removed"
+                        # The only scenario where proceed is when RESTARTED_SERVER is 'false' and RESTART_VMS_IF_REQUIRED is set:
+                        recoverable_backup_chain="true"
+                        echo "$domain: An incremental backup operation was previously cancelled. If checkpoints and bitmaps lists match, it will attempt to fix the current backup chain by deleting the (now useless) data that was being saved right before the cancellation, and deleting the checkpoint from this VM"
                     fi
                 else
 
@@ -297,7 +307,7 @@ check_backups()
 
                 if [[ $recoverable_backup_chain != false ]] || [[ $backup_folder_exists != false ]]; then
 
-                    # Backup chain is worth of being checked:
+                    # Backup chain is, at least, worth of being checked:
 
                     if [[ $RESTARTED_SERVER == true ]] ; then
 
@@ -333,7 +343,7 @@ check_backups()
                 || [[ $recoverable_backup_chain == false ]] \
                 || [[ $backup_folder_exists == false ]]; then
 
-                    # Each scenario is exclusive (non recoverable backup chain is implicitly failed):
+                    # When something was wrong from the beginning, or above check failed, cleanses disk images, checkpoints if any, and archives or deletes the existing backup chain:
 
                     if [[ $RESTARTED_SERVER != true ]]; then
 
@@ -352,18 +362,18 @@ check_backups()
                         done
                     done
 
-                    # Process old backup chain depending on the case:
-                    if [[ $recoverable_backup_chain == false ]] || [[ $backup_folder_exists == false ]]; then
+                    # Process old backup chain depending on the case, only deleting when there is no recoverable info:
+                    if [[ ${#damaged_backup_checkpoint_list[@]} -eq 1 ]] || [[ $backup_folder_exists == false ]]; then
 
                         # Unrecoverable or unexistent backup chain folder. Delete it:
                         rm -rf $BACKUPS_MAIN_PATH/$domain
 
                     else
-                        # Backup chain is recoverable. Archive it:
+                        # Backup chain is total or partially recoverable. Archive it:
                         archive_backup $BACKUPS_MAIN_PATH/$domain
                     fi
 
-                    # Mark backup chain as broken:
+                    # Mark the backup chain status as broken:
                     broken_backup_chain[$i]=$domain
 
                     # Exits the loop:
@@ -371,53 +381,31 @@ check_backups()
 
                 elif [[ $recoverable_backup_chain == true ]]; then
 
-                    echo "$domain: Attempting backup chain recovery..."
-                    # Checkpoints and bitmaps are matching despite the scenario.
-                    # Attempts to delete the last checkpoint (even from backup) and bitmap:
+                    # When a partial incremental backup was found, passed all checks, and there are chances to fix the mess:
 
-                    # Gets the last index in $checkpoint_list:
-                    #local index=$( ((${#checkpoint_list[@]} - 1)) )
-
-                    # Moves the last checkpoint name apart:
+                    # Moves the last checkpoint apart from $checkpoint_list:
                     local damaged_checkpoint=${checkpoint_list[-1]}
                     unset checkpoint_list[-1]
 
-                    # Deletes this checkpoint from and QEMU (if exists), images and backup itself:
+                    echo "$domain: Removing checkpoint: $damaged_checkpoint data and updating backup journal in $BACKUPS_MAIN_PATH/$domain ..."
 
-                    for image in $(domain_img_paths_list $domain); do
+                    find $BACKUPS_MAIN_PATH/$domain -name \*$damaged_checkpoint* -type f -delete
 
-                        disk_image_delete_bitmap $image $damaged_checkpoint
-                        echo "$domain's disk $image: Bitmap '$damaged_checkpoint' deleted"
-                    done
-
-                    # Deletes QEMU checkpoint when it's supposed to exist:
-                    if [[ $RESTARTED_SERVER != true ]] ; then
-
-                        domain_delete_checkpoint_metadata $domain $damaged_checkpoint
-                        echo "$domain: Checkpoint '$damaged_checkpoint' metadata removed from QEMU"
-                    fi
-
-                    # Finally, deletes all the files created by the incremental backup (except logs):
-
-                    for drive in $(domain_drives_list $domain); do
-
-                        # Backup incremental data (all drives)
-                        rm -f $BACKUPS_MAIN_PATH/$domain/$drive.inc.$damaged_checkpoint.data.partial
-                        echo "$domain: Incremental backup $BACKUPS_MAIN_PATH/$domain/$drive.inc.$damaged_checkpoint.data.partial deleted"
-                    done
-
-                    # VM definitions XML file:
-                    rm -f $BACKUPS_MAIN_PATH/$domain/vmconfig.$damaged_checkpoint.xml
-                    echo "$domain: VM definitions XML file $BACKUPS_MAIN_PATH/$domain/vmconfig.$damaged_checkpoint.xml deleted"
-
-                    # Checkpoint in backup:
-                    rm -f $BACKUPS_MAIN_PATH/$domain/checkpoints/$damaged_checkpoint.xml
-                    echo "$domain: Backup checkpoint $BACKUPS_MAIN_PATH/$domain/checkpoints/$damaged_checkpoint.xml deleted"
-
-                    # Modifying the .cpt file with the new checkpoints list:
+                    # Rebuilds the cpt file with the updated list of checkpoints:
                     local new_checkpoint_list="${checkpoint_list[@]}"
                     echo "[\"${new_checkpoint_list// /\", \"}\"]" > $BACKUPS_MAIN_PATH/$domain/$domain.cpt
-                    echo "$domain: Updated checkpoints in $BACKUPS_MAIN_PATH/$domain/$domain.cpt"
+
+
+                    echo "$domain: Deleting checkpoint from VM (implies a full power cycle to make all changes effective)..."
+
+                    # Starts and wais for QEMU agent:
+                    domain_start $domain --nowait
+
+                    # Deletes $damaged_checkpoint (along with bitmaps in all disks):
+                    domain_delete_checkpoint $domain $damaged_checkpoint
+
+                    # And finally shuts down, since bitmaps aren't written until disk(s) are closed by QEMU:
+                    domain_shutdown $domain --nowait
 
                     # Backup chain will be treated as preserved:
                     preserved_backup_chain+=($domain)
