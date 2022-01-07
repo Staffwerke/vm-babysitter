@@ -45,11 +45,13 @@ echo "Scheduled Incremental Backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
 if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
 
     echo "Virtual machines: '${SCHEDULED_BACKUPS_LIST[@]}'"
-    echo "###############################################################################"
+    #echo "###############################################################################"
 
     i=0
     for domain in ${SCHEDULED_BACKUPS_LIST[@]}; do
 
+         echo "___________________________________________________________________________________________________"
+         echo ""
         original_ram_size=""
         memlimit_active="no"
 
@@ -58,6 +60,7 @@ if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
             if [[ $(domain_state $domain) == running ]]; then
 
                 # Only when VM is running, attempts to perform an incremental backup:
+                echo "$domain: Starting incremental backup..."
                 do_backup_chain $domain "inc" $BACKUPS_MAIN_PATH $VIRTNBDBACKUP_GLOBAL_OPTIONS
 
                 if [[ $? -eq 0 ]]; then
@@ -65,7 +68,7 @@ if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
                     # Backup chain creation was successful!
                     backup_chain_success[$i]=$domain
 
-                    echo "$domain: Incremental backup successfully added to the backup chain"
+                    #echo "$domain: Incremental backup successfully added to the backup chain"
 
                     # To DO: Sync on remote endpoint when REMOTE_BACKUPS_MAIN_PATH is set and bring status.
                 else
@@ -73,10 +76,10 @@ if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
                     # Failed to create a new backup chain:
                     backup_chain_failed[$i]=$domain
 
-                    echo "$domain: Failed to perform incremental backup. Read the logs above to determine the specific cause of fail)"
+                    #echo "$domain: Failed to perform incremental backup. Read the logs above to determine the specific cause of fail)"
                 fi
 
-                if [[ ${domain_poweron_success[$i]} -eq $domain ]]; then
+                if [[ ${domain_poweron_success[$i]} == $domain ]]; then
 
                     # VM was previously shut off, revert to its previous state:
                     domain_shutdown $domain --nowait
@@ -164,7 +167,7 @@ if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
 
     echo "___________________________________________________________________________________________________"
     echo ""
-    echo "Incremental Backup Summary:"
+    echo "Scheduled Incremental Backup Summary:"
     echo ""
     echo "Successful Backups (on schedule): ${backup_chain_success[@]:-"None"}"
     echo "Failed Backups (will be checked ASAP): ${backup_chain_failed[@]:-"None"}"
