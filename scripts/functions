@@ -163,7 +163,7 @@ domain_macaddr_list()
 }
 
 #------------------------------------------------------------------------------
-# Attempts a full power cycle onto a given domain, waiting for a determined '--wait'time in seconds (default is 60 secs).
+# Attempts a full power cycle onto a given domain, waiting for a determined '--wait' time in seconds (default is 60 secs).
 # Returns '0' if success and '1' if it fails:
 #------------------------------------------------------------------------------
 domain_powercycle()
@@ -172,8 +172,8 @@ domain_powercycle()
 
     local domain=$1
     shift
-    # Second arg is '--nowait' and third is an integer. Otherwise defaults to 60:
-    [[ $1 == --wait ]] && [[ $2 =~ [0-9] ]] && wait_time=$2 || local wait_time="60"
+    # Second arg is '--wait' and third is an integer. Otherwise defaults to 60:
+    [[ $1 == --wait ]] && [[ $2 =~ [0-9] ]] && local wait_time=$2 || local wait_time="60"
 
     echo "$domain: Performing a full power cycle..."
 
@@ -205,7 +205,7 @@ domain_powercycle()
         [[ $? -eq 0 ]] && { powercycle_domain_status=0; echo "$domain: Full power cycle completed successfully"; } || echo "ERROR: Failed to complete a full power cyacle of VM $domain (could not be started after shut down)"
 
     else
-        echo "ERROR: Failed to perform a power cycle to VM $domain"
+        echo "ERROR: Libvirt failed to perform a power cycle to VM $domain"
     fi
 
     return $powercycle_domain_status
@@ -242,16 +242,33 @@ domain_setmem()
 }
 
 # -----------------------------------------------------------------------------
-# Sends shutdown signal and awaits (unless --nowait is passed) until domain has been shutted down to return success:
+# Sends shutdown signal to a given domain, and awaits for '--wait' seconds or '--nowait' until domain has been shutted down to return success/fail:
 # -----------------------------------------------------------------------------
 domain_shutdown()
 {
     local domain_shutdown_status
+
+    local domain=$1
+    shift
+
+    case $1 in
+        --wait)
+            # When last argument is an integer, takes its value. Otherwise defaults to 60 secs:
+            [[ $2 =~ [0-9] ]] && wait_time=$2 || local wait_time="60"
+        ;;
+        --nowait)
+            no_wait_time=1
+        ;;
+        *)
+            # Ignores any other arg and defaults to 60 secs.
+            local wait_time="60"
+    esac
+
     local vm_needed_state="shut off"
 
-    if [[ $(domain_state $1) == $vm_needed_state ]]; then
+    if [[ $(domain_state $domain) == $vm_needed_state ]]; then
 
-        echo "INFO: VM '$1' is already $vm_needed_state"
+        echo "$domain: is already $vm_needed_state"
         domain_shutdown_status=0
     else
 
@@ -261,30 +278,30 @@ domain_shutdown()
 
         if [[ $domain_shutdown_status -eq 0 ]]; then
 
-            # No extra arguments passed. Waits for effective shutdown of VM:
-            if [[ $2 != --nowait ]]; then
+            if [[ ! -z $no_wait_time ]] || [[ $wait_time -gt 0 ]]; then
 
                 local went_to_shutdown
-                local attempt=1
-                while (( $attempt < $max_attempts )); do
 
-                    sleep $wait_time
+                local counter=0
+                while (( $counter < $wait_time )); do
+
+                    ((counter++))
 
                     # Checks VM state to be effectively OFF:
-                    [[ $(domain_state $1) == $vm_needed_state ]] && { went_to_shutdown=0; break; } || ((attempt++))
+                    [[ $(domain_state $domain) == $vm_needed_state ]] && { went_to_shutdown=1; break; } || sleep 1
                 done
 
                 if [[ ! -z $went_to_shutdown ]]; then
 
-                    echo "INFO: VM '$1' has been powered off successfully"
+                    echo "$domain: Has been shut down successfully"
                 else
 
                     domain_shutdown_status=1
-                    echo "WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. awaiting for VM '$1' to shut down"
+                    echo "WARNING: Gave up after $wait_time seconds awaiting for VM '$1' to be shut down"
                 fi
             fi
         else
-            echo "ERROR: Libvirt failed to shutdown VM $1!"
+            echo "ERROR: Libvirt failed to shut down VM $domain"
         fi
     fi
 
@@ -292,16 +309,33 @@ domain_shutdown()
 }
 
 #------------------------------------------------------------------------------
-# Powers on a given domain and awaits (unless --nowait is passed) for internal qemu agent to return a response:
+# Powers on a given domain and awaits for '--wait' seconds or '--nowait' for internal qemu agent to return a response:
 #------------------------------------------------------------------------------
 domain_start()
 {
     local domain_start_status
+
+    local domain=$1
+    shift
+
+    case $1 in
+        --wait)
+            # When last argument is an integer, takes its value. Otherwise defaults to 60 secs:
+            [[ $2 =~ [0-9] ]] && wait_time=$2 || local wait_time="60"
+        ;;
+        --nowait)
+            no_wait_time=1
+        ;;
+        *)
+            # Ignores any other arg and defaults to 60 secs.
+            local wait_time=60
+    esac
+
     local vm_needed_state="running"
 
-    if [[ $(domain_state $1) == $vm_needed_state ]]; then
+    if [[ $(domain_state $domain) == $vm_needed_state ]]; then
 
-        echo "INFO: VM '$1' is already $vm_needed_state"
+        echo "$domain: is already $vm_needed_state"
         domain_start_status=0
     else
 
@@ -311,32 +345,31 @@ domain_start()
 
         if [[ $domain_start_status -eq 0 ]]; then
 
-            # No extra arguments passed. Waits for VM's QEMU agent response:
-            if [[ $2 != --nowait ]]; then
+            if [[ ! -z $no_wait_time ]] || [[ $wait_time -gt 0 ]]; then
 
-                local attempt=1
                 local agent_status
-                while (( $attempt < $max_attempts )); do
+                local counter=0
+                while (( $counter < $wait_time )); do
 
-                    sleep $wait_time
+                    ((counter++))
 
                     # (Silently) Gets VM output about its qemu agent:
-                    > /dev/null virsh guestinfo $1
+                    > /dev/null virsh guestinfo $domain
                     agent_status=$?
 
-                    [[ $agent_status -eq 0 ]] && break || ((attempt++))
+                    [[ $agent_status -eq 0 ]] && break || sleep 1
                 done
 
                 if [[ $agent_status -eq 0 ]]; then
 
-                    echo "$1: Connected to QEMU agent"
+                    echo "$domain: Connected to QEMU agent"
                 else
-                    echo "WARNING: Gave up after $(( $wait_time * $max_attempts )) secs. awaiting for QEMU agent in VM $1. Ensure this service is installed and working on the guest OS to warrant concurrent data within backups."
+                    echo "WARNING: Gave up after $wait_time seconds awaiting for QEMU agent in VM $domain. Ensure this service is installed on the guest OS, and configured on VM definitions in order to warrant concurrent data within backups."
                 fi
 
             fi
         else
-            echo "ERROR: ACTION REQUIRED: Libvirt failed to start VM $1!"
+            echo "ERROR: Libvirt failed to start VM $domain"
         fi
     fi
 
