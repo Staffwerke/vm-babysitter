@@ -372,7 +372,7 @@ check_backups()
                     if [[ $RESTARTED_SERVER != true ]]; then
 
                         echo "$domain: Pruning existing checkpoints in QEMU..."
-                        domain_delete_checkpoint_metadata $domain
+                        domain_delete_checkpoint_metadata $domain --all
                     fi
 
                     for image in $(domain_img_paths_list $domain); do
