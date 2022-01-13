@@ -67,7 +67,7 @@ scheduled_backup_script="/usr/local/bin/update_backup_chain"
 scheuled_logpath=${SCHEDULED_LOGPATH:-"/logs/scheduled-backups.log"}
 
 # Location of current Time Zone (if defined in ENV TZ):
-[[ -f /usr/share/zoneinfo/$TZ ]] && local_timezone="/usr/share/zoneinfo/$TZ"
+[[ -f /usr/share/zoneinfo/$TZ ]] && local_timezone_file="/usr/share/zoneinfo/$TZ"
 
 ###############################################################################
 # Specific procedures:
@@ -723,9 +723,9 @@ source $functions_path
 exec &>> $logpath
 
 # Sets the local timezone (if ENV TZ was set):
-if [[ ! -z $local_timezone ]]; then
+if [[ ! -z $local_timezone_file ]]; then
 
-    ln -fs $local_timezone /etc/localtime
+    ln -fs $local_timezone_file /etc/localtime
     dpkg-reconfigure -f noninteractive tzdata
 fi
 
