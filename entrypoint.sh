@@ -18,6 +18,7 @@ VIRTNBDBACKUP_GLOBAL_OPTIONS..ok
 RAM_LIMIT_PER_SCHED_BACKUP
 REMOTE_BACKUPS_MAIN_PATH..ok
 RESTART_VMS_IF_REQUIRED..ok
+TZ..ok
 
 Advanced options:
 MAX_ATTEMPTS
@@ -64,6 +65,9 @@ scheduled_backup_script="/usr/local/bin/update_backup_chain"
 
 # Log file path for the scheduler script:
 scheuled_logpath=${SCHEDULED_LOGPATH:-"/logs/scheduled-backups.log"}
+
+# Location of current Time Zone (if defined in ENV TZ):
+[[ -f /usr/share/zoneinfo/$TZ ]] && local_timezone="/usr/share/zoneinfo/$TZ"
 
 ###############################################################################
 # Specific procedures:
@@ -718,13 +722,21 @@ source $functions_path
 # Redirects all output to a log file:
 exec &>> $logpath
 
+# Sets the local timezone (if ENV TZ was set):
+if [[ ! -z $local_timezone ]]; then
+
+    ln -fs $local_timezone /etc/localtime
+    dpkg-reconfigure -f noninteractive tzdata
+fi
+
+
 # Catches the signal sent from docker to stop execution:
 # The most gracefully way to stop this container is with:
 # 'docker kill --signal=SIGTERM <docker-name-or-id>'
 trap 'stop_container' SIGTERM
 ############################################################################################################
 echo "############################################################################################################"
-echo "Container started at: $(date "+%Y-%m-%d %H:%M:%S")"
+echo "Container started at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
 echo "############################################################################################################"
 
 # 1.1 Check DOMAINS_LIST:
