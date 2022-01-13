@@ -123,7 +123,7 @@ check_patch()
                     if [[ ! -z $RESTART_VMS_IF_REQUIRED ]]; then
 
                         # When permission is granted, and past iteration over the VM haven't triggered errors, attempts shuts down the VM temporarily:
-                        domain_shutdown $domain
+                        domain_shutdown $domain --wait $WAIT_TIME
 
                         if [[ $? -eq 0 ]]; then
 
@@ -295,7 +295,7 @@ check_backups()
                 if [[ ! -z $RESTART_VMS_IF_REQUIRED ]]; then
 
                     # Attempts to shut down the VM temporarily:
-                        domain_shutdown $domain
+                        domain_shutdown $domain --wait $WAIT_TIME
 
                         if [[ $? -eq 0 ]]; then
 
@@ -438,7 +438,7 @@ check_backups()
                             domain_delete_checkpoint $domain ${checkpoint_list[-1]}
 
                             echo "$domain: Power cycling VM to apply changes..."
-                            domain_powercycle $domain
+                            domain_powercycle $domain $WAIT_TIME
                         fi
 
                         # Backup chain is OK, mark as preserved:
@@ -638,7 +638,7 @@ create_backup_chain()
                 fi
 
                 # Attempts to start the VM (awaits for VM's QEMU agent):
-                domain_start $domain
+                domain_start $domain --wait $WAIT_TIME
                 if [[ $? -eq 0 ]]; then
 
                     domain_poweron_success[$i]=$domain
@@ -1015,7 +1015,7 @@ end_of_crontab
 
                     if [[ ! -z $RESTART_VMS_IF_REQUIRED ]]; then
 
-                        domain_shutdown $domain
+                        domain_shutdown $domain --wait $WAIT_TIME
                         if [[ $? -eq 0 ]]; then
 
                             # And into this list to be started as checks has been completed:
