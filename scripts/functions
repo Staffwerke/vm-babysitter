@@ -31,30 +31,33 @@ domain_checkpoint_list()
 }
 
 # -----------------------------------------------------------------------------
-# Deletes checkpoints and bitmaps of a given VM. If no specific checkpoints are passed, takes all checkpoints for such VM listed by libvirt (needs VM to be running):
+# Deletes specific checkpoints of a given VM. If '--all' argument is passed and no checkpoints are specified, deletes ALL checkpoints for such VM listed by libvirt.
+# VM needs to be running or will fail):
 # -----------------------------------------------------------------------------
 domain_delete_checkpoint()
 {
-    local domain_delete_checkpoint_status=1
-
     local domain=$1
     shift
     local checkpoints_list=($@)
-    [[ -z ${checkpoints_list[@]} ]] && checkpoints_list=($(domain_checkpoint_list $domain))
+
+    # Second argument can be a single checkpoint, a list or '--all'
+    [[ ${checkpoints_list[@]} == --all ]] && checkpoints_list=($(domain_checkpoint_list $domain))
+
+    # VM must be running, or it won't work (as of QEMU 7.0.x):
     local vm_needed_state="running"
 
     if [[ $(domain_state $domain) == $vm_needed_state ]]; then
 
         if [[ ! -z ${checkpoints_list[@]} ]]; then
 
-            echo "$domain: Removing ${#checkpoints_list[@]} checkpoint(s) from VM '$domain'..."
+            echo "$domain: Removing ${#checkpoints_list[@]} checkpoint(s)..."
 
             for checkpoint in ${checkpoints_list[@]}; do
                 &> /dev/null virsh checkpoint-delete $domain $checkpoint
             done
         else
 
-            echo "$domain: No checkpoints reported by libvirt or by user to remove"
+            echo "$domain: Failed to proceed. Specify a list of specific checkpoints, or use option '--all' to remove all checkpoints"
         fi
     else
         echo "$domain: Failed to proceed. VM must be $vm_needed_state in order to delete checkpoints from QEMU and disk image(s)"
@@ -63,32 +66,31 @@ domain_delete_checkpoint()
 }
 
 # -----------------------------------------------------------------------------
-# Similar to 'domain_delete_checkpoint' only deletes checkpoints METADATA of a given VM from QEMU.
-# If no specific checkpoints are passed, takes all checkpoints for such VM listed by libvirt
-# (powering on is not required) :
+# Similar to 'domain_delete_checkpoint' but only deletes checkpoints metadata, and VM state is irrelevant:
 # -----------------------------------------------------------------------------
 domain_delete_checkpoint_metadata()
 {
-    #local domain_delete_checkpoint_metadata_status=1
-
     local domain=$1
     shift
     local checkpoints_list=($@)
-    [[ -z ${checkpoints_list[@]} ]] && checkpoints_list=($(domain_checkpoint_list $domain))
+
+    # Second argument can be a single checkpoint, a list or '--all'
+    [[ ${checkpoints_list[@]} == --all ]] && checkpoints_list=($(domain_checkpoint_list $domain))
+
+    # Required to only delete QEMU metadata:
     local arguments="--metadata"
 
     if [[ ! -z ${checkpoints_list[@]} ]]; then
 
-        echo "$domain: Removing ${#checkpoints_list[@]} checkpoint(s) from VM '$domain'..."
+        echo "$domain: Removing ${#checkpoints_list[@]} checkpoint(s) metadata..."
 
         for checkpoint in ${checkpoints_list[@]}; do
             &> /dev/null virsh checkpoint-delete $domain $checkpoint $arguments
         done
     else
 
-        echo "$domain: No checkpoints reported by libvirt or by user to remove"
+        echo "$domain: Failed to proceed. Specify a list of specific checkpoints, or use option '--all' to remove all checkpoints metadata"
     fi
-
 }
 
 #------------------------------------------------------------------------------
