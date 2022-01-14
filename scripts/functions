@@ -9,12 +9,6 @@
 # Base MAC address used on the qemu/kvm implementation:
 base_mac_addr="52:54:00"
 
-# Maximum time to await for a response in certain functions:
-#wait_time=15
-
-# Maximum number of attempts for a response in certain functions:
-max_attempts=5
-
 # SSH port can be omitted if 22. Otherwise, '-p <port_number>' :
 ssh_port=""
 
@@ -625,6 +619,8 @@ sort_items()
 #------------------------------------------------------------------------------
 ssh_command()
 {
+    local wait_time=15
+
     ssh $ssh_port -q -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=$wait_time $1 $2
     return $?
 
@@ -635,6 +631,8 @@ ssh_command()
 #------------------------------------------------------------------------------
 scp_command()
 {
+    local wait_time=15
+
     scp $ssh_port -q -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=$wait_time $2 $1:$3
 }
 
@@ -643,6 +641,8 @@ scp_command()
 #------------------------------------------------------------------------------
 sshfs_command()
 {
+    local wait_time=15
+
     sshfs $ssh_port -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=$wait_time  $1:$2 $3
 }
 
