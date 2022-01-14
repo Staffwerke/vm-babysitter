@@ -21,10 +21,10 @@ RESTART_VMS_IF_REQUIRED..ok
 TZ..ok
 
 Advanced options:
-MAX_ATTEMPTS
 MOMITOR_LOGPATH..ok
 RSYNC_ARGS..ok
 SCHEDULED_LOGPATH..ok
+SSH_OPTS
 WAIT_TIME
 
 #------------------------------------------------------------------------------
@@ -34,7 +34,6 @@ Immediate:
 - Input a valid ssh key to communicate with other server(s)
 - Check remaining Env variables are correct
 - Code orders when REMOTE_BACKUPS_MAIN_PATH and REMOTE_MAX_BACKUP_CHAINS_PER_VM are enabled
-- Do proper stop of running processes (e.g. virtnbdbackup) when container is restarted or stopped
 
 Possible improvements:
 - Add/Ignore/Remove VMs on the fly
@@ -823,7 +822,6 @@ if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
             IGNORED_VMS_LIST+=($domain)
             unset DOMAINS_LIST[$i]
             echo "WARNING: VM $domain has no drives that can be backed up (ignored)"
-            echo "DEBUG: DOMAINS_LIST: ${DOMAINS_LIST[@]} / IGNORED_VMS_LIST:${IGNORED_VMS_LIST[@]}"
         fi
         ((i++))
     done
@@ -896,43 +894,37 @@ elif [[ $REMOTE_BACKUPS_MAIN_PATH == *@*:/* ]]; then
     remote_backups_main_path=$(echo $REMOTE_BACKUPS_MAIN_PATH | cut -d':' -f2)
 
     # Attempts to comunicate with the remote host:
-    ssh_command $remote_server "exit 0"
+    #ssh_command $remote_server "exit 0"
+    ssh $SSH_OPTS $remote_server "exit 0"
     remote_server_status=$?
 
     if [[ $remote_server_status == 0 ]]; then
 
         # Attempts to perform similar checks as with $BACKUPS_MAIN_PATH, except it only returns "OK" if there was success:
-        remote_backups_main_path_status=$(ssh_command $remote_server "if [[ ! -e $remote_backups_main_path ]]; then; mkdir -p $remote_backups_main_path; [[ $? == 0 ]] && echo CREATED; elif [[ -d $remote_backups_main_path ]] && [[ -r $remote_backups_main_path ]] && [[ -w $remote_backups_main_path ]]; then; echo EXISTS; fi")
+        remote_backups_main_path_status=$(ssh $SSH_OPTS $remote_server "[[ -d $remote_backups_main_path ]] && [[ -r $remote_backups_main_path ]] && [[ -w $remote_backups_main_path ]] && echo 'OK' || { mkdir -p $remote_backups_main_path; [[ -d $remote_backups_main_path ]] && echo 'CREATED' || echo 'FAILED'; }")
 
-        case $remote_backups_main_path_status in
+        echo "$remote_server: Status of $remote_backups_main_path: '$remote_backups_main_path_status'"
 
-        EXISTS|CREATED)
-
-            echo "Remote endpoint $REMOTE_BACKUPS_MAIN_PATH status: '$remote_backups_main_path_status'"
+        if [[ $remote_backups_main_path_status != FAILED ]]; then
 
             if [[ $REMOTE_MAX_BACKUP_CHAINS_PER_VM =~ [0-9] ]]; then
 
                 # Is an integer number:
                 echo "Max # of backup chains per VM to be kept remotely: $REMOTE_MAX_BACKUP_CHAINS_PER_VM"
-
             elif [[ -z $REMOTE_MAX_BACKUP_CHAINS_PER_VM ]]; then
 
                 # Was not set:
                 echo "Environment variable REMOTE_MAX_BACKUP_CHAINS_PER_VM not set. ALL backup chains that are recoverable will be kept remotely"
-
             else
 
                 # Unset status variable to prevent keep running:
                 unset remote_backups_main_path_status
-
                 echo "ERROR: Incorrect syntax for environment variable REMOTE_MAX_BACKUP_CHAINS_PER_VM (must be a natural integer)"
             fi
-        ;;
-        *)
+        else
+            unset remote_backups_main_path_status
             echo "ERROR: Remote endpoint: $REMOTE_BACKUPS_MAIN_PATH has permission issues (cannot be read or written) or is not a directory"
-        ;;
-        esac
-
+        fi
     else
         echo "ERROR: Connection with $remote_server failed with status $remote_server_status"
     fi
