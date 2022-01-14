@@ -257,7 +257,7 @@ domain_shutdown()
             [[ $2 =~ [0-9] ]] && wait_time=$2 || local wait_time="60"
         ;;
         --nowait)
-            no_wait_time=1
+            wait_time=0
         ;;
         *)
             # Ignores any other arg and defaults to 60 secs.
@@ -273,12 +273,12 @@ domain_shutdown()
     else
 
         # VM is on. Send shutdown signal and catch status:
-        virsh shutdown $1
+        virsh shutdown $domain
         domain_shutdown_status=$?
 
         if [[ $domain_shutdown_status -eq 0 ]]; then
 
-            if [[ ! -z $no_wait_time ]] || [[ $wait_time -gt 0 ]]; then
+            if [[ $wait_time -gt 0 ]]; then
 
                 local went_to_shutdown
 
@@ -291,14 +291,16 @@ domain_shutdown()
                     [[ $(domain_state $domain) == $vm_needed_state ]] && { went_to_shutdown=1; break; } || sleep 1
                 done
 
-                if [[ ! -z $went_to_shutdown ]]; then
+            fi
+
+            if [[ $wait_time -eq 0 ]] || [[ ! -z $went_to_shutdown ]]; then
 
                     echo "$domain: Has been shut down successfully"
-                else
 
-                    domain_shutdown_status=1
-                    echo "WARNING: Gave up after $wait_time seconds awaiting for VM '$1' to be shut down"
-                fi
+            elif [[  -z $went_to_shutdown ]]; then
+
+                domain_shutdown_status=1
+                echo "WARNING: Gave up after $wait_time seconds awaiting for VM '$domain' to be shut down"
             fi
         else
             echo "ERROR: Libvirt failed to shut down VM $domain"
@@ -324,7 +326,7 @@ domain_start()
             [[ $2 =~ [0-9] ]] && wait_time=$2 || local wait_time="60"
         ;;
         --nowait)
-            no_wait_time=1
+            wait_time=0
         ;;
         *)
             # Ignores any other arg and defaults to 60 secs.
@@ -332,6 +334,7 @@ domain_start()
     esac
 
     local vm_needed_state="running"
+    local agent_status
 
     if [[ $(domain_state $domain) == $vm_needed_state ]]; then
 
@@ -340,12 +343,12 @@ domain_start()
     else
 
         # Starts the VM if is powered off:
-        virsh start $1
+        virsh start $domain
         domain_start_status=$?
 
         if [[ $domain_start_status -eq 0 ]]; then
 
-            if [[ ! -z $no_wait_time ]] || [[ $wait_time -gt 0 ]]; then
+            if [[ $wait_time -gt 0 ]]; then
 
                 local agent_status
                 local counter=0
@@ -357,16 +360,22 @@ domain_start()
                     > /dev/null virsh guestinfo $domain
                     agent_status=$?
 
-                    [[ $agent_status -eq 0 ]] && break || sleep 1
+                    if [[ $agent_status -eq 0 ]]; then
+
+                        echo "$domain: Connected to QEMU agent"
+                        break
+                    else
+                        sleep 1
+                    fi
                 done
+            fi
 
-                if [[ $agent_status -eq 0 ]]; then
+            if [[ $agent_status -eq 0 ]] || [[ $wait_time -gt 0 ]]; then
 
-                    echo "$domain: Connected to QEMU agent"
-                else
-                    echo "WARNING: Gave up after $wait_time seconds awaiting for QEMU agent in VM $domain. Ensure this service is installed on the guest OS, and configured on VM definitions in order to warrant concurrent data within backups."
-                fi
+                echo "$domain: Started successfully"
 
+            elif [[ $agent_status -ne 0 ]]; then
+                echo "WARNING: Gave up after $wait_time seconds awaiting for QEMU agent in VM $domain. Ensure this service is installed on the guest OS, and configured at VM definitions in order to warrant concurrent data within backups."
             fi
         else
             echo "ERROR: Libvirt failed to start VM $domain"
