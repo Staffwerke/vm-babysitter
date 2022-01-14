@@ -16,7 +16,7 @@ git clone $VIRTNBDBACKUP_SOURCE.git && \
 cd virtnbdbackup && python3 setup.py install && cd .. && \
 apt-get purge -y git ca-certificates && apt-get -y autoremove --purge && apt-get clean && \
 rm -rf /var/lib/apt/lists/* /tmp/* /virtnbdbackup && \
-mkdir -p /logs /root/.ssh
+mkdir -p /logs /private
 
 COPY entrypoint.sh scripts/functions scripts/vm-* scripts/virtnbd* scripts/update_backup_chain /usr/local/bin/
 
