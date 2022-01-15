@@ -69,8 +69,6 @@ if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
                     backup_chain_success[$i]=$domain
 
                     #echo "$domain: Incremental backup successfully added to the backup chain"
-
-                    # To DO: Sync on remote endpoint when REMOTE_BACKUPS_MAIN_PATH is set and bring status.
                 else
 
                     # Failed to create a new backup chain:
@@ -89,6 +87,33 @@ if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
                         # RAM was previously throttled. Reverting to its original values:
                         domain_setmem $domain $original_ram_size
                         echo "$domain: Reverted RAM size to its original setting of $original_ram_size KiB"
+                    fi
+                fi
+
+                # To DO: Sync on remote endpoint when REMOTE_BACKUPS_MAIN_PATH is set and bring status.
+                if [[ ${backup_chain_success[$i]} == $domain ]] && [[ ! -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
+
+                    # Incremental backup was successful and remote endpoint is (correctly) set,
+                    # attempts to transfer changes via rsync:
+
+                    echo "$domain: Syncing changes to remote endpoint..."
+
+                    # Transfer backup using SSH_OPTS and RSYNC_ARGS:
+                    rsync -a $RSYNC_ARGS -e "ssh $SSH_OPTS" $BACKUPS_MAIN_PATH/$domain/ $REMOTE_BACKUPS_MAIN_PATH/$domain/
+
+                    rsync_status=$?
+
+                    # Depending on success with rsync, will add the VM to $remote_success or $remote_fail
+                    if [[ $rsync_status -eq 0 ]]; then
+
+                        # When rsync exited normally, adds the VM to $remote_sync_success:
+                        remote_sync_success[$i]+=$domain
+                        echo "$domain: Incremental backup was successfully synced onto remote endpoint"
+                    else
+
+                        # Otherwise, adds the VM to $remote_sync_failed list:
+                        remote_sync_failed[$i]+=$domain
+                        echo "$domain: Failed to sync incremental backup onto remote endpoint with status $rsync_status"
                     fi
                 fi
 
@@ -172,6 +197,13 @@ if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
     echo "Successful Backups (on schedule): ${backup_chain_success[@]:-"None"}"
     echo "Failed Backups (will be checked ASAP): ${backup_chain_failed[@]:-"None"}"
     echo "Failed Virtual machines (user action is required): ${domain_poweron_failed[@]:-"None"}"
+
+    if [[ ! -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
+
+        # Only show remote stats when remote endppoint is set:
+        echo "Synced onto remote endpoint: ${remote_sync_success[@]:-"None"}"
+        echo "Failed to sync onto remote endpoint: ${remote_sync_failed[@]:-"None"}"
+    fi
 
     if [[ -z ${backup_chain_failed[@]} ]] && [[ -z ${domain_poweron_failed[@]} ]]; then
 
