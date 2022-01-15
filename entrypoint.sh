@@ -558,10 +558,12 @@ create_backup_chain()
     local memlimit_active
 
     # Lists to add VMs (and summarize at the end):
-    local backup_chain_success
     local backup_chain_failed
-    local domain_poweron_success
+    local backup_chain_success
     local domain_poweron_failed
+    local domain_poweron_success
+    local remote_sync_failed
+    local remote_sync_success
 
     echo "___________________________________________________________________________________________________"
     echo ""
@@ -585,8 +587,6 @@ create_backup_chain()
                     # Backup chain creation was successful!
                     backup_chain_success[$i]=$domain
 
-                    # To DO: Sync on remote endpoint when REMOTE_BACKUPS_MAIN_PATH is set and bring status.
-
                     echo "$domain: Backup chain successfully created!"
                 else
 
@@ -609,6 +609,33 @@ create_backup_chain()
                         # RAM was previously throttled. Reverting to its original values:
                         domain_setmem $domain $original_ram_size
                         echo "$domain: Reverted RAM size to its original setting of $original_ram_size KiB"
+                    fi
+                fi
+
+                # To DO: Sync on remote endpoint when REMOTE_BACKUPS_MAIN_PATH is set and bring status.
+                if [[ ${backup_chain_success[$i]} == $domain ]] && [[ ! -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
+
+                    # Backup chain creation was successful and remote endpoint is (correctly) set,
+                    # attempts to transfer changes via rsync:
+
+                    echo "$domain: Copying new backup chain to configured remote endpoint..."
+
+                    # Transfer backup using SSH_OPTS and RSYNC_ARGS:
+                    rsync -a $RSYNC_ARGS -e "ssh $SSH_OPTS" $BACKUPS_MAIN_PATH/$domain/ $REMOTE_BACKUPS_MAIN_PATH/$domain/
+
+                    local rsync_status=$?
+
+                    # Depending on success with rsync, will add the VM to $remote_success or $remote_fail
+                    if [[ $rsync_status -eq 0 ]]; then
+
+                        # When rsync exited normally, adds the VM to $remote_sync_success:
+                        remote_sync_success[$i]+=$domain
+                        echo "$domain: New backup chain was copied successfuly to configured remote endpoint"
+                    else
+
+                        # Otherwise, adds the VM to $remote_sync_failed list:
+                        remote_sync_failed[$i]+=$domain
+                        echo "$domain: Failed to copy new backup chain to configured remote endpoint with status $rsync_status"
                     fi
                 fi
 
@@ -699,6 +726,13 @@ create_backup_chain()
     echo "On schedule for incremental backups: ${backup_chain_success[@]:-"None"}"
     echo "Failed to create backup chain: ${backup_chain_failed[@]:-"None"}"
     echo "Failed to power on: ${domain_poweron_failed[@]:-"None"}"
+
+    if [[ ! -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
+
+        # Only show remote stats when remote endppoint is set:
+        echo "Copied to remote endpoint: ${remote_sync_success[@]:-"None"}"
+        echo "Failed copying to remote endpoint: ${remote_sync_failed[@]:-"None"}"
+    fi
 
     if [[ -z ${backup_chain_failed[@]} ]] && [[ -z ${domain_poweron_failed[@]} ]]; then
 
@@ -957,9 +991,11 @@ if [[ $domains_list_status == OK ]] && [[ $backups_main_path_status == OK ]] && 
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 BACKUPS_MAIN_PATH="$BACKUPS_MAIN_PATH"
-REMOTE_BACKUPS_MAIN_PATH="$REMOTE_BACKUPS_MAIN_PATH"
-VIRTNBDBACKUP_GLOBAL_OPTIONS="$VIRTNBDBACKUP_GLOBAL_OPTIONS"
 RAM_LIMIT_PER_SCHED_BACKUP="$RAM_LIMIT_PER_SCHED_BACKUP"
+REMOTE_BACKUPS_MAIN_PATH="$REMOTE_BACKUPS_MAIN_PATH"
+RSYNC_ARGS="$RSYNC_ARGS"
+SSH_OPTS="$SSH_OPTS"
+VIRTNBDBACKUP_GLOBAL_OPTIONS="$VIRTNBDBACKUP_GLOBAL_OPTIONS"
 $CRON_SCHEDULE $scheduled_backup_script
 end_of_crontab
 
