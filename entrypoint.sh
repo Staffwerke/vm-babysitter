@@ -474,8 +474,16 @@ check_backups()
 
             elif [[ $recoverable_backup_chain == false ]]; then
 
-                # Backup chain is total or partially recoverable. Archive it:
-                archive_backup $BACKUPS_MAIN_PATH/$domain
+                # Backup chain is total or partially recoverable.
+
+                # Generate an updated time stamp to rename archived backups:
+                timestamp=$(date '+%Y-%m-%d.%H:%M:%S')
+
+                # Processes backup for being archived locally:
+                archive_backup $BACKUPS_MAIN_PATH/$domain $MAX_BACKUP_CHAINS_PER_VM $timestamp
+
+                # When remote endpoint is set, process remote backup copy to be archived:
+                [[ ! -z $REMOTE_BACKUPS_MAIN_PATH ]] && archive_remote_backup $REMOTE_BACKUPS_MAIN_PATH/$domain $REMOTE_MAX_BACKUP_CHAINS_PER_VM $timestamp
 
             elif [[ $recoverable_backup_chain == true ]]; then
 

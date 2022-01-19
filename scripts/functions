@@ -451,53 +451,109 @@ do_backup_chain()
 ###############################################################################
 
 # -----------------------------------------------------------------------------
-# For a given backup_path, renames the current backup chain with a timestamp.
-# If MAX_BACKUP_CHAINS_PER_VM or MAX_REMOTE_BACKUP_CHAINS_PER_VM are set,
-# Deletes old backup chains except for the last ones in such variables:
+# Renames passed backup folder with a timestamp. If $2 is passed, deletes older
+# backups, except the most recent ones according with timestamp on such folder names:
 # -----------------------------------------------------------------------------
 archive_backup()
 {
-
+    # Local folder to be manipulated:
     local backup_path=$(dirname $1)
+
+    # VM name basename:
     local domain=$(basename $1)
 
-    if [[ $MAX_BACKUP_CHAINS_PER_VM != 0 ]]; then
+    # When integer is passed as second argument, takes it as the max # of backup chains to keep locally:
+    [[ ! -z $2 ]] && [[ $2 =~ [0-9] ]] && local backups_to_keep=$2
 
-        # When env variable is not set, or greater than zero, archives the current backup chain with current timestamp name:
-        local timestamp=$(date '+%Y-%m-%d.%H:%M:%S')
+    # And if second argument is OK, take the third as timestamp to be used to rename old backup:
+    [[ ! -z $backups_to_keep ]] && local timestamp=$3
+
+    if [[ $backups_to_keep != 0 ]]; then
+
+        # Archives the current backup chain, by renaming it with time stamp:
         mv $backup_path/$domain $backup_path/$domain.$timestamp
-        echo "$domain: Latest backup chain archived as $backup_path/$domain.$timestamp"
 
-        if [[ $MAX_BACKUP_CHAINS_PER_VM -ge 1 ]]; then
+        echo "$domain: Current backup chain archived as $backup_path/$domain.$timestamp"
+
+        if [[ $backups_to_keep -ge 1 ]]; then
 
             # And when is greater than zero, deletes older backup chains, except the last ones as defined in the same variable:
 
             # Position of the first folder to delete, ordered from most recent timestamp
-            local index=$( expr $MAX_BACKUP_CHAINS_PER_VM + 1 )
+            local index=$( expr $backups_to_keep + 1 )
 
-            # Creates a list with exact match of archived folders to delete (manually archived backup chains without this match aren't touched):
+            # Creates a list with exact match of archived folders to delete (manually archived backup chains without this match aren't touched). Pattern is based upon $(date '+%Y-%m-%d.%H:%M:%S'):
             local old_backups_list=($(find $backup_path -type d -name "$domain.*" | sort -r | grep -E "^$domain.[0-9]{4}-[0-9]{2}-[0-9]{2}.[0-9]{2}:[0-9]{2}:[0-9]{2}$" | tail -n +$index))
 
             if [[ ! -z ${old_backups_list[@]} ]]; then
 
-                echo "$domain: Deleting old backup chains, except latest $MAX_BACKUP_CHAINS_PER_VM..."
-
-                for old_backup in ${old_backups_list[@]}; do
-                    echo "$old_backup"
-                    rm -r $old_backup
-                    done
+                # Deletes all folders in the above generated list:
+                rm -rf ${old_backups_list[@]}
+                echo "$domain: ${#old_backups_list[@]} old backup chain(s) was found and deleted"
             fi
-
         fi
     else
 
-        # Env variable is 0. Remove backup chain directly:
+        # When zero, remove backup chain directly:
         rm -rf $backup_path/$domain
-        echo "$domain: Deleted backup chain at $backup_path/$domain (MAX_BACKUP_CHAINS_PER_VM = $MAX_BACKUP_CHAINS_PER_VM)"
+        echo "$domain: Current backup chain deleted"
     fi
+}
 
-    # To DO: REMOTE_MAX_BACKUP_CHAINS_PER_VM
+# -----------------------------------------------------------------------------
+# Similar with 'archive_backup' but operates on a remote endpoint via SSH:
+# -----------------------------------------------------------------------------
+archive_remote_backup()
+{
+    # Remote server (user@host format):
+    local remote_server=$(echo $1 | cut -d':' -f1)
 
+    # Remote folder to be manipulated:
+    local remote_backup_path=$(echo $1 | cut -d':' -f2)
+
+    # Main backup path where remote backup is located:
+    local remote_main_backup_path=$(dirname $remote_backup_path)
+
+    # VM name basename:
+    local domain=$(basename $remote_backup_path)
+
+    # When passed as second argument, takes it as the max # of backup chains to keep remotely:
+    [[ ! -z $2 ]] && [[ $2 =~ [0-9] ]] && local remote_backups_to_keep=$2
+
+    # And if second argument is OK, take the third as timestamp to be used to rename old backup:
+    [[ ! -z $backups_to_keep ]] && local timestamp=$3
+
+    if [[ $remote_backups_to_keep != 0 ]]; then
+
+        # Archives the current backup chain, by renaming it with time stamp:
+        ssh $SSH_OPTS $remote_server "mv $remote_backup_path $remote_backup_path.$timestamp"
+
+        echo "$domain: Current backup chain at $remote_server renamed as $remote_backup_path.$timestamp"
+
+        if [[ $remote_backups_to_keep -ge 1 ]]; then
+
+            # And when is equal or greater than 1, deletes older backup chains, except the last ones as defined in the same variable:
+
+            # Position of the first folder to delete, ordered from most recent timestamp
+            local index=$( expr $remote_backups_to_keep + 1 )
+
+            # Creates a list with exact match of archived folders to delete (manually archived backup chains without this match aren't touched). Pattern is based upon $(date '+%Y-%m-%d.%H:%M:%S'):
+            remote_old_backups_list=$(ssh $SSH_OPTS $remote_server "find $remote_main_backup_path -type d -name "$domain.*" | sort -r | grep -E "^$domain.[0-9]{4}-[0-9]{2}-[0-9]{2}.[0-9]{2}:[0-9]{2}:[0-9]{2}$" | tail -n +$index")
+
+            if [[ ! -z ${remote_old_backups_list[@]} ]]; then
+
+                # Deletes all folders in the above generated list:
+                ssh $SSH_OPTS $remote_server "rm -rf ${remote_old_backups_list[@]}"
+
+                echo "$domain: ${#remote_old_backups_list[@]} old backup chain(s) was found and deleted at $remote_server"
+            fi
+        fi
+    else
+
+        # When zero, remove backup chain directly:
+        ssh $SSH_OPTS $remote_server "rm -rf $remote_backup_path"
+        echo "$domain: Current backup chain at $remote_server deleted"
+    fi
 }
 
 # -----------------------------------------------------------------------------
