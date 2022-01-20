@@ -18,203 +18,207 @@ source $external_vars
 # Redirects all output to a log file:
 exec &>> $logpath
 
-# If main script is performing a check, will enter into this loop:
-while [[ $ONGOING_CHECK = true ]]; do
+if [[ $ONGOING_BACKUP == false ]]; then
 
-    if [[ -z $messaged ]]; then
+    # Only starts running the script if no other incremental backup task has been started:
 
-        # Message this once:
-        echo ""
-        echo "Scheduled backup execution will be delayed until ongoing checks had finished..."
-        echo ""
-        messaged=1
-    fi
-    sleep 1
-    source $external_vars
-done
+    # Marks ONGOING_BACKUP as started externally, so the main process gets paused temporarily:
+    ONGOING_BACKUP="true"
 
-# When ongoing check is false, marks ONGOING_BACKUP as started externally,
-# so the main process gets paused temporarily:
-ONGOING_BACKUP="true"
+    sed -i -e "s/ONGOING_BACKUP=.*/ONGOING_BACKUP=\"$ONGOING_BACKUP\"/" $external_vars
 
-sed -i -e "s/ONGOING_BACKUP=.*/ONGOING_BACKUP=\"$ONGOING_BACKUP\"/" $external_vars
+    # If main script is performing a check, will enter into this loop:
+    while [[ $ONGOING_CHECK = true ]]; do
 
-echo "###############################################################################"
-echo "Scheduled Incremental Backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
+        if [[ -z $messaged ]]; then
 
-if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
-
-    echo "Virtual machines: '${SCHEDULED_BACKUPS_LIST[@]}'"
-    #echo "###############################################################################"
-
-    i=0
-    for domain in ${SCHEDULED_BACKUPS_LIST[@]}; do
-
-         echo "___________________________________________________________________________________________________"
-         echo ""
-        original_ram_size=""
-        memlimit_active="no"
-
-        while true; do
-
-            if [[ $(domain_state $domain) == running ]]; then
-
-                # Only when VM is running, attempts to perform an incremental backup:
-                echo "$domain: Starting incremental backup..."
-                do_backup_chain $domain "inc" $BACKUPS_MAIN_PATH $VIRTNBDBACKUP_GLOBAL_OPTIONS
-
-                if [[ $? -eq 0 ]]; then
-
-                    # Backup chain creation was successful!
-                    backup_chain_success[$i]=$domain
-
-                    #echo "$domain: Incremental backup successfully added to the backup chain"
-                else
-
-                    # Failed to create a new backup chain:
-                    backup_chain_failed[$i]=$domain
-
-                    #echo "$domain: Failed to perform incremental backup. Read the logs above to determine the specific cause of fail)"
-                fi
-
-                if [[ ${domain_poweron_success[$i]} == $domain ]]; then
-
-                    # VM was previously shut off, revert to its previous state:
-                    domain_shutdown $domain --nowait
-
-                    if [[ $memlimit_active == yes ]]; then
-
-                        # RAM was previously throttled. Reverting to its original values:
-                        domain_setmem $domain $original_ram_size
-                        echo "$domain: Reverted RAM size to its original setting of $original_ram_size KiB"
-                    fi
-                fi
-
-                # To DO: Sync on remote endpoint when REMOTE_BACKUPS_MAIN_PATH is set and bring status.
-                if [[ ${backup_chain_success[$i]} == $domain ]] && [[ ! -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
-
-                    # Incremental backup was successful and remote endpoint is (correctly) set,
-                    # attempts to transfer changes via rsync:
-
-                    echo "$domain: Syncing changes to remote endpoint..."
-
-                    # Transfer backup using SSH_OPTS and RSYNC_ARGS:
-                    rsync -a $RSYNC_ARGS -e "ssh $SSH_OPTS" $BACKUPS_MAIN_PATH/$domain/ $REMOTE_BACKUPS_MAIN_PATH/$domain/
-
-                    rsync_status=$?
-
-                    # Depending on success with rsync, will add the VM to $remote_success or $remote_fail
-                    if [[ $rsync_status -eq 0 ]]; then
-
-                        # When rsync exited normally, adds the VM to $remote_sync_success:
-                        remote_sync_success[$i]+=$domain
-                        echo "$domain: Incremental backup was successfully synced onto remote endpoint"
-                    else
-
-                        # Otherwise, adds the VM to $remote_sync_failed list:
-                        remote_sync_failed[$i]+=$domain
-                        echo "$domain: Failed to sync incremental backup onto remote endpoint with status $rsync_status"
-                    fi
-                fi
-
-                # Exits the loop:
-                break
-
-            else
-
-                # VM is presumably shut off. Will attempts to start it:
-
-                if [[ ! -z $RAM_LIMIT_PER_SCHED_BACKUP ]]; then
-
-                    # And needs to check how much memory uses by default, throttling it if limits are established:
-
-                    # Gets the original RAM size
-                    original_ram_size=$(domain_getmem $domain --max)
-
-                    # If the above value is greater than the established limit, sets the VM RAM temporarily to such limit:
-                    if [[ $original_ram_size -gt $RAM_LIMIT_PER_SCHED_BACKUP ]]; then
-
-                        memlimit_active="yes"
-                        domain_setmem $domain $RAM_LIMIT_PER_SCHED_BACKUP
-
-                        echo "$domain: RAM size temporarily throttled from $original_ram_size KiB to $RAM_LIMIT_PER_SCHED_BACKUP KiB for this task"
-                    fi
-                fi
-
-                # Attempts to start the VM (awaits for VM's QEMU agent):
-                domain_start $domain
-                if [[ $? -eq 0 ]]; then
-
-                    domain_poweron_success[$i]=$domain
-
-                    # Restarts the loop to chech VM under changed conditions:
-                    continue
-                else
-
-                    # VM failed to power on. This is an abnormal situation:
-                    echo "$domain: failed to start (backup chain update could not be performed)"
-                    domain_poweron_failed[$i]=$domain
-
-                    # Breaks the loop:
-                    break
-                fi
-            fi
-        done
-
-        # VM is unlisted from SCHEDULED_BACKUPS_LIST:
-        unset SCHEDULED_BACKUPS_LIST[$i]
-
-        # Increases the index to check the next VM:
-        ((i++))
+            # Message this once:
+            echo ""
+            echo "Scheduled backup execution will be delayed until ongoing checks had finished..."
+            echo ""
+            messaged=1
+        fi
+        sleep 1
+        source $external_vars
     done
 
-    # Appends updated values
-    # (as a string, since sed can't expand arrays correctly):
-    SCHEDULED_BACKUPS_LIST="${backup_chain_success[@]}"
+    echo "###############################################################################"
+    echo "Scheduled Incremental Backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
 
-    CHECK_PATCH_LIST+=(${backup_chain_failed[@]})
-    CHECK_PATCH_LIST="${CHECK_PATCH_LIST[@]}"
+    if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
 
-    FAILED_VMS_LIST+=(${domain_poweron_failed[@]})
-    FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
+        echo "Virtual machines: '${SCHEDULED_BACKUPS_LIST[@]}'"
+        #echo "###############################################################################"
 
-    ONGOING_BACKUP="false"
+        i=0
+        for domain in ${SCHEDULED_BACKUPS_LIST[@]}; do
 
-    # And updates them all at once:
-    sed -i \
-    -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
-    -e "s/CHECK_PATCH_LIST=.*/CHECK_PATCH_LIST=($CHECK_PATCH_LIST)/" \
-    -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
-    -e "s/ONGOING_BACKUP=.*/ONGOING_BACKUP=\"$ONGOING_BACKUP\"/" \
-    $external_vars
+            echo "___________________________________________________________________________________________________"
+            echo ""
+            original_ram_size=""
+            memlimit_active="no"
 
-    # And shows the summary at the very end:
+            while true; do
 
-    echo "___________________________________________________________________________________________________"
-    echo ""
-    echo "Scheduled Incremental Backup Summary:"
-    echo ""
-    echo "Successful Backups (on schedule): ${backup_chain_success[@]:-"None"}"
-    echo "Failed Backups (will be checked ASAP): ${backup_chain_failed[@]:-"None"}"
-    echo "Failed Virtual machines (user action is required): ${domain_poweron_failed[@]:-"None"}"
+                if [[ $(domain_state $domain) == running ]]; then
 
-    if [[ ! -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
+                    # Only when VM is running, attempts to perform an incremental backup:
+                    echo "$domain: Starting incremental backup..."
+                    do_backup_chain $domain "inc" $BACKUPS_MAIN_PATH $VIRTNBDBACKUP_GLOBAL_OPTIONS
 
-        # Only show remote stats when remote endppoint is set:
-        echo "Synced onto remote endpoint: ${remote_sync_success[@]:-"None"}"
-        echo "Failed to sync onto remote endpoint: ${remote_sync_failed[@]:-"None"}"
-    fi
+                    if [[ $? -eq 0 ]]; then
 
-    if [[ -z ${backup_chain_failed[@]} ]] && [[ -z ${domain_poweron_failed[@]} ]]; then
+                        # Backup chain creation was successful!
+                        backup_chain_success[$i]=$domain
+
+                        #echo "$domain: Incremental backup successfully added to the backup chain"
+                    else
+
+                        # Failed to create a new backup chain:
+                        backup_chain_failed[$i]=$domain
+
+                        #echo "$domain: Failed to perform incremental backup. Read the logs above to determine the specific cause of fail)"
+                    fi
+
+                    if [[ ${domain_poweron_success[$i]} == $domain ]]; then
+
+                        # VM was previously shut off, revert to its previous state:
+                        domain_shutdown $domain --nowait
+
+                        if [[ $memlimit_active == yes ]]; then
+
+                            # RAM was previously throttled. Reverting to its original values:
+                            domain_setmem $domain $original_ram_size
+                            echo "$domain: Reverted RAM size to its original setting of $original_ram_size KiB"
+                        fi
+                    fi
+
+                    # To DO: Sync on remote endpoint when REMOTE_BACKUPS_MAIN_PATH is set and bring status.
+                    if [[ ${backup_chain_success[$i]} == $domain ]] && [[ ! -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
+
+                        # Incremental backup was successful and remote endpoint is (correctly) set,
+                        # attempts to transfer changes via rsync:
+
+                        echo "$domain: Syncing changes to remote endpoint..."
+
+                        # Transfer backup using SSH_OPTS and RSYNC_ARGS:
+                        rsync -a $RSYNC_ARGS -e "ssh $SSH_OPTS" $BACKUPS_MAIN_PATH/$domain/ $REMOTE_BACKUPS_MAIN_PATH/$domain/
+
+                        rsync_status=$?
+
+                        # Depending on success with rsync, will add the VM to $remote_success or $remote_fail
+                        if [[ $rsync_status -eq 0 ]]; then
+
+                            # When rsync exited normally, adds the VM to $remote_sync_success:
+                            remote_sync_success[$i]+=$domain
+                            echo "$domain: Incremental backup was successfully synced onto remote endpoint"
+                        else
+
+                            # Otherwise, adds the VM to $remote_sync_failed list:
+                            remote_sync_failed[$i]+=$domain
+                            echo "$domain: Failed to sync incremental backup onto remote endpoint with status $rsync_status"
+                        fi
+                    fi
+
+                    # Exits the loop:
+                    break
+
+                else
+
+                    # VM is presumably shut off. Will attempts to start it:
+
+                    if [[ ! -z $RAM_LIMIT_PER_SCHED_BACKUP ]]; then
+
+                        # And needs to check how much memory uses by default, throttling it if limits are established:
+
+                        # Gets the original RAM size
+                        original_ram_size=$(domain_getmem $domain --max)
+
+                        # If the above value is greater than the established limit, sets the VM RAM temporarily to such limit:
+                        if [[ $original_ram_size -gt $RAM_LIMIT_PER_SCHED_BACKUP ]]; then
+
+                            memlimit_active="yes"
+                            domain_setmem $domain $RAM_LIMIT_PER_SCHED_BACKUP
+
+                            echo "$domain: RAM size temporarily throttled from $original_ram_size KiB to $RAM_LIMIT_PER_SCHED_BACKUP KiB for this task"
+                        fi
+                    fi
+
+                    # Attempts to start the VM (awaits for VM's QEMU agent):
+                    domain_start $domain
+                    if [[ $? -eq 0 ]]; then
+
+                        domain_poweron_success[$i]=$domain
+
+                        # Restarts the loop to chech VM under changed conditions:
+                        continue
+                    else
+
+                        # VM failed to power on. This is an abnormal situation:
+                        echo "$domain: failed to start (backup chain update could not be performed)"
+                        domain_poweron_failed[$i]=$domain
+
+                        # Breaks the loop:
+                        break
+                    fi
+                fi
+            done
+
+            # VM is unlisted from SCHEDULED_BACKUPS_LIST:
+            unset SCHEDULED_BACKUPS_LIST[$i]
+
+            # Increases the index to check the next VM:
+            ((i++))
+        done
+
+        # Appends updated values
+        # (as a string, since sed can't expand arrays correctly):
+        SCHEDULED_BACKUPS_LIST="${backup_chain_success[@]}"
+
+        CHECK_PATCH_LIST+=(${backup_chain_failed[@]})
+        CHECK_PATCH_LIST="${CHECK_PATCH_LIST[@]}"
+
+        FAILED_VMS_LIST+=(${domain_poweron_failed[@]})
+        FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
+
+        ONGOING_BACKUP="false"
+
+        # And updates them all at once:
+        sed -i \
+        -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
+        -e "s/CHECK_PATCH_LIST=.*/CHECK_PATCH_LIST=($CHECK_PATCH_LIST)/" \
+        -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
+        -e "s/ONGOING_BACKUP=.*/ONGOING_BACKUP=\"$ONGOING_BACKUP\"/" \
+        $external_vars
+
+        # And shows the summary at the very end:
+
+        echo "___________________________________________________________________________________________________"
+        echo ""
+        echo "Scheduled Incremental Backup Summary:"
+        echo ""
+        echo "Successful Backups (on schedule): ${backup_chain_success[@]:-"None"}"
+        echo "Failed Backups (will be checked ASAP): ${backup_chain_failed[@]:-"None"}"
+        echo "Failed Virtual machines (user action is required): ${domain_poweron_failed[@]:-"None"}"
+
+        if [[ ! -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
+
+            # Only show remote stats when remote endppoint is set:
+            echo "Synced onto remote endpoint: ${remote_sync_success[@]:-"None"}"
+            echo "Failed to sync onto remote endpoint: ${remote_sync_failed[@]:-"None"}"
+        fi
+
+        if [[ -z ${backup_chain_failed[@]} ]] && [[ -z ${domain_poweron_failed[@]} ]]; then
+
+            echo ""
+            echo "ALL VMs WERE BACKED UP SUCCESSFULLY!"
+        fi
 
         echo ""
-        echo "ALL VMs WERE BACKED UP SUCCESSFULLY!"
+        echo "Scheduled Incremental Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
+        echo ""
+
+    else
+        echo "No Virtual machines on schedule. Exited"
     fi
-
-    echo ""
-    echo "Scheduled Incremental Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
-    echo ""
-
-else
-    echo "No Virtual machines on schedule. Exited"
 fi
