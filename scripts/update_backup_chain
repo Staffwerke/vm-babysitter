@@ -64,7 +64,7 @@ if [[ $ONGOING_BACKUP == false ]]; then
 
                     # Only when VM is running, attempts to perform an incremental backup:
                     echo "$domain: Starting incremental backup..."
-                    do_backup_chain $domain "inc" $BACKUPS_MAIN_PATH $VIRTNBDBACKUP_GLOBAL_OPTIONS
+                    do_backup_chain $domain "inc" $BACKUPS_MAIN_PATH $VIRTNBDBACKUP_ARGS
 
                     if [[ $? -eq 0 ]]; then
 
