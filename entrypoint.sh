@@ -14,7 +14,7 @@ CRON_SCHEDULE
 IGNORED_VMS_LIST..ok
 MAX_BACKUP_CHAINS_PER_VM..ok
 REMOTE_MAX_BACKUP_CHAINS_PER_VM..ok
-VIRTNBDBACKUP_GLOBAL_OPTIONS..ok
+VIRTNBDBACKUP_ARGS..ok
 RAM_LIMIT_PER_SCHED_BACKUP
 REMOTE_BACKUPS_MAIN_PATH..ok
 RESTART_VMS_IF_REQUIRED..ok
@@ -588,7 +588,7 @@ create_backup_chain()
             if [[ $(domain_state $domain) == running ]]; then
 
                 # Only when VM is running, attempts to create a new backup chain:
-                do_backup_chain $domain "full" $BACKUPS_MAIN_PATH $VIRTNBDBACKUP_GLOBAL_OPTIONS
+                do_backup_chain $domain "full" $BACKUPS_MAIN_PATH $VIRTNBDBACKUP_ARGS
 
                 if [[ $? -eq 0 ]]; then
 
@@ -1003,7 +1003,7 @@ RAM_LIMIT_PER_SCHED_BACKUP="$RAM_LIMIT_PER_SCHED_BACKUP"
 REMOTE_BACKUPS_MAIN_PATH="$REMOTE_BACKUPS_MAIN_PATH"
 RSYNC_ARGS="$RSYNC_ARGS"
 SSH_OPTS="$SSH_OPTS"
-VIRTNBDBACKUP_GLOBAL_OPTIONS="$VIRTNBDBACKUP_GLOBAL_OPTIONS"
+VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS"
 $CRON_SCHEDULE $scheduled_backup_script
 end_of_crontab
 
