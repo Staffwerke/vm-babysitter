@@ -1,48 +1,5 @@
 #!/bin/bash
 
-: << 'end_of_specs'
-#------------------------------------------------------------------------------
-# ENV:
-#------------------------------------------------------------------------------
-
-Required:
-BACKUPS_MAIN_PATH..ok
-
-Optional:
-AUTOSTART_VMS_LIST..ok
-CRON_SCHEDULE
-IGNORED_VMS_LIST..ok
-MAX_BACKUP_CHAINS_PER_VM..ok
-REMOTE_MAX_BACKUP_CHAINS_PER_VM..ok
-VIRTNBDBACKUP_ARGS..ok
-RAM_LIMIT_PER_SCHED_BACKUP
-REMOTE_BACKUPS_MAIN_PATH..ok
-RESTART_VMS_IF_REQUIRED..ok
-TZ..ok
-
-Advanced options:
-MOMITOR_LOGPATH..ok
-RSYNC_ARGS..ok
-SCHEDULED_LOGPATH..ok
-SSH_OPTS
-WAIT_TIME
-
-#------------------------------------------------------------------------------
-# TO DO List:
-#------------------------------------------------------------------------------
-Immediate:
-- Input a valid ssh key to communicate with other server(s)
-- Check remaining Env variables are correct
-- Code orders when REMOTE_BACKUPS_MAIN_PATH and REMOTE_MAX_BACKUP_CHAINS_PER_VM are enabled
-
-Possible improvements:
-- Add/Ignore/Remove VMs on the fly
-- Archive backup chain when its total size is too big for certain criteria
-- Detect and alert when space in BACKUPS_MAIN_PATH and REMOTE_BACKUPS_MAIN_PATH is getting low
-
-#------------------------------------------------------------------------------
-end_of_specs
-
 ###############################################################################
 # Main variables:
 ###############################################################################
