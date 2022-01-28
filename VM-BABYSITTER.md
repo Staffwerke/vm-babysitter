@@ -1,16 +1,20 @@
 # VM-Babysitter
 
-Docker service that checks existing Virtual machines running on the local server, and performs the following actions:
+
+*<< I’m a good babysitter because my last job was cleaning the monkey house in the zoo. >> (promotional blurb)*
+
+
+Is Docker based service that checks existing Virtual machines running on the local server, and performs the following actions:
 
 - Creates a list of (persistent) VMs registered in QEMU to be backed up regularly
 - Sets and internal cron task for scheduled backups
 - Verifies/applies QEMU patch for incremental backups
-- Checks backup chain consistency for every VM, being able to detect issues
-- Creates full backups when necessary
+- Checks backup chain consistency for each VM, being able to detect issues and solve them
+- Creates new full backup chains when necessary
 - Updates the backup chain regularly, via internal cron task
-- It's able to rebuild/recover backup chains automaticaly from many disaster scenarios, including server crash on Unraid
-- When backup chain gets broken, is able to archive it for further use, or deletes unusable backup chains
-- Syncs successful backup operations and is able to archive/maintain remote backup chains (independently of local counterparts)
+- Rebuilds/recovers backup chains automaticaly from many disaster scenarios, including a server crash on Unraid
+- When backup chain gets broken, it can archive it for further restoration, or deletes it when becomes unusable
+- Syncs successful backup operations and is able to archive remote backup chain mirrors independently of local ones
 
 ## Building an up-to-date docker image:
 
@@ -198,3 +202,9 @@ Due the Unraid's quirky QEMU implementation, when a server is restarted, local c
 ## Known Issues/bugs:
 
 When VMs are added to IGNORED_VMS_LIST, and another VM has no image disks able to be backed up the script fails apending this VM to the same list (used internally for same purpose) and falls into a loop, attempting to create a backup chain without success.
+
+## TO DO:
+- Send alerts to Unraid's notification system
+- Add/Remove VMs on the fly
+- Archive backup chain when its total size is too big for certain criteria
+- Detect and alert when space in BACKUPS_MAIN_PATH and REMOTE_BACKUPS_MAIN_PATH is getting low
