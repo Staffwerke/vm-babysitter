@@ -18,8 +18,8 @@ apt-get purge -y git ca-certificates && apt-get -y autoremove --purge && apt-get
 rm -rf /var/lib/apt/lists/* /tmp/* /virtnbdbackup && \
 mkdir -p /logs /private
 
-COPY entrypoint.sh scripts/functions scripts/vm-* scripts/virtnbd* scripts/update_backup_chain /usr/local/bin/
+COPY scripts/vm-babysitter scripts/functions scripts/vm-* scripts/virtnbd* scripts/update_backup_chain /usr/local/bin/
 
-CMD ["entrypoint.sh"]
+CMD ["vm-babysitter"]
 
 WORKDIR /
