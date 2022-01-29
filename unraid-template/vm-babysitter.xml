@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>VM-Babysitter</Name>
+  <Repository>docker.staffwerke.de/vm-babysitter:latest</Repository>
+  <Registry/>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support/>
+  <Project/>
+  <Overview/>
+  <Category/>
+  <WebUI/>
+  <TemplateURL/>
+  <Icon/>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled>1643345112</DateInstalled>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="Timezone" Target="TZ" Default="" Mode="" Description="" Type="Variable" Display="always" Required="false" Mask="false">Europe/Berlin</Config>
+  <Config Name="Restart VMs if required" Target="RESTART_VMS_IF_REQUIRED" Default="" Mode="" Description="" Type="Variable" Display="always" Required="false" Mask="false">yes</Config>
+  <Config Name="Cron schedule" Target="CRON_SCHEDULE" Default="" Mode="" Description="" Type="Variable" Display="always" Required="false" Mask="false">*/30 1 * * *</Config>
+  <Config Name="VM's disk images location" Target="/mnt/user/VMs" Default="" Mode="rw" Description="" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/VMs</Config>
+  <Config Name="BAckups main path" Target="BACKUPS_MAIN_PATH" Default="" Mode="" Description="" Type="Variable" Display="always" Required="false" Mask="false">/mnt/user/Backups/vm-babysitter-backups</Config>
+  <Config Name="Backups main path mountpoint" Target="/mnt/user/Backups/vm-babysitter-backups" Default="" Mode="rw" Description="" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/Backups/vm-
+babysitter-backups</Config>
+  <Config Name="Max backup chains to keep locally" Target="MAX_BACKUP_CHAINS_PER_VM" Default="" Mode="" Description="" Type="Variable" Display="always" Required="false" Mask="false">0</Config>
+  <Config Name="Remote backups main path" Target="REMOTE_BACKUPS_MAIN_PATH" Default="" Mode="" Description="" Type="Variable" Display="always" Required="false" Mask="false">root@192.168.88.10:/mnt/user/Backups/
+Newb/vm-babysitter-backups-mirror</Config>
+  <Config Name="Max backup chains to keep remotely" Target="REMOTE_MAX_BACKUP_CHAINS_PER_VM" Default="" Mode="" Description="" Type="Variable" Display="always" Required="false" Mask="false">3</Config>
+  <Config Name="SSH options" Target="SSH_OPTS" Default="" Mode="" Description="" Type="Variable" Display="always" Required="false" Mask="false">-q -i /private/newb.key -o BatchMode=yes -o StrictHostKeyChecking=
+no -o ConnectTimeout=10</Config>
+  <Config Name="Private SSH Key path" Target="/private/newb.key" Default="" Mode="ro" Description="" Type="Path" Display="always" Required="false" Mask="false">/root/.ssh/newb.key</Config>
+  <Config Name="RAM limit per scheduled backups (KiB)" Target="RAM_LIMIT_PER_SCHED_BACKUP" Default="" Mode="" Description="" Type="Variable" Display="always" Required="false" Mask="false">8388608</Config>
+  <Config Name="Persistent Logs" Target="/logs" Default="" Mode="rw" Description="" Type="Path" Display="always" Required="false" Mask="false">/mnt/user/apps/vm-babysitter/logs</Config>
+  <Config Name="Other mount" Target="/run/lock" Default="/var/run/lock" Mode="rw" Description="" Type="Path" Display="advanced" Required="true" Mask="false">/var/run/lock</Config>
+  <Config Name="Libvirt socket API" Target="/run/libvirt" Default="/var/run/libvirt" Mode="rw" Description="" Type="Path" Display="advanced" Required="true" Mask="false">/var/run/libvirt</Config>
+  <Config Name="Virtnbdbackup socket" Target="/var/tmp" Default="/var/tmp" Mode="rw" Description="" Type="Path" Display="advanced" Required="true" Mask="false">/var/tmp</Config>
+  <Config Name="Rsync extra arguments" Target="RSYNC_ARGS" Default="" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false">--bwlimit=350M</Config>
+  <Config Name="Virtnbdbackup extra arguments" Target="VIRTNBDBACKUP_ARGS" Default="" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false">--compress</Config>
+</Container>
