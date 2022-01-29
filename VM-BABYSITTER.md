@@ -39,7 +39,7 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 ### Optional parameters:
 **`AUTOSTART_VMS_LIST`**: Space separated list of VMs that will be started along with the container
 
-**`CRON_SCHEDULE**: Cron-like string for incremental backups. E.g. "* 2 * * *" triggers everyday at 2 am local time (default is '@daily')
+**`CRON_SCHEDULE`**: Cron-like string for incremental backups. E.g. "* 2 * * *" triggers everyday at 2 am local time (default is '@daily')
 
 **`MAX_BACKUP_CHAINS_PER_VM`**: How many old backup chains to keep archived locally under BACKUPS_MAIN_PATH (default is infinite, set to "0" to disable old backups archive)
 
