@@ -209,7 +209,7 @@ check_backups()
                 || [[ ! -d $BACKUPS_MAIN_PATH/$domain/checkpoints ]]; then
 
                     backup_folder_integrity="false"
-                    echo "$domain: No backup chain folder detected, or internal structure is damaged!"
+                    echo "$domain: No backup chain folder detected (or internal structure is inconsistent)"
 
                 elif [[ ! -z $(find $BACKUPS_MAIN_PATH/$domain -type f -name "*.partial") ]]; then
 
@@ -308,15 +308,26 @@ check_backups()
                     for image in $(domain_img_paths_list $domain); do
 
                         bitmaps_list=($(disk_image_bitmap_list $image))
+
                         if [[ ${bitmaps_list[@]} != ${checkpoint_list[@]} ]]; then
 
                             backup_check_failed="yes"
                             echo "$domain: Checkpoints and bitmaps lists on disk $image MISMATCH"
+
+                            # Nothing else can be done
                             break
 
+                        elif [[ ! -z ${bitmaps_list[@]} ]]; then
+
+                            # It is assumed bitmaps = checkpoints, and none is a empty list:
+                            echo "$domain: Checkpoints and bitmaps lists on disk $image MATCH"
                         else
 
-                            echo "$domain: Checkpoints and bitmaps lists on disk $image MATCH"
+                            backup_check_failed="yes"
+                            echo "$domain: ${#checkpoint_list[@]} checkpoints found, and ${#bitmaps_list[@]} bitmaps found on disk $image. Backup chain is broken"
+
+                            # Nothing else can be done
+                            break
                         fi
                     done
                 fi
@@ -329,8 +340,9 @@ check_backups()
                 || [[ $backup_folder_integrity == false ]]; then
 
 
-                    if [[ $RESTARTED_SERVER != true ]]; then
+                    if [[ $RESTARTED_SERVER != true ]] && [[ ! -z ${checkpoint_list[@]} ]]; then
 
+                        # Deletes checkpoints metadata if any detected:
                         echo "$domain: Pruning existing checkpoints in QEMU..."
                         domain_delete_checkpoint_metadata $domain --all
                     fi
