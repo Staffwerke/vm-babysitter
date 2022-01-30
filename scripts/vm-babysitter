@@ -551,8 +551,6 @@ create_backup_chain()
 
                     # Backup chain creation was successful!
                     backup_chain_success[$i]=$domain
-
-                    echo "$domain: Backup chain successfully created!"
                 else
 
                     # Failed to create a new backup chain:
@@ -560,8 +558,6 @@ create_backup_chain()
 
                     # Delete partial files (unusable garbage):
                     rm -rf $BACKUPS_MAIN_PATH/$domain
-
-                    echo "$domain: Failed to create a new backup chain"
                 fi
 
                 if [[ ${domain_poweron_success[$i]} == $domain ]]; then
