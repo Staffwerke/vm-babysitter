@@ -63,7 +63,6 @@ if [[ $ONGOING_BACKUP == false ]]; then
                 if [[ $(domain_state $domain) == running ]]; then
 
                     # Only when VM is running, attempts to perform an incremental backup:
-                    echo "$domain: Starting incremental backup..."
                     do_backup_chain $domain "inc" $BACKUPS_MAIN_PATH $VIRTNBDBACKUP_ARGS
 
                     if [[ $? -eq 0 ]]; then
@@ -155,7 +154,7 @@ if [[ $ONGOING_BACKUP == false ]]; then
                     else
 
                         # VM failed to power on. This is an abnormal situation:
-                        echo "$domain: failed to start (backup chain update could not be performed)"
+                        echo "$domain: failed to power on (backup chain update could not be performed)"
                         domain_poweron_failed[$i]=$domain
 
                         # Breaks the loop:
