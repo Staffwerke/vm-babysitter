@@ -15,8 +15,8 @@ source $functions_path
 source $external_vars
 #------------------------------------------------------------------------------
 
-# Redirects all output to a log file:
-exec &>> $logpath
+# Copies stdout and stderr to $logpath:
+exec > >(tee -a $logpath) 2> >(tee -a $logpath >&2)
 
 if [[ $ONGOING_BACKUP == false ]]; then
 

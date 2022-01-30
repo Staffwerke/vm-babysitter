@@ -725,8 +725,8 @@ source $functions_path
 # 1. Check input parameters (exits on error)
 #------------------------------------------------------------------------------
 
-# Redirects all output to a log file:
-exec &>> $logpath
+# Copies stdout and stderr to $logpath:
+exec > >(tee -a $logpath) 2> >(tee -a $logpath >&2)
 
 # Sets the local timezone (if ENV TZ was set):
 if [[ ! -z $local_timezone_file ]]; then
