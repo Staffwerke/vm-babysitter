@@ -564,7 +564,7 @@ create_backup_chain()
                     echo "$domain: Failed to create a new backup chain"
                 fi
 
-                if [[ ${domain_poweron_success[$i]} -eq $domain ]]; then
+                if [[ ${domain_poweron_success[$i]} == $domain ]]; then
 
                     # VM was previously shut off, revert to its previous state:
                     domain_shutdown $domain --nowait
