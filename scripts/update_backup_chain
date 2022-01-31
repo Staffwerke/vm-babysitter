@@ -56,7 +56,6 @@ if [[ $ONGOING_BACKUP == false ]]; then
             original_ram_size=""
             memlimit_active="no"
 
-            echo ""
             echo "____________________________________________________________________________________________________________"
 
             while true; do
@@ -100,7 +99,6 @@ if [[ $ONGOING_BACKUP == false ]]; then
                         # Incremental backup was successful and remote endpoint is (correctly) set,
                         # attempts to transfer changes via rsync:
 
-                        echo ""
                         echo "$domain: Syncing changes to remote endpoint..."
 
                         # Transfer backup using SSH_OPTS and RSYNC_ARGS:
@@ -227,6 +225,7 @@ if [[ $ONGOING_BACKUP == false ]]; then
         fi
 
         echo ""
+            echo "############################################################################################################"
         echo "Scheduled Incremental Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
         echo ""
 
