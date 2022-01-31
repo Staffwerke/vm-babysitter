@@ -42,18 +42,18 @@ if [[ $ONGOING_BACKUP == false ]]; then
         source $external_vars
     done
 
-    echo "###############################################################################"
+    echo "############################################################################################################"
     echo "Scheduled Incremental Backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
 
     if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
 
         echo "Virtual machines: '${SCHEDULED_BACKUPS_LIST[@]}'"
-        #echo "###############################################################################"
+        echo ""
 
         i=0
         for domain in ${SCHEDULED_BACKUPS_LIST[@]}; do
 
-            echo "___________________________________________________________________________________________________"
+            echo "____________________________________________________________________________________________________________"
             echo ""
             original_ram_size=""
             memlimit_active="no"
@@ -182,29 +182,37 @@ if [[ $ONGOING_BACKUP == false ]]; then
 
         ONGOING_BACKUP="false"
 
+        # Revert RESTARTED_SERVER mode if it was enabled and there were successful incremental backups:
+        if [[ $RESTARTED_SERVER == true ]] && [[ ! -z ${backup_chain_success[@]} ]]; then
+
+            RESTARTED_SERVER="false"
+            echo "RESTARTED_SERVER mode successfully disabled"
+        fi
+
         # And updates them all at once:
         sed -i \
         -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
         -e "s/CHECK_PATCH_LIST=.*/CHECK_PATCH_LIST=($CHECK_PATCH_LIST)/" \
         -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
         -e "s/ONGOING_BACKUP=.*/ONGOING_BACKUP=\"$ONGOING_BACKUP\"/" \
+        -e "s/RESTARTED_SERVER=.*/RESTARTED_SERVER=\"$RESTARTED_SERVER\"/" \
         $external_vars
 
         # And shows the summary at the very end:
 
-        echo "___________________________________________________________________________________________________"
+        echo "____________________________________________________________________________________________________________"
         echo ""
         echo "Scheduled Incremental Backup Summary:"
         echo ""
-        echo "Successful Backups (on schedule): ${backup_chain_success[@]:-"None"}"
-        echo "Failed Backups (will be checked ASAP): ${backup_chain_failed[@]:-"None"}"
-        echo "Failed Virtual machines (user action is required): ${domain_poweron_failed[@]:-"None"}"
+        echo "Successful BAckups: ${backup_chain_success[@]:-"None"}"
+        echo "Failed Backups:     ${backup_chain_failed[@]:-"None"}"
+        echo "Misbehaving VMs:    ${domain_poweron_failed[@]:-"None"}"
 
         if [[ ! -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
 
             # Only show remote stats when remote endppoint is set:
-            echo "Synced onto remote endpoint: ${remote_sync_success[@]:-"None"}"
-            echo "Failed to sync onto remote endpoint: ${remote_sync_failed[@]:-"None"}"
+            echo "Synced to remote mirror:      ${remote_sync_success[@]:-"None"}"
+            echo "Failed sync to remote mirror: ${remote_sync_failed[@]:-"None"}"
         fi
 
         if [[ -z ${backup_chain_failed[@]} ]] && [[ -z ${domain_poweron_failed[@]} ]]; then
