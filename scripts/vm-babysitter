@@ -732,7 +732,7 @@ exec > >(tee -a $logpath) 2> >(tee -a $logpath >&2)
 if [[ ! -z $local_timezone_file ]]; then
 
     ln -fs $local_timezone_file /etc/localtime
-    dpkg-reconfigure -f noninteractive tzdata
+    &> /dev/null dpkg-reconfigure -f noninteractive tzdata
 fi
 
 
