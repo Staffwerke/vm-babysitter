@@ -14,13 +14,13 @@ external_vars="/tmp/vm-babysit-vars"
 functions_path="functions"
 
 # Log file path for this script:
-logpath=${MONITOR_LOGPATH:-"/logs/vm-babysitter.log"}
+MAIN_LOGPATH=${MAIN_LOGPATH:-"/logs/vm-babysitter.log"}
 
 # Path of the scheduler script (run by cron):
 scheduled_backup_script="/usr/local/bin/update_backup_chain"
 
 # Log file path for the scheduler script:
-scheduled_logpath=${SCHEDULED_LOGPATH:-"/logs/scheduled-backups.log"}
+SCHEDULED_LOGPATH=${SCHEDULED_LOGPATH:-"/logs/scheduled-backups.log"}
 
 # Location of current Time Zone (if defined in ENV TZ):
 [[ -f /usr/share/zoneinfo/$TZ ]] && local_timezone_file="/usr/share/zoneinfo/$TZ"
@@ -734,10 +734,10 @@ source $functions_path
 #------------------------------------------------------------------------------
 
 # Creates internal folders in case doesn't exist:
-[[ ! -d $( dirname $logpath) ]] && mkdir -p $(dirname $logpath)
+[[ ! -d $( dirname $MAIN_LOGPATH) ]] && mkdir -p $(dirname $MAIN_LOGPATH)
 
-# Copies stdout and stderr to $logpath:
-exec > >(tee -a $logpath) 2> >(tee -a $logpath >&2)
+# Copies stdout and stderr to $MAIN_LOGPATH:
+exec > >(tee -a $MAIN_LOGPATH) 2> >(tee -a $MAIN_LOGPATH >&2)
 
 # Sets the local timezone (if ENV TZ was set):
 if [[ ! -z $local_timezone_file ]]; then
@@ -978,20 +978,20 @@ SSH_OPTS="$SSH_OPTS"
 VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS"
 functions_path="$functions_path"
 external_vars="$external_vars"
-scheduled_logpath="$scheduled_logpath"
+SCHEDULED_LOGPATH="$SCHEDULED_LOGPATH"
 $CRON_SCHEDULE $scheduled_backup_script
 end_of_crontab
 
     # Sets the cron task:
     crontab $crontab_file
 
-    if [[ ! -f $scheduled_logpath ]]; then
+    if [[ ! -f $SCHEDULED_LOGPATH ]]; then
 
         # Creates folders in case doesn't exist:
-        mkdir -p $(dirname $scheduled_logpath)
+        mkdir -p $(dirname $SCHEDULED_LOGPATH)
 
         # Initializes the log file (in case doesn't exist):
-        touch -a $scheduled_logpath
+        touch -a $SCHEDULED_LOGPATH
     fi
 
     # Finally, runs cron and sends to background:
