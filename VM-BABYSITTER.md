@@ -56,7 +56,7 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 ### Advanced parameters:
 **`IGNORED_VMS_LIST`**: Space separated list of VMs to ignore, not checking or adding it to scheduled backups (default is to include all persistent VMs having disk images able to be backed up)
 
-**`MOMITOR_LOGPATH`**: Absolute path for the main log file (default is "/logs/vm-babysitter.log")
+**`MONITOR_LOGPATH`**: Absolute path for the main log file (default is "/logs/vm-babysitter.log")
 
 **`RSYNC_ARGS`**: Extra arguments for rsync when sends successful backups to REMOTE_BACKUPS_MAIN_PATH. E.g. "--bwlimit=350M" (default is no arguments)
 
