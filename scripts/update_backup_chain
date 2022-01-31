@@ -53,10 +53,11 @@ if [[ $ONGOING_BACKUP == false ]]; then
         i=0
         for domain in ${SCHEDULED_BACKUPS_LIST[@]}; do
 
-            echo "____________________________________________________________________________________________________________"
-            echo ""
             original_ram_size=""
             memlimit_active="no"
+
+            echo ""
+            echo "____________________________________________________________________________________________________________"
 
             while true; do
 
@@ -64,6 +65,7 @@ if [[ $ONGOING_BACKUP == false ]]; then
 
                     # Only when VM is running, attempts to perform an incremental backup:
                     do_backup_chain $domain "inc" $BACKUPS_MAIN_PATH $VIRTNBDBACKUP_ARGS
+                    echo ""
 
                     if [[ $? -eq 0 ]]; then
 
@@ -98,6 +100,7 @@ if [[ $ONGOING_BACKUP == false ]]; then
                         # Incremental backup was successful and remote endpoint is (correctly) set,
                         # attempts to transfer changes via rsync:
 
+                        echo ""
                         echo "$domain: Syncing changes to remote endpoint..."
 
                         # Transfer backup using SSH_OPTS and RSYNC_ARGS:
@@ -200,6 +203,7 @@ if [[ $ONGOING_BACKUP == false ]]; then
 
         # And shows the summary at the very end:
 
+        echo ""
         echo "____________________________________________________________________________________________________________"
         echo ""
         echo "Scheduled Incremental Backup Summary:"
@@ -211,6 +215,7 @@ if [[ $ONGOING_BACKUP == false ]]; then
         if [[ ! -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
 
             # Only show remote stats when remote endppoint is set:
+            echo ""
             echo "Synced to remote mirror:      ${remote_sync_success[@]:-"None"}"
             echo "Failed sync to remote mirror: ${remote_sync_failed[@]:-"None"}"
         fi

@@ -573,6 +573,7 @@ create_backup_chain()
 
                 # Only when VM is running, attempts to create a new backup chain:
                 do_backup_chain $domain "full" $BACKUPS_MAIN_PATH $VIRTNBDBACKUP_ARGS
+                echo ""
 
                 if [[ $? -eq 0 ]]; then
 

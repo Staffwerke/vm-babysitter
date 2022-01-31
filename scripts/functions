@@ -436,10 +436,12 @@ do_backup_chain()
 
     if [[ $create_backup_chain_status -eq 0 ]]; then
 
+        echo ""
         echo "$domain: $backup_mode backup of successfully finished!"
     else
 
-        echo "WARNING: $domain: virtnbdbackup failed with status $create_backup_chain_status. Read the logs above to determine the problem."
+        echo ""
+        echo "WARNING: $domain: virtnbdbackup failed with status $create_backup_chain_status. Read the logs above for more details."
 
     fi
 
