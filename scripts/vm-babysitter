@@ -675,11 +675,6 @@ create_backup_chain()
         ((i++))
     done
 
-    # As scheduled backups could happen during creation / sync of several backup chains
-    # (including the VMs sent to schedule in check_backups),
-    # results necessary to re-read external variables in case some incremental backup failed,
-    source $external_vars
-
     # Appends updated values:
     # (as a string, since sed can't expand arrays correctly):
     SCHEDULED_BACKUPS_LIST+=(${backup_chain_success[@]})
@@ -1006,7 +1001,7 @@ end_of_crontab
         if [[ -z $checkpoints_found ]]; then
 
             # RESTARTED_SERVER mode detected:
-            RESTARTED_SERVER="true"
+            RESTARTED_SERVER_="true"
             echo "____________________________________________________________________________________________________________"
             echo ""
             echo "WARNING: No checkpoints were found by libvirt at all. RESTARTED_SERVER mode enabled!"
