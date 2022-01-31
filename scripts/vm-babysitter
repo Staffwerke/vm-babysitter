@@ -757,46 +757,37 @@ if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
 
     # 1.1.1 Check IGNORED_VMS_LIST:
     #------------------------------------------------------------------------------
-    # Debugging VMs to be ignored (set into a bash array):
-    IGNORED_VMS_LIST=($IGNORED_VMS_LIST)
-
     i=0
-#    if [[ ! -z ${IGNORED_VMS_LIST[@]} ]]; then
+    for domain in $IGNORED_VMS_LIST; do
 
-        for domain in ${IGNORED_VMS_LIST[@]}; do
+        if [[ $(domain_exists $domain) == yes ]]; then
 
-            if [[ $(domain_exists $domain) == yes ]]; then
+            # Remove the VM from DOMAINS_LIST
+            unset DOMAINS_LIST[$(item_position $domain "DOMAINS_LIST")]
+            echo "Ignoring VM $domain declared into IGNORED_VMS_LIST"
+        else
 
-                # Remove the VM from DOMAINS_LIST
-                unset DOMAINS_LIST[$(item_position $domain "DOMAINS_LIST")]
-                echo "Ignoring VM $domain declared into IGNORED_VMS_LIST"
-            else
-
-                unset IGNORED_VMS_LIST[$i]
-                echo "WARNING: VM $domain declared into IGNORED_VMS_LIST not found!"
-            fi
-            ((i++))
-        done
-#    fi
+            #unset IGNORED_VMS_LIST[$i]
+            echo "WARNING: VM $domain declared into IGNORED_VMS_LIST not found!"
+        fi
+        ((i++))
+    done
 
     # 1.1.2 Check AUTOSTART_VMS_LIST:
     #------------------------------------------------------------------------------
-    # Debugging VMs to be powered on on container's start (set into a bash array):
-    AUTOSTART_VMS_LIST=($AUTOSTART_VMS_LIST)
-
     i=0
-#    if [[ ! -z ${AUTOSTART_VMS_LIST[@]} ]]; then
+    for domain in $AUTOSTART_VMS_LIST; do
 
-        for domain in ${AUTOSTART_VMS_LIST[@]}; do
+        if [[ $(domain_exists $domain) == yes ]]; then
 
-            if [[ $(domain_exists $domain) == no ]]; then
+            # Add VM to the list of VMs to be powered on when monitor starts:
+            POWEREDOFF_VMS_LIST+=($domain)
+        else
 
-                unset AUTOSTART_VMS_LIST[$i]
-                echo "WARNING: VM $domain declared in AUTOSTART_VMS_LIST not found!"
-            fi
-            ((i++))
-        done
-#    fi
+            echo "WARNING: VM $domain declared in AUTOSTART_VMS_LIST not found!"
+        fi
+        ((i++))
+    done
 
     # 1.1.3 Check DOMAINS_LIST VM's disk images:
     #------------------------------------------------------------------------------
@@ -808,27 +799,25 @@ if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
         if [[ ! -z ${drives_list[@]} ]]; then
 
             # Does have drives able to be backed up. Checks if such disk images are reachable inside the container:
-
             images_list=($(domain_img_paths_list $domain))
             for image in ${images_list[@]}; do
 
                 if [[ ! -f $image ]]; then
 
                     FAILED_VMS_LIST+=($domain)
-                    unset DOMAINS_LIST[$i]
                     echo "ERROR: $domain's disk image: $image not found"
 
                 elif [[ ! -r $image ]] && [[ ! -w $image ]]; then
 
                     FAILED_VMS_LIST+=($domain)
-                    unset DOMAINS_LIST[$i]
                     echo "ERROR: $domain's disk image: $image has permission issues (cannot be read or written)"
                 fi
             done
         else
-            IGNORED_VMS_LIST+=($domain)
+
+            # BUG: When IGNORED_VMS_LIST is not empty, sometimes VM is not removed from DOMAINS_LIST, provoking an infinite loop.
             unset DOMAINS_LIST[$i]
-            echo "WARNING: VM $domain has no drives that can be backed up (ignored)"
+            echo "WARNING: VM $domain has no drives that can be backed up (will be ignored)"
         fi
         ((i++))
     done
@@ -1133,34 +1122,11 @@ end_of_external_variables
             #------------------------------------------------------------------------------
             [[ ! -z ${CHECK_BACKUPS_LIST[@]} ]] && check_backups
 
-
-            if [[ ! -z ${AUTOSTART_VMS_LIST[@]} ]]; then
-
-            # 3.5 When debugged AUTOSTART_VMS_LIST is set and VMs in list are shut down,
-            # Turns them on:
-            #------------------------------------------------------------------------------
-            i=0
-            for domain in ${AUTOSTART_VMS_LIST[@]}; do
-
-                if [[ $(domain_state $domain) != running ]]; then
-
-                    echo "$domain: Performing Auto start (declared into AUTOSTART_VMS_LIST)"
-                    domain_start $domain --nowait
-                fi
-
-                    # Remove the VM from the list is being read:
-                    unset AUTOSTART_VMS_LIST[$i]
-
-                    # Increases the counter:
-                    ((i++))
-            done
-            fi
-
             if [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]]; then
 
-                # 3.6 Turns on all VMs that was previously shutdown for checks:
+                # 3.5 Turns on all VMs that was previously shutdown for checks:
                 #------------------------------------------------------------------------------
-                echo "Starting (remaining) Virtual machines previously shut down for checks..."
+                echo "Starting Virtual machines previously shut down for checks and/or marked for Autostart..."
                 i=0
                 for domain in ${POWEREDOFF_VMS_LIST[@]}; do
 
@@ -1178,10 +1144,9 @@ end_of_external_variables
                 done
             fi
 
-            # 3.7 Those VMs in need of a full backup chain, will run this process:
+            # 3.6 Those VMs in need of a full backup chain, will run this process:
             #------------------------------------------------------------------------------
             [[ ! -z ${CREATE_BACKUP_CHAIN_LIST[@]} ]] && create_backup_chain
-
 
             if [[ $ONGOING_CHECK == true ]]; then
 
@@ -1235,7 +1200,7 @@ end_of_external_variables
                 fi
             fi
         fi
-        # 3.8 Restarts the loop from 3.1, until receives SIGTERM or SIGKILL from Docker
+        # 3.7 Restarts the loop from 3.1, until receives SIGTERM or SIGKILL from Docker
         #------------------------------------------------------------------------------
     done
 
