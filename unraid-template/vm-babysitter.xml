@@ -43,7 +43,7 @@ no -o ConnectTimeout=10</Config>
   <Config Name="Lock folder" Target="/run/lock" Default="/var/run/lock" Mode="rw" Description="" Type="Path" Display="advanced" Required="true" Mask="false">/var/run/lock</Config>
   <Config Name="Rsync extra arguments" Target="RSYNC_ARGS" Default="" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false">--bwlimit=350M</Config>
   <Config Name="Virtnbdbackup extra arguments" Target="VIRTNBDBACKUP_ARGS" Default="" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false">--compress</Config>
-  <Config Name="Main monitor log path" Target="MOMITOR_LOGPATH" Default="/logs/vm-babysitter.log" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Main monitor log path" Target="MAIN_LOGPATH" Default="/logs/vm-babysitter.log" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Scheduled backups log path" Target="SCHEDULED_LOGPATH" Default="/logs/scheduled-backups.log" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="Wait time for VMs" Target="WAIT_TIME" Default="60" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
 </Container>
