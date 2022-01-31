@@ -15,8 +15,8 @@ source $functions_path
 source $external_vars
 #------------------------------------------------------------------------------
 
-# Copies stdout and stderr to $scheduled_logpath:
-exec > >(tee -a $scheduled_logpath) 2> >(tee -a $scheduled_logpath >&2)
+# Copies stdout and stderr to $SCHEDULED_LOGPATH:
+exec > >(tee -a $SCHEDULED_LOGPATH) 2> >(tee -a $SCHEDULED_LOGPATH >&2)
 
 if [[ $ONGOING_BACKUP == false ]]; then
 
