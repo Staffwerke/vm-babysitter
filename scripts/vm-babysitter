@@ -39,6 +39,7 @@ stop_container()
     echo "SIGTERM signal received at: $(date "+%Y-%m-%d %H:%M:%S")"
     # To DO: Terminate or kill background processes before to exit.
     echo "Container Stopped."
+    echo ""
     exit 0
 }
 
@@ -372,7 +373,7 @@ check_backups()
                         # Checks used RAM
                         local ram_size=$(domain_getmem $domain --max)
                         local memlimit_active=""
-                        [[ ! -z $RAM_LIMIT_PER_SCHED_BACKUP ]] && [[ $ram_size -gt $RAM_LIMIT_PER_SCHED_BACKUP ]]; then
+                        if [[ ! -z $RAM_LIMIT_PER_SCHED_BACKUP ]] && [[ $ram_size -gt $RAM_LIMIT_PER_SCHED_BACKUP ]]; then
 
                             # Sets temporal limits of RAM before to perform the operation:
                             memlimit_active="yes"
@@ -732,6 +733,9 @@ source $functions_path
 # 1. Check input parameters (exits on error)
 #------------------------------------------------------------------------------
 
+# Creates internal folders in case doesn't exist:
+[[ ! -d $( dirname $logpath) ]] && mkdir -p $(dirname $logpath)
+
 # Copies stdout and stderr to $logpath:
 exec > >(tee -a $logpath) 2> >(tee -a $logpath >&2)
 
@@ -751,6 +755,7 @@ trap 'stop_container' SIGTERM
 echo "############################################################################################################"
 echo "Container started at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
 echo "############################################################################################################"
+echo ""
 
 # 1.1 Check DOMAINS_LIST:
 #------------------------------------------------------------------------------
@@ -971,14 +976,23 @@ REMOTE_BACKUPS_MAIN_PATH="$REMOTE_BACKUPS_MAIN_PATH"
 RSYNC_ARGS="$RSYNC_ARGS"
 SSH_OPTS="$SSH_OPTS"
 VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS"
+functions_path="$functions_path"
+external_vars="$external_vars"
+scheduled_logpath="$scheduled_logpath"
 $CRON_SCHEDULE $scheduled_backup_script
 end_of_crontab
 
     # Sets the cron task:
     crontab $crontab_file
 
-    # Initializes the log file (in case doesn't exist):
-    [[ ! -f $scheduled_logpath ]] &&touch -a $scheduled_logpath
+    if [[ ! -f $scheduled_logpath ]]; then
+
+        # Creates folders in case doesn't exist:
+        mkdir -p $(dirname $scheduled_logpath)
+
+        # Initializes the log file (in case doesn't exist):
+        touch -a $scheduled_logpath
+    fi
 
     # Finally, runs cron and sends to background:
     cron -f -l -L2 &
@@ -1128,7 +1142,7 @@ end_of_external_variables
                 echo "____________________________________________________________________________________________________________"
                 echo ""
                 echo "Status change detected at $(date "+%Y-%m-%d %H:%M:%S")"
-                echo "Automatic check for VM(s) '${CHECK_PATCH_LIST[@]} in progress..."
+                echo "Automatic check for VM(s) ${CHECK_PATCH_LIST[@]} in progress..."
 
                 check_patch
             fi
@@ -1141,7 +1155,8 @@ end_of_external_variables
 
                 # 3.5 Turns on all VMs that was previously shutdown for checks:
                 #------------------------------------------------------------------------------
-                echo "Starting Virtual machines previously shut down for checks and/or marked for Autostart..."
+                echo "____________________________________________________________________________________________________________"
+                echo ""
                 i=0
                 for domain in ${POWEREDOFF_VMS_LIST[@]}; do
 
@@ -1149,6 +1164,7 @@ end_of_external_variables
 
                         # Turn on the VM. Do not wait for Guest's QEMU agent:
                         domain_start $domain --nowait
+                        echo "$domain: Started (previously shut down for checks and/or marked for Autostart)"
                     fi
 
                     # Remove the VM from the list is being read:

@@ -3,11 +3,11 @@
 # Updates backup chains for VMs in SCHEDULED_BACKUPS_LIST,
 # managing temporal RAM limits (when set) and powering on/off as necessary:
 #------------------------------------------------------------------------------
-functions_path="functions"
-external_vars="/tmp/vm-babysit-vars"
-logpath=${SCHEDULED_LOGPATH:-"/logs/scheduled-backups.log"}
 
-#------------------------------------------------------------------------------
+# NOTE:
+# - Static variables are set declared in crontab
+# - Dynamic variables are read and written onto $external_vars file
+
 # Internal global variables and common functions are managed via this script:
 source $functions_path
 
@@ -15,8 +15,8 @@ source $functions_path
 source $external_vars
 #------------------------------------------------------------------------------
 
-# Copies stdout and stderr to $logpath:
-exec > >(tee -a $logpath) 2> >(tee -a $logpath >&2)
+# Copies stdout and stderr to $scheduled_logpath:
+exec > >(tee -a $scheduled_logpath) 2> >(tee -a $scheduled_logpath >&2)
 
 if [[ $ONGOING_BACKUP == false ]]; then
 
@@ -204,7 +204,7 @@ if [[ $ONGOING_BACKUP == false ]]; then
         echo ""
         echo "Scheduled Incremental Backup Summary:"
         echo ""
-        echo "Successful BAckups: ${backup_chain_success[@]:-"None"}"
+        echo "Successful Backups: ${backup_chain_success[@]:-"None"}"
         echo "Failed Backups:     ${backup_chain_failed[@]:-"None"}"
         echo "Misbehaving VMs:    ${domain_poweron_failed[@]:-"None"}"
 
