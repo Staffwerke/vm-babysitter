@@ -778,3 +778,41 @@ choose_number()
         esac
     done
 }
+
+# -----------------------------------------------------------------------------
+# Just says the message, but also sends it via UnRaid notification system,
+# Guessing the urgency of that message. Use it wisely:
+# -----------------------------------------------------------------------------
+unraid_notify()
+{
+local message=$@
+
+# If UnRaid is detected, will send the message via notification system:
+if [[ -n `uname  -r | grep -e "-Unraid$"` ]]; then
+
+    local severity=`echo $message | cut -d' ' -f1`
+
+    # Automatically detects the severity based upon the first word in $message
+    case $severity in
+        "ERROR:")
+            severity="alert"
+        ;;
+        "WARNING:")
+            severity="warning"
+        ;;
+        "INFO:"|*)
+            severity="normal"
+        ;;
+    esac
+
+    local event="Incremental Backup"
+    local subject="virtnbdbackup-auto"
+
+   /usr/local/emhttp/plugins/dynamix/scripts/notify -i "$severity" -e "$event" -s "$subject" -d "$message"
+fi
+
+echo $message
+
+# Adds a final delay to prevent false positive spamming detection (e.g. Telegram bots)
+sleep 1
+}
