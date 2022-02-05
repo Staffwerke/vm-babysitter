@@ -11,7 +11,7 @@ crontab_file="/tmp/crontab"
 external_vars="/tmp/vm-babysit-vars"
 
 # Main library where common functions and some variables are loaded:
-functions_path="functions"
+functions_path="/usr/local/bin/vm-functions"
 
 # Log file path for this script:
 MAIN_LOGPATH=${MAIN_LOGPATH:-"/logs/vm-babysitter.log"}

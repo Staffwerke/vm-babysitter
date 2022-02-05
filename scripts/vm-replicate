@@ -7,7 +7,7 @@ working_path="$HOME/.$(basename $0).tmp"
 
 # Location of the script where all functions and global variables to be used are declared:
 # (Here, on the same dir
-functions_path="$(dirname $0)/functions"
+functions_path="/usr/local/bin/vm-functions"
 
 # Name of the local host:
 localhost=$(cat /etc/hostname)

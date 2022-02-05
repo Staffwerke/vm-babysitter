@@ -13,7 +13,7 @@
 
 # Location of the script where all functions and global variables to be used are declared:
 # (Here, on the same dir
-functions_path="$(dirname $0)/functions"
+functions_path="/usr/local/bin/vm-functions"
 
 # Generic name for all checkpoints (and bitmaps) into a given backup chain:
 checkpoint_name="virtnbdbackup"
