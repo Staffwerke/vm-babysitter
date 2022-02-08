@@ -343,7 +343,7 @@ check_backups()
                 || [[ $recoverable_backup_chain == false ]] \
                 || [[ $backup_folder_integrity == false ]]; then
 
-                    if [[ $RESTARTED_SERVER != true ]] && [[ ! -z ${checkpoint_list[@]} ]]; then
+                    if [[ $RESTARTED_SERVER != true ]]; then
 
                         # Deletes checkpoints metadata if any detected:
                         echo "$domain: Pruning existing checkpoints in QEMU..."
