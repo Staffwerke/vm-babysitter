@@ -229,6 +229,14 @@ if [[ $ONGOING_BACKUP == false ]]; then
         echo "Scheduled Incremental Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
         echo ""
 
+        if [[ $(os_is_unraid) == yes ]]; then
+
+            # On Unraid, notifies about failed operations exclusively related with virtnbdbackup and rsync (others are done from vm-babysitter):
+
+            [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "Rsync" "${remote_sync_failed[@]}" "Could not sync to remote endpoint, it will be attempted again on next schedule (last status: $rsync_status)"
+
+            [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "Virtnbdbackup" "${backup_chain_failed[@]}" "Could not perform the scheduled backup(s). Check $(basename $SCHEDULED_LOGPATH) for detailed info"
+        fi
     else
         echo "No Virtual machines on schedule. Exited"
     fi

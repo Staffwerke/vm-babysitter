@@ -159,9 +159,9 @@ check_patch()
     echo ""
     echo "Patched for backups:          ${vm_patch_success[@]:-"None"}"
     [[ ! -z $RESTART_VMS_IF_REQUIRED ]] && \
-    echo "Into automatic power cycle:   ${domain_shutdown_success[@]:-"None"}"
+    echo "Into automatic power cycle:   ${domain_shutdown_success[@]:-"None"}" || \
     echo "Manual shut down is required: ${domain_shutdown_failed[@]:-"None"}"
-    echo "Failed to apply patch:        ${vm_patch_failed[@]:-"None"}"
+    echo "Could not apply patch:        ${vm_patch_failed[@]:-"None"}"
 
     if [[ -z ${domain_shutdown_failed[@]} ]] && [[ -z ${vm_patch_failed[@]} ]]; then
 
@@ -528,7 +528,7 @@ check_backups()
     echo "Added to Scheduled Backups:   ${preserved_backup_chain[@]:-"None"}"
     echo "In need of new backup chain:  ${broken_backup_chain[@]:-"None"}"
     [[ ! -z $RESTART_VMS_IF_REQUIRED ]] && \
-    echo "Into automatic power cycle:   ${domain_shutdown_success[@]:-"None"}"
+    echo "Into automatic power cycle:   ${domain_shutdown_success[@]:-"None"}" || \
     echo "Manual shut down is required: ${domain_shutdown_failed[@]:-"None"}"
 
     if [[ -z ${domain_shutdown_failed[@]} ]]; then
@@ -706,22 +706,31 @@ create_backup_chain()
     echo ""
     echo "Backup Chain Creation Summary:"
     echo ""
-    echo "Added to Scheduled Backups:    ${backup_chain_success[@]:-"None"}"
-    echo "Failed to create backup chain: ${backup_chain_failed[@]:-"None"}"
-    echo "Failed to power on:            ${domain_poweron_failed[@]:-"None"}"
+    echo "Added to Scheduled Backups:        ${backup_chain_success[@]:-"None"}"
+    echo "Could not create new backup chain: ${backup_chain_failed[@]:-"None"}"
+    echo "Could not power on:                ${domain_poweron_failed[@]:-"None"}"
 
     if [[ ! -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
 
         # Only show remote stats when remote endppoint is set:
         echo ""
-        echo "Copied to remote mirror:      ${remote_sync_success[@]:-"None"}"
-        echo "Failed copy to remote mirror: ${remote_sync_failed[@]:-"None"}"
+        echo "Success copying to remote mirror: ${remote_sync_success[@]:-"None"}"
+        echo "Could not copy to remote mirror:  ${remote_sync_failed[@]:-"None"}"
     fi
 
     if [[ -z ${backup_chain_failed[@]} ]] && [[ -z ${domain_poweron_failed[@]} ]]; then
 
         echo ""
         echo "All Backup Chains Created!"
+    fi
+
+    if [[ $(os_is_unraid) == yes ]]; then
+
+        # On Unraid, notifies about failed operations exclusively related with virtnbdbackup and rsync (others are done from vm-babysitter):
+
+        [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "Rsync" "${remote_sync_failed[@]}" "Could not sync to remote endpoint, it will be attempted again on first schedule (last status: $rsync_status)"
+
+        [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "Virtnbdbackup" "${backup_chain_failed[@]}" "Could not create new backup chain(s). Check $(basename $MAIN_LOGPATH) for detailed info"
     fi
 }
 
@@ -1049,7 +1058,7 @@ end_of_crontab
         if [[ -z $checkpoints_found ]]; then
 
             # RESTARTED_SERVER mode detected:
-            RESTARTED_SERVER_="true"
+            RESTARTED_SERVER="true"
             echo "____________________________________________________________________________________________________________"
             echo "WARNING: No checkpoints were found by libvirt at all. RESTARTED_SERVER mode enabled!"
             echo "Unraid server appears to have been restarted recently or this is the very first usage"
@@ -1089,11 +1098,10 @@ end_of_crontab
             done
 
             echo "RESTARTED_SERVER mode Summary:"
-            echo "Ready for further checks: ${CHECK_PATCH_LIST[@]:-"None"}"
+            echo "Ready for further checks:     ${CHECK_PATCH_LIST[@]:-"None"}"
             [[ ! -z $RESTART_VMS_IF_REQUIRED ]] && \
-            echo "Into automatic power cycle: ${POWEREDOFF_VMS_LIST[@]:-"None"}"
-            echo "Manual shut down is needed before to proceed: ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
-
+            echo "Into automatic power cycle:   ${POWEREDOFF_VMS_LIST[@]:-"None"}" || \
+            echo "Manual shut down is required: ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
         else
 
             # Fortunately there's not a 'RESTARTED_SERVER' scenario.
@@ -1158,6 +1166,8 @@ end_of_external_variables
                         # Move to main queue for check:
                         CHECK_PATCH_LIST+=($domain)
                         unset SHUTDOWN_REQUIRED_VMS_LIST[$i]
+
+                        [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "$domain" "Required shut down detected (resuming checks/backups)"
                     fi
                 done
             fi
@@ -1240,20 +1250,35 @@ end_of_external_variables
 
                     elif [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] || [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
 
+                        user_action_message="WARNING: USER ACTION IS REQUIRED!"
+
                         echo ""
-                        echo "WARNING: USER ACTION IS REQUIRED!"
+                        echo $user_action_message
 
-                        [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] && \
-                        echo "Perform a MANUAL SHUT DOWN of the following VM(s):'${SHUTDOWN_REQUIRED_VMS_LIST[@]}' to allow being checked automatically."
+                        if [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
 
-                        [[ ! -z ${FAILED_VMS_LIST[@]} ]] && \
-                        echo "VM(s): '${FAILED_VMS_LIST[@]}' FAILED or behave ABNORMALLY during the checks. Do a manual check and ensure proper functioning; then restart this container, so it can be checked again"
+                            shutdown_required_message="Perform a MANUAL SHUT DOWN of the following VM(s):'${SHUTDOWN_REQUIRED_VMS_LIST[@]}' to allow being checked automatically (meanwhile, checks/backups will be skipped)"
+
+                            echo $message
+                            [[ $(os_is_unraid) == yes ]] && unraid_notify "warning" "VM-Babysitter" "$user_action_message" "$shutdown_required_message"
+                        fi
+
+                        [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
+
+                            failed_vms_message="VM(s): '${FAILED_VMS_LIST[@]}' Failed to power on/off properly, or could not apply incremental backup patch during last check. Do a MANUAL REVISION of failing VMs IMMEDIATELY, and restart the container (meanwhile, will be ignored)"
+
+                            echo $message
+                            [[ $(os_is_unraid) == yes ]] && unraid_notify "alert" "VM-Babysitter/Libvirt" "$user_action_message" "$failed_vms_message"
+                        fi
                     fi
 
                     if [[ -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
 
+                        no_schedules_message="At the moment, NO Virtual Machine is on schedule for incremental backup"
+
                         echo ""
-                        echo "At the moment, NO Virtual Machine is on schedule for incremental backup"
+                        echo $no_schedules_message
+                        #[[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "No schedules" "$no_schedules_message"
                     fi
                 fi
             fi
@@ -1263,7 +1288,12 @@ end_of_external_variables
     done
 
 else
+
     # Initial checks have proven non-recoverable errors:
-    echo "ERROR: Could not start due to errors in one or more input parameters!"
+    failed_initialize_message="ERROR: Could not initialize due to errors in one or more input parameters!"
+
+    echo $message
+    [[ $(os_is_unraid) == yes ]] && unraid_notify "warning" "VM-Babysitter" "Initializing failed" "$failed_initialize_message. Check $(basename $MAIN_LOGPATH) for detailed info"
+
     stop_container
 fi
