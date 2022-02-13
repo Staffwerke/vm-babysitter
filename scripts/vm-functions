@@ -789,7 +789,7 @@ unraid_notify()
     local subject=$3
     local message=$4
 
-   ssh $SSH_OPTS root@localhost "/usr/local/emhttp/plugins/dynamix/scripts/notify -i $severity -e $event -s $subject -d '$message'"
+   ssh $SSH_OPTS root@localhost "/usr/local/emhttp/plugins/dynamix/scripts/notify -i \"$severity\" -e \"$event\" -s \"$subject\" -d \"$message\""
 
 # Adds a final delay to prevent false positive spamming detection (e.g. Telegram bots)
 sleep 1

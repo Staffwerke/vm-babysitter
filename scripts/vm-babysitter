@@ -1259,15 +1259,15 @@ end_of_external_variables
 
                             shutdown_required_message="Perform a MANUAL SHUT DOWN of the following VM(s):'${SHUTDOWN_REQUIRED_VMS_LIST[@]}' to allow being checked automatically (meanwhile, checks/backups will be skipped)"
 
-                            echo $message
+                            echo $shutdown_required_message
                             [[ $(os_is_unraid) == yes ]] && unraid_notify "warning" "VM-Babysitter" "$user_action_message" "$shutdown_required_message"
                         fi
 
-                        [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
+                        if [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
 
                             failed_vms_message="VM(s): '${FAILED_VMS_LIST[@]}' Failed to power on/off properly, or could not apply incremental backup patch during last check. Do a MANUAL REVISION of failing VMs IMMEDIATELY, and restart the container (meanwhile, will be ignored)"
 
-                            echo $message
+                            echo  $failed_vms_message
                             [[ $(os_is_unraid) == yes ]] && unraid_notify "alert" "VM-Babysitter/Libvirt" "$user_action_message" "$failed_vms_message"
                         fi
                     fi
