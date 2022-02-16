@@ -235,7 +235,7 @@ if [[ $ONGOING_BACKUP == false ]]; then
 
             # On Unraid, notifies about operations exclusively related with virtnbdbackup and rsync (others are done from vm-babysitter monitoring):
 
-            unraid_notify "info" "VM-Babysitter" "Virtnbdbackup" "Scheduled Incremental Backup completed"
+            unraid_notify "info" "VM-Babysitter" "Virtnbdbackup" "Scheduled Incremental Backup(s) completed"
 
             [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "Rsync" "${remote_sync_failed[@]}" "Could not sync to remote endpoint, it will be attempted again on next schedule (last status: $rsync_status)"
 
