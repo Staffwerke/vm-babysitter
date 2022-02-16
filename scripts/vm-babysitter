@@ -559,6 +559,8 @@ create_backup_chain()
     echo "___________________________________________________________________________________________________"
     echo "Creating Backup chains for Virtual machines: ${CREATE_BACKUP_CHAIN_LIST[@]}"
 
+    [[ $(os_is_unraid) == yes ]] && unraid_notify "info" "VM-Babysitter" "Virtnbdbackup" "New backup chain(s) creation is in progress (avoid to stop/restart this container until completed)"
+
     local i=0
     for domain in ${CREATE_BACKUP_CHAIN_LIST[@]}; do
 
@@ -726,7 +728,9 @@ create_backup_chain()
 
     if [[ $(os_is_unraid) == yes ]]; then
 
-        # On Unraid, notifies about failed operations exclusively related with virtnbdbackup and rsync (others are done from vm-babysitter):
+        # On Unraid, notifies about failed operations exclusively related with virtnbdbackup and rsync (others are done from vm-babysitter monitoring):
+
+        unraid_notify "info" "VM-Babysitter" "Virtnbdbackup" "Backup chain creation completed"
 
         [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "Rsync" "${remote_sync_failed[@]}" "Could not sync to remote endpoint, it will be attempted again on first schedule (last status: $rsync_status)"
 
