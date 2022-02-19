@@ -602,7 +602,6 @@ create_backup_chain()
                     fi
                 fi
 
-                # To DO: Sync on remote endpoint when REMOTE_BACKUPS_MAIN_PATH is set and bring status.
                 if [[ ${backup_chain_success[$i]} == $domain ]] && [[ ! -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
 
                     # Backup chain creation was successful and remote endpoint is (correctly) set,
@@ -1171,7 +1170,7 @@ end_of_external_variables
                         CHECK_PATCH_LIST+=($domain)
                         unset SHUTDOWN_REQUIRED_VMS_LIST[$i]
 
-                        [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "$domain" "Required shut down detected (resuming checks/backups)"
+                        [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "$domain" "Required shut down was detected (resuming checks/backups)"
                     fi
                 done
             fi
@@ -1297,7 +1296,7 @@ else
     failed_initialize_message="ERROR: Could not initialize due to errors in one or more input parameters!"
 
     echo $message
-    [[ $(os_is_unraid) == yes ]] && unraid_notify "warning" "VM-Babysitter" "Initializing failed" "$failed_initialize_message. Check $(basename $MAIN_LOGPATH) for detailed info"
+    [[ $(os_is_unraid) == yes ]] && unraid_notify "warning" "VM-Babysitter" "Failed to start container" "$failed_initialize_message. Check $(basename $MAIN_LOGPATH) for detailed info"
 
     stop_container
 fi
