@@ -24,42 +24,40 @@ Checks existing Virtual machines running on the local server, and performs the f
 
 VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 
-### Always required:
-
-**`BACKUPS_MAIN_PATH`**: Absolute path where vm-babysitter will search for, and save backup chains of all VMs (container fails if not passed, does not exist or r/w permission issues are found)
-
-### Required when syncing backups to a remote endpoint:
-**`REMOTE_BACKUPS_MAIN_PATH`**: SSH syntax of remote absolute path (e.g. user@host:/absolute/path/to/folder) to rsync successful backup chain tasks (default is work with local backups only)
-
-**`SSH_OPTS`**: SSH options for remote communications, including rsync transfers (default is none. Read below for detailed instructions)
-
-### Optional parameters:
+### Main parameters:
 **`AUTOSTART_VMS_LIST`**: Space separated list of VMs that will be started along with the container
 
-**`CRON_SCHEDULE`**: Cron-like string for incremental backups. E.g. "* 2 * * *" triggers everyday at 2 am local time (default is '@daily')
+**`BACKUPS_MAIN_PATH`**: Internal path where vm-babysitter will search for, and save backup chains of all VMs. Container fails if does not exist or r/w permission issues are found (Default value: '/backups')
 
-**`MAX_BACKUP_CHAINS_PER_VM`**: How many old backup chains to keep archived locally under BACKUPS_MAIN_PATH (default is infinite, set to "0" to disable old backups archive)
+**`CRON_SCHEDULE`**: Cron-like string for incremental backups. E.g. "* 2 * * *" triggers everyday at 2 am local time (Default value: '@daily')
 
-**`RAM_LIMIT_PER_SCHED_BACKUP`**: How much RAM in KiB to assign a shut down VM temporarily to perform backup tasks (default is no limit)
+**`MAX_BACKUP_CHAINS_PER_VM`**: How many old backup chains to keep archived locally under BACKUPS_MAIN_PATH (Default value: Infinite, set to "0" to disable backups archiving)
+
+**`RAM_LIMIT_PER_SCHED_BACKUP`**: How much RAM in KiB to assign a shut down VM temporarily to perform backup tasks (Default value: No limit)
+
+**`RESTART_VMS_IF_REQUIRED`**: When enabled non-zero lenght string, performs (temporal) shutdown / powercycle of VMs, checking backups or patch VM is needed (Default value: Disabled. It will notify user, via logs or Unraid notifications (if enabled) to perform these actions, and wait for VM to be shut down)
+
+**`TZ`**: Local timezone (Default value: UTC)
+
+**`VIRTNBDBACKUP_ARGS`**: Extra arguments passed to virtnbdbackup, in both full and inc backup. E.g. "--compress" (Default value: No arguments)
+
+### Advanced parameters:
+**`IGNORED_VMS_LIST`**: Space separated list of VMs to ignore, not checking or adding it to scheduled backups (Default value: Includees ALL persistent VMs with disk images able to be backed up, e.g. qcow2)
+
+**`MAIN_LOGPATH`**: Internal path for the main log file (Default value: "/logs/vm-babysitter.log")
+
+**`RSYNC_ARGS`**: Extra arguments for rsync when sends successful backups to REMOTE_BACKUPS_MAIN_PATH. E.g. "--bwlimit=350M" (Default value: No arguments)
+
+**`SCHEDULED_LOGPATH`**: Internal path for scheduled backups log file (Default value: "/logs/scheduled-backups.log")
+
+**`WAIT_TIME`**: Maximum time in seconds to await for VMs to confirm it has reached on/off states in certain scenarios (Default value: 60)
+
+### Required when syncing backups to a remote endpoint:
+**`REMOTE_BACKUPS_MAIN_PATH`**: SSH syntax of remote absolute path (e.g. user@host:/absolute/path/to/folder) to rsync successful backup chain tasks (Default value: Disabled)
 
 **`REMOTE_MAX_BACKUP_CHAINS_PER_VM`**: Same as MAX_BACKUP_CHAINS_PER_VM, but for REMOTE_BACKUPS_MAIN_PATH
 
-**`RESTART_VMS_IF_REQUIRED`**: When non-zero lenght string, performs (temporal) shutdown / powercycle of VMs, checking backups or patch VM is needed (default is to notify user to perform these actions, and wait for VM to be shut down)
-
-**`TZ`**: Local timezone (default is 'Etc/UTC')
-
-**`VIRTNBDBACKUP_ARGS`**: Extra arguments passed to virtnbdbackup, in both full and inc backup. E.g. "--compress" (default is no extra arguments)
-
-### Advanced parameters:
-**`IGNORED_VMS_LIST`**: Space separated list of VMs to ignore, not checking or adding it to scheduled backups (default is to include all persistent VMs having disk images able to be backed up)
-
-**`MAIN_LOGPATH`**: Absolute path for the main log file (default is "/logs/vm-babysitter.log")
-
-**`RSYNC_ARGS`**: Extra arguments for rsync when sends successful backups to REMOTE_BACKUPS_MAIN_PATH. E.g. "--bwlimit=350M" (default is no arguments)
-
-**`SCHEDULED_LOGPATH`**: Absolute path for scheduled backups log file (default is "/logs/scheduled-backups.log")
-
-**`WAIT_TIME`**: Maximum time in seconds to await for VMs to confirm it has reached on/off states in certain scenarios (default is 60 seconds)
+**`SSH_OPTS`**: SSH options for communications with involved hosts, including rsync, sshfs and Unraid notifications (Default value: No arguments) Read below for detailed instructions.
 
 ## Mount points:
 
@@ -67,9 +65,9 @@ VM-Babysitter relies entirely on correct mounts to find and save all files relat
 
 ### Backups and disk images:
 
-BACKUPS_MAIN_PATH should be mounted in ways that reflects same path on the host and inside the container. If BACKUPS_MAIN_PATH is "/mnt/user/Backups/vm-backups", a mountpoint should be:
+If BACKUPS_MAIN_PATH is "/mnt/user/Backups/vm-backups", a mountpoint should be:
 
-`- v /mnt/user/Backups/vm-backups:/mnt/user/Backups/vm-backups`
+`- v /mnt/user/Backups/vm-backups:/backups`
 
 The service needs full access to ALL VM's disk images to be backed up, from inside the container. There is no canonical rule about this, but the idea is to mount the folder that contains all disk images of VMs inside, or add different mounts if disk images are spread in different (and unrelated) places.
 
@@ -77,7 +75,7 @@ If, for example all disk images are located in '/mnt/user/VMs', a mountpoint sho
 
 `-v /mnt/user/VMs:/mnt/user/VMs`
 
-More mountpoints can be added as needed. The trick is to replicate same paths on the host, INSIDE the container, because these paths will be searched during execution.
+More mountpoints can be added as needed. The trick is to replicate same host INSIDE the container, because these paths will be searched via libvirt API during execution.
 If some, or none disk images are found (or r/w issues are detected) the container will fail.
 
 ### System, libvirt, and virtnbdbackup:
@@ -112,7 +110,7 @@ Assuming you have, or can create a pair of RSA keys (3072 bits or above is recom
 
 `-v /mnt/user/apps/vm-baybysitter/private:/private`
 
-And set `SSH_OPTS="-q -i /private/<your-private.key> -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"`
+And set `SSH_OPTS="-q -o IdentiyFile=/private/<your-private.key> -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"`
 
 allowing thus, transparent -and silent- communication between hosts.
 
