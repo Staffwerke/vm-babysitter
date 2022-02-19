@@ -4,6 +4,9 @@
 # Main variables:
 ###############################################################################
 
+# Internal mount point for main backups folder:
+BACKUPS_MAIN_PATH=${BACKUPS_MAIN_PATH:-"/backups"}
+
 # Temporal crontab file (to be loaded for cron)
 crontab_file="/tmp/crontab"
 
@@ -844,7 +847,7 @@ if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
                 if [[ ! -f $image ]]; then
 
                     FAILED_VMS_LIST+=($domain)
-                    echo "ERROR: $domain's disk image: $image not found"
+                    echo "ERROR: $domain's disk image: $image not found. Ensure you mount -and mirror- this correctly inside the container (e.g. '-v /common/path/to/vms/disks:/common/path/to/vms/disks')"
 
                 elif [[ ! -r $image ]] && [[ ! -w $image ]]; then
 
@@ -878,7 +881,7 @@ fi
 # 1.2 Check BACKUPS_MAIN_PATH
 #------------------------------------------------------------------------------
 
-if [[ ! -z $BACKUPS_MAIN_PATH ]]; then
+#if [[ ! -z $BACKUPS_MAIN_PATH ]]; then
 
     echo ""
 
@@ -889,9 +892,9 @@ if [[ ! -z $BACKUPS_MAIN_PATH ]]; then
 
             # $BACKUPS_MAIN_PATH has read/write permissions.
             backups_main_path_status="OK"
-            echo "Backups main path set to: $BACKUPS_MAIN_PATH"
-            # Check for MAX_BACKUP_CHAINS_PER_VM:
+            echo "Backups main path internally set to: $BACKUPS_MAIN_PATH"
 
+            # Check for MAX_BACKUP_CHAINS_PER_VM:
             if [[ $MAX_BACKUP_CHAINS_PER_VM =~ [0-9] ]]; then
 
                 # Is an integer number:
@@ -903,7 +906,6 @@ if [[ ! -z $BACKUPS_MAIN_PATH ]]; then
                 echo "Environment variable MAX_BACKUP_CHAINS_PER_VM not set. ALL recoverable backup chains will be archived locally"
 
             else
-
                 # Invalid value (unsets the 'OK' status):
                 unset backups_main_path_status
                 echo "ERROR: Incorrect value for environment variable MAX_BACKUP_CHAINS_PER_VM: '$MAX_BACKUP_CHAINS_PER_VM' <- It must be a natural integer"
@@ -914,12 +916,12 @@ if [[ ! -z $BACKUPS_MAIN_PATH ]]; then
         fi
     else
 
-        echo "ERROR: Backups main path: $BACKUPS_MAIN_PATH  <- Not found (or not a directory) inside the container"
+        echo "ERROR: Backups main path: $BACKUPS_MAIN_PATH  <- Not found inside the container. Ensure you mount this correctly (e.g. '-v /path/to/backups-main-path:/$BACKUPS_MAIN_PATH')"
     fi
-else
+#else
 
-    echo "ERROR: Environment variable BACKUPS_MAIN_PATH is not set!"
-fi
+    #echo "ERROR: Environment variable BACKUPS_MAIN_PATH is not set!"
+#fi
 
 # 1.3 Check REMOTE_BACKUPS_MAIN_PATH
 #------------------------------------------------------------------------------
