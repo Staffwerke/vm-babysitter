@@ -14,7 +14,7 @@
   <WebUI/>
   <TemplateURL/>
   <Icon/>
-  <ExtraParams>--rm</ExtraParams>
+  <ExtraParams/>
   <PostArgs/>
   <CPUset/>
   <DateInstalled>1643345112</DateInstalled>
