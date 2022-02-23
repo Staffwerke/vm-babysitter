@@ -45,7 +45,7 @@ if [[ $ONGOING_BACKUP == false ]]; then
     echo "############################################################################################################"
     echo "Scheduled Incremental Backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
 
-    [[ $(os_is_unraid) == yes ]] && unraid_notify "info" "VM-Babysitter" "Virtnbdbackup" "Scheduled Incremental Backup(s) in progress (avoid to stop/restart this container until completed)"
+    [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "Virtnbdbackup" "Scheduled Incremental Backup(s) in progress (avoid to stop/restart this container until completed)"
 
     if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
 
@@ -235,7 +235,7 @@ if [[ $ONGOING_BACKUP == false ]]; then
 
             # On Unraid, notifies about operations exclusively related with virtnbdbackup and rsync (others are done from vm-babysitter monitoring):
 
-            unraid_notify "info" "VM-Babysitter" "Virtnbdbackup" "Scheduled Incremental Backup(s) completed"
+            unraid_notify "normal" "VM-Babysitter" "Virtnbdbackup" "Scheduled Incremental Backup(s) completed"
 
             [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "Rsync" "${remote_sync_failed[@]}" "Could not sync to remote endpoint, it will be attempted again on next schedule (last status: $rsync_status)"
 
