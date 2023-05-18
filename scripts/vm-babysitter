@@ -1191,6 +1191,9 @@ end_of_external_variables
                         CHECK_PATCH_LIST+=($domain)
                         unset SHUTDOWN_REQUIRED_VMS_LIST[$i]
 
+                        # Rebuild indexes into the array:
+                        SHUTDOWN_REQUIRED_VMS_LIST=(${SHUTDOWN_REQUIRED_VMS_LIST[@]})
+
                         [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "$domain" "Required shut down was detected (resuming checks/backups)"
                     fi
                 done
@@ -1234,6 +1237,9 @@ end_of_external_variables
 
                     # Remove the VM from the list is being read:
                     unset POWEREDOFF_VMS_LIST[$i]
+
+                     # Rebuild indexes into the array:
+                     POWEREDOFF_VMS_LIST=(${POWEREDOFF_VMS_LIST[@]})
 
                     # Increases the counter:
                     ((i++))
