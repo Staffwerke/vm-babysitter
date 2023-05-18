@@ -497,11 +497,14 @@ check_backups()
         done
 
         # VM is unlisted from CHECK_BACKUPS_LIST:
-         unset CHECK_BACKUPS_LIST[$i]
+        #unset CHECK_BACKUPS_LIST[$i]
 
         # Increases the index to check the next VM:
         ((i++))
     done
+
+    # Cleanse CHECK_BACKUPS_LIST, since all VMs were processed, and copied into correspondent lists:
+    unset CHECK_BACKUPS_LIST
 
     # Writes updated SCHEDULED_BACKUPS_LIST value:
     # as a string, since sed can't expand arrays correctly:
@@ -676,11 +679,14 @@ create_backup_chain()
         done
 
         # Unlist VM from CREATE_BACKUP_CHAIN_LIST:
-         unset CREATE_BACKUP_CHAIN_LIST[$i]
+        #unset CREATE_BACKUP_CHAIN_LIST[$i]
 
         # Increases the index to check the next VM:
         ((i++))
     done
+
+    # Cleanse CREATE_BACKUP_CHAIN_LIST, since all VMs were processed, and copied into correspondent lists:
+    unset CREATE_BACKUP_CHAIN_LIST
 
     # Appends updated values:
     # (as a string, since sed can't expand arrays correctly):
@@ -805,6 +811,9 @@ if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
             fi
             ((i++))
         done
+
+        # Rebuild indexes into the array:
+        DOMAINS_LIST=(${DOMAINS_LIST[@]})
     fi
 
     # 1.1.2 Check AUTOSTART_VMS_LIST:
@@ -862,6 +871,9 @@ if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
             echo "WARNING: VM $domain has no drives that can be backed up, therefore will be ignored"
         fi
         ((i++))
+
+        # Rebuild indexes into the array:
+        DOMAINS_LIST=(${DOMAINS_LIST[@]})
     done
 
 
