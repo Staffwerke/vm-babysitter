@@ -879,18 +879,21 @@ if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
     # Re-check DOMAINS_LIST after the above procedure (ignored and left aside by other issues):
     if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
 
-        echo "WARNING: After initial check, no persistent Virtual machines are left available for backup"
+        # VMs are left after initial checks, then domain_list_status is correct:
+        domains_list_status="OK"
+
+        echo "Persistent Virtual machine(s) able to be backed up: ${DOMAINS_LIST[@]}"
 
     elif [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
 
+        # No VMs are left, but one or more failed the initial checks:
         echo "ERROR: Issues detected with '${FAILED_VMS_LIST[@]}' that need to be solved before to run this container again"
 
     else
-        # When no VM failed the test AND remained VMs to check (not ignored), then domain_list check is successful:
-        domains_list_status="OK"
-        echo "Persistent Virtual machine(s) able to be backed up: ${DOMAINS_LIST[@]}"
+        echo "WARNING: After initial check, no persistent Virtual machines are left available for backup"
     fi
 else
+    # No VMs were found from the beginning:
     echo "ERROR: No persistent Virtual machines were found!"
 fi
 
