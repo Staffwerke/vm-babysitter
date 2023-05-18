@@ -796,24 +796,21 @@ if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
 
     echo ""
 
-        i=0
         for domain in $IGNORED_VMS_LIST; do
 
             if [[ $(domain_exists $domain) == yes ]]; then
 
                 # Remove the VM from DOMAINS_LIST
                 unset DOMAINS_LIST[$(item_position $domain "DOMAINS_LIST")]
+
+                # Rebuild indexes into the array:
+                DOMAINS_LIST=(${DOMAINS_LIST[@]})
+
                 echo "$domain: Into IGNORED_VMS_LIST, therefore ignored"
             else
-
-                #unset IGNORED_VMS_LIST[$i]
                 echo "WARNING: VM '$domain' in IGNORED_VMS_LIST not found!"
             fi
-            ((i++))
         done
-
-        # Rebuild indexes into the array:
-        DOMAINS_LIST=(${DOMAINS_LIST[@]})
     fi
 
     # 1.1.2 Check AUTOSTART_VMS_LIST:
@@ -856,11 +853,13 @@ if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
                 if [[ ! -f $image ]]; then
 
                     FAILED_VMS_LIST+=($domain)
+
                     echo "ERROR: $domain's disk image: $image not found. Ensure you mount -and mirror- this correctly inside the container (e.g. '-v /common/path/to/vms/disks:/common/path/to/vms/disks')"
 
                 elif [[ ! -r $image ]] && [[ ! -w $image ]]; then
 
                     FAILED_VMS_LIST+=($domain)
+
                     echo "ERROR: $domain's disk image: $image has permission issues (cannot be read or written)"
                 fi
             done
@@ -868,14 +867,14 @@ if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
 
             # Exclude VMs without disks images that can be backed up:
             unset DOMAINS_LIST[$i]
+
+            # Rebuild indexes into the array:
+            DOMAINS_LIST=(${DOMAINS_LIST[@]})
+
             echo "WARNING: VM $domain has no drives that can be backed up, therefore will be ignored"
         fi
         ((i++))
-
-        # Rebuild indexes into the array:
-        DOMAINS_LIST=(${DOMAINS_LIST[@]})
     done
-
 
     if [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
 
