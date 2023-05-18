@@ -876,7 +876,12 @@ if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
         ((i++))
     done
 
-    if [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
+    # Re-check DOMAINS_LIST after the above procedure (ignored and left aside by other issues):
+    if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
+
+        echo "WARNING: After initial check, no persistent Virtual machines are left available for backup"
+
+    elif [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
 
         echo "ERROR: Issues detected with '${FAILED_VMS_LIST[@]}' that need to be solved before to run this container again"
 
@@ -886,7 +891,7 @@ if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
         echo "Persistent Virtual machine(s) able to be backed up: ${DOMAINS_LIST[@]}"
     fi
 else
-    echo "ERROR: No persistent Virtual machines found!"
+    echo "ERROR: No persistent Virtual machines were found!"
 fi
 
 # 1.2 Check BACKUPS_MAIN_PATH
@@ -1306,10 +1311,10 @@ end_of_external_variables
 else
 
     # Initial checks have proven non-recoverable errors:
-    failed_initialize_message="ERROR: Could not initialize due to errors in one or more input parameters!"
+    failed_initialize_message="ERROR: Could not initialize due to errors! Check $(basename $MAIN_LOGPATH) for detailed info"
 
     echo $message
-    [[ $(os_is_unraid) == yes ]] && unraid_notify "warning" "VM-Babysitter" "Failed to start container" "$failed_initialize_message. Check $(basename $MAIN_LOGPATH) for detailed info"
+    [[ $(os_is_unraid) == yes ]] && unraid_notify "warning" "VM-Babysitter" "Failed to start container" "$failed_initialize_message"
 
     stop_container
 fi
