@@ -127,23 +127,26 @@ check_patch()
         done
 
         # Removes VM from CHECK_PATCH_LIST:
-        unset CHECK_PATCH_LIST[$i]
+        #unset CHECK_PATCH_LIST[$i]
 
         # Increases the index to check the next VM:
         ((i++))
     done
 
+    # Flush CHECK_PATCH_LIST:
+    unset CHECK_PATCH_LIST
+
     # Writes updated CHECK_PATCH_LIST value (actually, should be empty)
     # as a string, since sed can't expand arrays correctly:
-    CHECK_PATCH_LIST="${CHECK_PATCH_LIST[@]}"
+    #CHECK_PATCH_LIST="${CHECK_PATCH_LIST[@]}"
 
-    # And updates it externally:
+    # And updates its (null) value externally:
     sed -i \
     -e "s/CHECK_PATCH_LIST=.*/CHECK_PATCH_LIST=($CHECK_PATCH_LIST)/" \
     $external_vars
 
     # Turn again stringified variables back into lists:
-    CHECK_PATCH_LIST=($CHECK_PATCH_LIST)
+    #CHECK_PATCH_LIST=($CHECK_PATCH_LIST)
 
     # Appends sub-list of (successfully) patched VMs to global CHECK_BACKUPS_LIST:
     CHECK_BACKUPS_LIST+=(${vm_patch_success[@]})
