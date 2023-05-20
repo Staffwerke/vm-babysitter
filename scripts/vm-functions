@@ -64,7 +64,7 @@ domain_delete_checkpoint()
     done
 
     # VMs must be running in order to delete checkpoints, except when '--metadata' argument is passed:
-    if [[ ! ${delete_options[@]} =~ "--metadata" ]] && [[ $(domain_state $domain) != "running" ]]
+    if [[ ! ${delete_options[@]} =~ "--metadata" ]] && [[ $(domain_state $domain) != "running" ]]; then
 
         echo "$domain: Failed to proceed. VM must be $vm_needed_state in order to delete checkpoints from QEMU and disk image(s) simultaneously"
         exit 1
