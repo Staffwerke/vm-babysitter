@@ -353,7 +353,7 @@ check_backups()
 
                         # Deletes checkpoints metadata if any detected:
                         echo "$domain: Pruning existing checkpoints in QEMU..."
-                        domain_delete_checkpoint_metadata $domain --all
+                        domain_delete_checkpoint $domain --all --metadata
                     fi
 
                     for image in $(domain_img_paths_list $domain); do

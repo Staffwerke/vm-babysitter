@@ -25,65 +25,62 @@ domain_checkpoint_list()
 }
 
 # -----------------------------------------------------------------------------
-# Deletes specific checkpoints of a given VM. If '--all' argument is passed and no checkpoints are specified, deletes ALL checkpoints for such VM listed by libvirt.
-# VM needs to be running or will fail):
+# Deletes specific checkpoints of a given VM, or all if '--all' argument is passed instead.
+# 'virsh checkpoint-delete' arguments are also processed:
 # -----------------------------------------------------------------------------
 domain_delete_checkpoint()
 {
-    local domain=$1
+    local domain
+    local checkpoints_list
+    local delete_all_checkpoints
+    local delete_options
+    local vm_needed_state
+
+    # First argument is always domain name
+    domain=$1
     shift
-    local checkpoints_list=($@)
 
-    # Second argument can be a single checkpoint, a list or '--all'
-    [[ ${checkpoints_list[@]} == --all ]] && checkpoints_list=($(domain_checkpoint_list $domain))
+    # Remaining arguments are processed as they come:
+    while [[ $@ != "" ]]; do
 
-    # VM must be running, or it won't work (as of QEMU 7.0.x):
-    local vm_needed_state="running"
+        case $1 in
 
-    if [[ $(domain_state $domain) == $vm_needed_state ]]; then
+            # Delete option, parsed as is:
+            --children | --children-only | --metadata)
+                delete_options+=($1)
+            ;;
+            # Indicates 'delete all checkpoints found, if any' and this replaces checkpoints list:
+            --all)
+                delete_all_checkpoints="TRUE"
+            ;;
+            # Any other value is taken as a checkpoint name, therefore added in checkpoints_list:
+            *)
+                checkpoints_list+=($1)
+        ;;
+        esac
 
-        if [[ ! -z ${checkpoints_list[@]} ]]; then
+        # Shifts to the next argument:
+        shift
+    done
 
-            echo "$domain: Removing ${#checkpoints_list[@]} checkpoint(s)..."
+    # VMs must be running in order to delete checkpoints, except when '--metadata' argument is passed:
+    if [[ ! ${delete_options[@]} =~ "--metadata" ]] && [[ $(domain_state $domain) != "running" ]]
 
-            for checkpoint in ${checkpoints_list[@]}; do
-                &> /dev/null virsh checkpoint-delete $domain $checkpoint
-            done
-        else
-
-            echo "$domain: Failed to proceed. Specify a list of specific checkpoints, or use option '--all' to remove all checkpoints"
-        fi
-    else
-        echo "$domain: Failed to proceed. VM must be $vm_needed_state in order to delete checkpoints from QEMU and disk image(s)"
+        echo "$domain: Failed to proceed. VM must be $vm_needed_state in order to delete checkpoints from QEMU and disk image(s) simultaneously"
+        exit 1
     fi
-
-}
-
-# -----------------------------------------------------------------------------
-# Similar to 'domain_delete_checkpoint' but only deletes checkpoints metadata, and VM state is irrelevant:
-# -----------------------------------------------------------------------------
-domain_delete_checkpoint_metadata()
-{
-    local domain=$1
-    shift
-    local checkpoints_list=($@)
-
-    # Second argument can be a single checkpoint, a list or '--all'
-    [[ ${checkpoints_list[@]} == --all ]] && checkpoints_list=($(domain_checkpoint_list $domain))
-
-    # Required to only delete QEMU metadata:
-    local arguments="--metadata"
 
     if [[ ! -z ${checkpoints_list[@]} ]]; then
 
-        echo "$domain: Removing ${#checkpoints_list[@]} checkpoint(s) metadata..."
+        if [[ ! -z $delete_all_checkpoints ]] && checkpoints_list=($(domain_checkpoint_list $domain))
+
+        echo "$domain: Removing ${#checkpoints_list[@]} checkpoint(s)..."
 
         for checkpoint in ${checkpoints_list[@]}; do
-            &> /dev/null virsh checkpoint-delete $domain $checkpoint $arguments
+            &> /dev/null virsh checkpoint-delete $domain $checkpoint ${delete_options[@]}
         done
     else
-
-        echo "$domain: Failed to proceed. Specify a list of specific checkpoints, or use option '--all' to remove all checkpoints metadata"
+        echo "$domain: No checkpoints to delete"
     fi
 }
 
