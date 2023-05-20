@@ -49,7 +49,7 @@ domain_delete_checkpoint()
             --children | --children-only | --metadata)
                 delete_options+=($1)
             ;;
-            # Indicates 'delete all checkpoints found, if any' and this replaces checkpoints list:
+            # Indicates to delete all checkpoints found, instead of processing checkpoints_list:
             --all)
                 delete_all_checkpoints="TRUE"
             ;;
@@ -70,9 +70,10 @@ domain_delete_checkpoint()
         exit 1
     fi
 
-    if [[ ! -z ${checkpoints_list[@]} ]]; then
+    # '--all' argument was passed. Search for all checkpoints in this VM:
+    [[ ! -z $delete_all_checkpoints ]] && checkpoints_list=($(domain_checkpoint_list $domain))
 
-        if [[ ! -z $delete_all_checkpoints ]] && checkpoints_list=($(domain_checkpoint_list $domain))
+    if [[ ! -z ${checkpoints_list[@]} ]]; then
 
         echo "$domain: Removing ${#checkpoints_list[@]} checkpoint(s)..."
 
