@@ -435,7 +435,7 @@ do_backup_chain()
     if [[ $create_backup_chain_status -eq 0 ]]; then
 
         echo ""
-        echo "$domain: $backup_mode backup of successfully finished!"
+        echo "$domain: $backup_mode backup successfully finished!"
     else
 
         echo ""
