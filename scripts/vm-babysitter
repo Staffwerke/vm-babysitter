@@ -1074,7 +1074,7 @@ end_of_crontab
 
         echo "OS Unraid detected"
 
-        for domain in ${DOMAINS_LIST[@]}; do
+        for domain in $(domains_list); do
 
             # Looks for checkpoints in all VMs, only stopping if it finds something
             # (does not rely on expose checkpoints dir inside the container):
@@ -1087,10 +1087,9 @@ end_of_crontab
             # RESTARTED_SERVER mode detected:
             RESTARTED_SERVER="true"
             echo "____________________________________________________________________________________________________________"
-            echo "WARNING: No checkpoints were found by libvirt at all. RESTARTED_SERVER mode enabled!"
-            echo "Unraid server appears to have been restarted recently or this is the very first usage"
-            echo "Virtual machines shown in the above list are in need to be Shut Down in order to check backup chain's integrity more comprehensively, attempting to fixup or (re)creating as needed"
-            echo "(This mode will be disabled after first scheduled backup has been performed)"
+            echo "WARNING: None of the persistent VM has previous checkpoints! This server might have been restarted recently, so a more comprehensive check is required"
+            echo "Virtual machine(s) set for backup are in need to be Shut Down in order to check its backup chain integrity, rebuilding/fixing as needed"
+            echo ""
 
             for domain in ${DOMAINS_LIST[@]}; do
 
