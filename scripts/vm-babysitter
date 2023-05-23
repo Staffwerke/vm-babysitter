@@ -558,7 +558,7 @@ create_backup_chain()
     echo "___________________________________________________________________________________________________"
     echo "Creating Backup chains for Virtual machines: ${CREATE_BACKUP_CHAIN_LIST[@]}"
 
-    [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "Virtnbdbackup" "New backup chain(s) creation is in progress (avoid to stop/restart this container until completed)"
+    [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "${CREATE_BACKUP_CHAIN_LIST[@]}:" "New backup chain(s) creation is in progress (avoid to stop/restart this container until completed)"
 
     local i=0
     for domain in ${CREATE_BACKUP_CHAIN_LIST[@]}; do
@@ -671,9 +671,6 @@ create_backup_chain()
             fi
         done
 
-        # Unlist VM from CREATE_BACKUP_CHAIN_LIST:
-        #unset CREATE_BACKUP_CHAIN_LIST[$i]
-
         # Increases the index to check the next VM:
         ((i++))
     done
@@ -681,26 +678,24 @@ create_backup_chain()
     # Cleanse CREATE_BACKUP_CHAIN_LIST, since all VMs were processed, and copied into correspondent lists:
     unset CREATE_BACKUP_CHAIN_LIST
 
-    # Appends updated values:
-    # (as a string, since sed can't expand arrays correctly):
-    SCHEDULED_BACKUPS_LIST+=(${backup_chain_success[@]})
-    SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
+    [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "${backup_chain_success[@]}:" "Backup chain(s) creation completed"
 
-    CHECK_PATCH_LIST+=(${backup_chain_failed[@]})
-    CHECK_PATCH_LIST="${CHECK_PATCH_LIST[@]}"
+    # Appends updated values:
+    SCHEDULED_BACKUPS_LIST+=(${backup_chain_success[@]})
 
     FAILED_VMS_LIST+=(${domain_poweron_failed[@]})
-    FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
+    FAILED_VMS_LIST+=(${backup_chain_failed[@]})
 
     # And updates them all at once:
+    SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
+    FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
+
     sed -i \
     -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
-    -e "s/CHECK_PATCH_LIST=.*/CHECK_PATCH_LIST=($CHECK_PATCH_LIST)/" \
     -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
     $external_vars
 
     # Turn again stringified variables back into lists:
-    CHECK_PATCH_LIST=($CHECK_PATCH_LIST)
     SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)
     FAILED_VMS_LIST=($FAILED_VMS_LIST)
 
@@ -731,11 +726,9 @@ create_backup_chain()
 
         # On Unraid, notifies about failed operations exclusively related with virtnbdbackup and rsync (others are done from vm-babysitter monitoring):
 
-        unraid_notify "normal" "VM-Babysitter" "Virtnbdbackup" "Backup chain(s) creation completed"
+        [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "Rsync" "${remote_sync_failed[@]}:" "Could not sync to remote endpoint, it will be attempted again on first schedule (last status: $rsync_status)"
 
-        [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "Rsync" "${remote_sync_failed[@]}" "Could not sync to remote endpoint, it will be attempted again on first schedule (last status: $rsync_status)"
-
-        [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "Virtnbdbackup" "${backup_chain_failed[@]}" "Could not create new backup chain(s). Check $(basename $MAIN_LOGPATH) for detailed info"
+        [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "Virtnbdbackup" "${backup_chain_failed[@]}:" "Could not create new backup chain(s). Check $(basename $MAIN_LOGPATH) for detailed info"
     fi
 }
 
