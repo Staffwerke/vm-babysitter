@@ -126,9 +126,6 @@ check_patch()
             fi
         done
 
-        # Removes VM from CHECK_PATCH_LIST:
-        #unset CHECK_PATCH_LIST[$i]
-
         # Increases the index to check the next VM:
         ((i++))
     done
@@ -136,17 +133,10 @@ check_patch()
     # Flush CHECK_PATCH_LIST:
     unset CHECK_PATCH_LIST
 
-    # Writes updated CHECK_PATCH_LIST value (actually, should be empty)
-    # as a string, since sed can't expand arrays correctly:
-    #CHECK_PATCH_LIST="${CHECK_PATCH_LIST[@]}"
-
-    # And updates its (null) value externally:
+    # Updates its (null) value externally:
     sed -i \
-    -e "s/CHECK_PATCH_LIST=.*/CHECK_PATCH_LIST=($CHECK_PATCH_LIST)/" \
+    -e "s/CHECK_PATCH_LIST=.*/CHECK_PATCH_LIST=()/" \
     $external_vars
-
-    # Turn again stringified variables back into lists:
-    #CHECK_PATCH_LIST=($CHECK_PATCH_LIST)
 
     # Appends sub-list of (successfully) patched VMs to global CHECK_BACKUPS_LIST:
     CHECK_BACKUPS_LIST+=(${vm_patch_success[@]})
@@ -154,11 +144,11 @@ check_patch()
     # Appends sub-list to the global list of powered OFF VMs:
     POWEREDOFF_VMS_LIST+=(${domain_shutdown_success[@]})
 
-    # Appends sub list of VMs that failed to shutdoen to global SHUTDOWN_REQUIRED_VMS_LIST:
+    # Appends sub list of VMs that failed to shutdown to global SHUTDOWN_REQUIRED_VMS_LIST:
     SHUTDOWN_REQUIRED_VMS_LIST+=(${domain_shutdown_failed[@]})
 
     # Appends sub list of failed VMs:
-    FAILED_VMS_LIST+=(${domain_shutdown_failed[@]})
+    FAILED_VMS_LIST+=(${vm_patch_failed[@]})
 
     echo ""
     echo "Incremental Backup Patch Summary:"
