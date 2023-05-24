@@ -349,7 +349,7 @@ domain_start()
                     ((counter++))
 
                     # (Silently) Gets VM output about its qemu agent:
-                    > /dev/null virsh guestinfo $domain
+                    &> /dev/null virsh guestinfo $domain
                     agent_status=$?
 
                     if [[ $agent_status -eq 0 ]]; then
