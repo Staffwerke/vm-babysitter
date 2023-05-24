@@ -204,76 +204,49 @@ domain_powercycle()
 }
 
 #------------------------------------------------------------------------------
-# From a given domain and size(s) or flags sets VM RAM. If both max and used ram are passed, configures both. If one value and '--max' or '--used' are passed, configures according the flag. If one value is passed only, configures both max and used the same. Returns status '0' if sucess and '1' if any of the operations failed:
+# From a given domain and size(s) and/or flags, silently sets VM RAM. If both max and used ram sizes are passed, configures each. If one value and '--max' or '--used' are passed, configures according the flag. If one size is passed with no flag, configures both max and used the same. Returns status '0' if sucess and '1' if any of the operations failed:
 #------------------------------------------------------------------------------
 domain_setmem()
 {
-
-    local domain=$1                 # First argument is always VM
+    local domain=$1                             # First argument is always VM
     shift
-    local parameter=($@)            # Remaining parameters are expected to be string
-
-    local value1="${parameter[0]}"  # Second argument is asumed as integer (RAM value in KiB)
-    local value2="${parameter[1]}"  # Third argument can be another integer RAM value, a flag or none.
+    local parameter_list=($2)                   # Remaining parameters are expected to be a string:
+                                                # index 0 is always asumed as integer (RAM value in KiB)
+                                                # index 1 can be another integer RAM value, a flag or null.
+    shift
+    local command_list=("setmaxmem" "setmem")   # index o is max RAM, index 1 is used RAM
 
     local domain_setmem_status=0
 
-    # What defines the action to take is based onto third argument ($value2):
-    case $value2 in
+    # What defines the course of action is the value in index 1:
+    case ${parameter_list[1]} in
 
-        --max) # Assumes $value1 is max memory:
-            > /dev/null virsh setmaxmem $domain $value1 --config
+        --max) # Assumes index 0 as max memory:
+            &> /dev/null virsh ${command_list[0]} $domain ${parameter_list[1]} --config
             domain_setmem_status=$?
         ;;
 
-        --used) # Assumes $value1 is used memory:
-            > /dev/null virsh setmem $domain $value1 --config
+        --used) # index 0 as used memory:
+            &> /dev/null virsh ${command_list[1]} $domain ${parameter_list[1]} --config
             domain_setmem_status=$?
         ;;
 
-        [0-9]) # Assumes $value1 as max memory and $value2 as used memory:
-            local values_list=($value1 $value2)
-            local i=0
-            for range in setmaxmem setmem; do
-                > /dev/null virsh $range $domain ${values_list[$i]} --config
-                [[ $? -ne 0 ]] && domain_setmem_status=$?
-                ((i++))
+        "") # Assumes index 0 as both, max and used memory (updates status if fails):
+            for set in ${command_list[@]}; do
+                &> /dev/null virsh $set $domain ${parameter_list[0]} --config || domain_setmem_status=$?
             done
         ;;
 
-        "") # Assumes $value1 as both max and used memory:
-            for range in setmaxmem setmem; do
-                > /dev/null virsh $range $domain $value1 --config
-                [[ $? -ne 0 ]] && domain_setmem_status=$?
+        *) # Assumes index 0 as max memory and index 1 as used memory (updates status if fails):
+            local i=0
+            for set in ${command_list[@]}; do
+                &> /dev/null virsh $set $domain ${parameter_list[$i]} --config || domain_setmem_status=$?
+                ((i++))
             done
         ;;
         esac
 
     return $domain_setmem_status
-
-: << 'disabled'
-    local domain_setmem_status=0
-
-    if [[ -z $3 ]]; then
-
-        for range in setmaxmem setmem; do
-            > /dev/null virsh $range $1 $2 --config
-            [[ $? -ne 0 ]] && domain_setmem_status=$?
-        done
-
-    elif [[ $3 == --max ]]; then
-
-        > /dev/null virsh setmaxmem $1 $2 --config
-        domain_setmem_status=$?
-
-    elif [[ $3 == --used ]]; then
-
-        > /dev/null virsh setmem $1 $2 --config
-        domain_setmem_status=$?
-    fi
-
-    return $domain_setmem_status
-disabled
 }
 
 # -----------------------------------------------------------------------------
