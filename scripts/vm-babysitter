@@ -558,7 +558,7 @@ create_backup_chain()
     echo "___________________________________________________________________________________________________"
     echo "Creating Backup chains for Virtual machines: ${CREATE_BACKUP_CHAIN_LIST[@]}"
 
-    [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "${CREATE_BACKUP_CHAIN_LIST[@]}:" "New backup chain(s) creation is in progress (avoid to stop/restart this container until completed)"
+    [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "Backup chain creation" "In progress for ${CREATE_BACKUP_CHAIN_LIST[@]}. Avoid to stop/restart this container until further notice"
 
     local i=0
     for domain in ${CREATE_BACKUP_CHAIN_LIST[@]}; do
@@ -575,7 +575,9 @@ create_backup_chain()
                 # Only when VM is running, attempts to create a new backup chain:
                 do_backup_chain $domain "full" $BACKUPS_MAIN_PATH $VIRTNBDBACKUP_ARGS
 
-                if [[ $? -eq 0 ]]; then
+                local virtnbdbackup_status=$?
+
+                if [[ $virtnbdbackup_status -eq 0 ]]; then
 
                     # Backup chain creation was successful!
                     backup_chain_success[$i]=$domain
@@ -678,8 +680,6 @@ create_backup_chain()
     # Cleanse CREATE_BACKUP_CHAIN_LIST, since all VMs were processed, and copied into correspondent lists:
     unset CREATE_BACKUP_CHAIN_LIST
 
-    [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "${backup_chain_success[@]}:" "Backup chain(s) creation completed"
-
     # Appends updated values:
     SCHEDULED_BACKUPS_LIST+=(${backup_chain_success[@]})
 
@@ -716,19 +716,19 @@ create_backup_chain()
         echo "Could not copy to remote mirror:  ${remote_sync_failed[@]:-"None"}"
     fi
 
-    if [[ -z ${backup_chain_failed[@]} ]] && [[ -z ${domain_poweron_failed[@]} ]]; then
+    if [[ -z ${backup_chain_failed[@]} ]] && [[ -z ${domain_poweron_failed[@]} ]] && [[ -z ${remote_sync_failed[@]} ]]; then
 
         echo ""
         echo "All Backup Chains Created!"
-    fi
 
-    if [[ $(os_is_unraid) == yes ]]; then
+        [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "Backup chain creation" "Finished"
 
+    elif [[ $(os_is_unraid) == yes ]]; then
         # On Unraid, notifies about failed operations exclusively related with virtnbdbackup and rsync (others are done from vm-babysitter monitoring):
 
-        [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "Rsync" "${remote_sync_failed[@]}:" "Could not sync to remote endpoint, it will be attempted again on first schedule (last status: $rsync_status)"
+        [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_status)" "Could not create backup chain(s) for: ${domain_poweron_failed[@]} ${backup_chain_failed[@]}. Check $(basename $MAIN_LOGPATH) for detailed info"
 
-        [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "Virtnbdbackup" "${backup_chain_failed[@]}:" "Could not create new backup chain(s). Check $(basename $MAIN_LOGPATH) for detailed info"
+        [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync failed (last status: $rsync_status)" "Could not sync backup chain(s) for: ${remote_sync_failed[@]}. Check $(basename $MAIN_LOGPATH) for detailed info"
     fi
 }
 
@@ -1179,7 +1179,7 @@ end_of_external_variables
                         # Rebuild indexes into the array:
                         SHUTDOWN_REQUIRED_VMS_LIST=(${SHUTDOWN_REQUIRED_VMS_LIST[@]})
 
-                        [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "$domain" "Required shut down was detected (resuming checks/backups)"
+                        [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "Required shut down detected" "Resuming check/backup for $domain"
                     fi
                 done
             fi
@@ -1265,25 +1265,25 @@ end_of_external_variables
 
                     elif [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] || [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
 
-                        user_action_message="WARNING: USER ACTION IS REQUIRED!"
+                        user_action_message="USER ACTION IS REQUIRED!"
 
                         echo ""
                         echo $user_action_message
 
                         if [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
 
-                            shutdown_required_message="Perform a MANUAL SHUT DOWN of the following VM(s):'${SHUTDOWN_REQUIRED_VMS_LIST[@]}' to allow being checked automatically (meanwhile, checks/backups will be skipped)"
+                            shutdown_required_message="Perform a manual SHUT DOWN of: ${SHUTDOWN_REQUIRED_VMS_LIST[@]} as SOON as POSSIBLE! This is needed to allow being checked automatically (meanwhile, it will be skipped of checks/backups)"
 
-                            echo $shutdown_required_message
+                            echo "WARNING: $shutdown_required_message"
                             [[ $(os_is_unraid) == yes ]] && unraid_notify "warning" "VM-Babysitter" "$user_action_message" "$shutdown_required_message"
                         fi
 
                         if [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
 
-                            failed_vms_message="VM(s): '${FAILED_VMS_LIST[@]}' Failed to power on/off properly, or could not apply incremental backup patch during last check. Do a MANUAL REVISION of failing VMs IMMEDIATELY, and restart the container (meanwhile, will be ignored)"
+                            failed_vms_message="Perform a FULL MANUAL CHECK of: ${FAILED_VMS_LIST[@]} as SOON as POSSIBLE! Some check, backup or another operation failed unexpectedly (it will be permanently ignored until container restart)"
 
-                            echo  $failed_vms_message
-                            [[ $(os_is_unraid) == yes ]] && unraid_notify "alert" "VM-Babysitter/Libvirt" "$user_action_message" "$failed_vms_message"
+                            echo  "ERROR: $failed_vms_message"
+                            [[ $(os_is_unraid) == yes ]] && unraid_notify "alert" "VM-Babysitter" "$user_action_message" "$failed_vms_message"
                         fi
                     fi
 
@@ -1305,10 +1305,10 @@ end_of_external_variables
 else
 
     # Initial checks have proven non-recoverable errors:
-    failed_initialize_message="ERROR: Could not initialize due to errors! Check $(basename $MAIN_LOGPATH) for detailed info"
+    failed_initialize_message="Could not initialize due to errors! Check $(basename $MAIN_LOGPATH) for detailed info"
 
-    echo $message
-    [[ $(os_is_unraid) == yes ]] && unraid_notify "warning" "VM-Babysitter" "Failed to start container" "$failed_initialize_message"
+    echo "ERROR: $message"
+    [[ $(os_is_unraid) == yes ]] && unraid_notify "alert" "VM-Babysitter" "Failed to start container" "$failed_initialize_message"
 
     stop_container
 fi
