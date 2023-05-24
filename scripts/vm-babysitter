@@ -886,47 +886,41 @@ fi
 # 1.2 Check BACKUPS_MAIN_PATH
 #------------------------------------------------------------------------------
 
-#if [[ ! -z $BACKUPS_MAIN_PATH ]]; then
+echo ""
 
-    echo ""
+if  [[ -d $BACKUPS_MAIN_PATH ]]; then
 
-    if  [[ -d $BACKUPS_MAIN_PATH ]]; then
+    # $BACKUPS_MAIN_PATH found
+    if  [[ -r $BACKUPS_MAIN_PATH ]] && [[ -w $BACKUPS_MAIN_PATH ]]; then
 
-        # $BACKUPS_MAIN_PATH found
-        if  [[ -r $BACKUPS_MAIN_PATH ]] && [[ -w $BACKUPS_MAIN_PATH ]]; then
+        # $BACKUPS_MAIN_PATH has read/write permissions.
+        backups_main_path_status="OK"
+        echo "Backups main path internally set to: $BACKUPS_MAIN_PATH"
 
-            # $BACKUPS_MAIN_PATH has read/write permissions.
-            backups_main_path_status="OK"
-            echo "Backups main path internally set to: $BACKUPS_MAIN_PATH"
+        # Check for MAX_BACKUP_CHAINS_PER_VM:
+        if [[ $MAX_BACKUP_CHAINS_PER_VM =~ [0-9] ]]; then
 
-            # Check for MAX_BACKUP_CHAINS_PER_VM:
-            if [[ $MAX_BACKUP_CHAINS_PER_VM =~ [0-9] ]]; then
+            # Is an integer number:
+            echo "Max backup chains per VM to keep locally: $MAX_BACKUP_CHAINS_PER_VM"
 
-                # Is an integer number:
-                echo "Max backup chains per VM to keep locally: $MAX_BACKUP_CHAINS_PER_VM"
+        elif [[ -z $MAX_BACKUP_CHAINS_PER_VM ]]; then
 
-            elif [[ -z $MAX_BACKUP_CHAINS_PER_VM ]]; then
+            # Was not set:
+            echo "Environment variable MAX_BACKUP_CHAINS_PER_VM not set. ALL recoverable backup chains will be archived locally"
 
-                # Was not set:
-                echo "Environment variable MAX_BACKUP_CHAINS_PER_VM not set. ALL recoverable backup chains will be archived locally"
-
-            else
-                # Invalid value (unsets the 'OK' status):
-                unset backups_main_path_status
-                echo "ERROR: Incorrect value for environment variable MAX_BACKUP_CHAINS_PER_VM: '$MAX_BACKUP_CHAINS_PER_VM' <- It must be a natural integer"
-            fi
         else
-
-            echo "ERROR: Backups main path: $BACKUPS_MAIN_PATH <- Permission issues (cannot be read or written)"
+            # Invalid value (unsets the 'OK' status):
+            unset backups_main_path_status
+            echo "ERROR: Incorrect value for environment variable MAX_BACKUP_CHAINS_PER_VM: '$MAX_BACKUP_CHAINS_PER_VM' <- It must be a natural integer"
         fi
     else
 
-        echo "ERROR: Backups main path: $BACKUPS_MAIN_PATH  <- Not found inside the container. Ensure you mount this correctly (e.g. '-v /path/to/backups-main-path:/$BACKUPS_MAIN_PATH')"
+        echo "ERROR: Backups main path: $BACKUPS_MAIN_PATH <- Permission issues (cannot be read or written)"
     fi
-#else
+else
 
-    #echo "ERROR: Environment variable BACKUPS_MAIN_PATH is not set!"
-#fi
+    echo "ERROR: Backups main path: $BACKUPS_MAIN_PATH  <- Not found inside the container. Ensure you mount this correctly (e.g. '-v /path/to/backups-main-path:/$BACKUPS_MAIN_PATH')"
+fi
 
 # 1.3 Check REMOTE_BACKUPS_MAIN_PATH
 #------------------------------------------------------------------------------
