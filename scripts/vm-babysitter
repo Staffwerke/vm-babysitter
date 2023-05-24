@@ -28,6 +28,9 @@ SCHEDULED_LOGPATH=${SCHEDULED_LOGPATH:-"/logs/scheduled-backups.log"}
 # Location of current Time Zone (if defined in ENV TZ):
 [[ -f /usr/share/zoneinfo/$TZ ]] && local_timezone_file="/usr/share/zoneinfo/$TZ"
 
+# Converts scaled values to KiB:
+[[ ! -z $RAM_LIMIT_PER_SCHED_BACKUP ]] && RAM_LIMIT_PER_SCHED_BACKUP=$(numfmt --from=iec --to-unit=1Ki $RAM_LIMIT_PER_SCHED_BACKUP)
+
 ###############################################################################
 # Specific procedures:
 ###############################################################################
