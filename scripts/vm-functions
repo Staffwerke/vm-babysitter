@@ -209,33 +209,41 @@ domain_powercycle()
 domain_setmem()
 {
 
+    local domain=$1                 # First argument is always VM
+    shift
+    local parameter=($@)            # Remaining parameters are expected to be string
+
+    local value1="${parameter[0]}"  # Second argument is asumed as integer (RAM value in KiB)
+    local value2="${parameter[1]}"  # Third argument can be another integer RAM value, a flag or none.
+
     local domain_setmem_status=0
 
-    case $3 in
+    # What defines the action to take is based onto third argument ($value2):
+    case $value2 in
 
-        --max) # Assumes $2 is max memory:
-            > /dev/null virsh setmaxmem $1 $2 --config
+        --max) # Assumes $value1 is max memory:
+            > /dev/null virsh setmaxmem $domain $value1 --config
             domain_setmem_status=$?
         ;;
 
-        --used) # Assumes $2 is used memory:
-            > /dev/null virsh setmem $1 $2 --config
+        --used) # Assumes $value1 is used memory:
+            > /dev/null virsh setmem $domain $value1 --config
             domain_setmem_status=$?
         ;;
 
-        [0-9]) # Assumes $2 as max memory and $3 as used memory:
-            local values_list=($2 $3)
+        [0-9]) # Assumes $value1 as max memory and $value2 as used memory:
+            local values_list=($value1 $value2)
             local i=0
             for range in setmaxmem setmem; do
-                > /dev/null virsh $range $1 ${values_list[$i]} --config
+                > /dev/null virsh $range $domain ${values_list[$i]} --config
                 [[ $? -ne 0 ]] && domain_setmem_status=$?
                 ((i++))
             done
         ;;
 
-        "") # Assumes $2 as both max and used memory:
+        "") # Assumes $value1 as both max and used memory:
             for range in setmaxmem setmem; do
-                > /dev/null virsh $range $1 $2 --config
+                > /dev/null virsh $range $domain $value1 --config
                 [[ $? -ne 0 ]] && domain_setmem_status=$?
             done
         ;;
