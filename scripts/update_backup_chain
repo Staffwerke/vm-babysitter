@@ -47,7 +47,7 @@ if [[ $ONGOING_BACKUP == false ]]; then
 
     if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
 
-        [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "${SCHEDULED_BACKUPS_LIST[@]}:" "Scheduled Incremental Backup(s) in progress (avoid to stop/restart this container until completed)"
+        [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "Backup chain update" "In progress for ${SCHEDULED_BACKUPS_LIST[@]}. Avoid to stop/restart this container until further notice"
 
         echo "Virtual machines: '${SCHEDULED_BACKUPS_LIST[@]}'"
         echo ""
@@ -73,13 +73,14 @@ if [[ $ONGOING_BACKUP == false ]]; then
                         # Backup chain creation was successful!
                         backup_chain_success[$i]=$domain
 
-                        #echo "$domain: Incremental backup successfully added to the backup chain"
                     else
+
+                        # Get last state for virtnbdbackup:
+                        virtnbdbackup_failed_status=$?
 
                         # Failed to create a new backup chain:
                         backup_chain_failed[$i]=$domain
 
-                        #echo "$domain: Failed to perform incremental backup. Read the logs above to determine the specific cause of fail)"
                     fi
 
                     if [[ ${domain_poweron_success[$i]} == $domain ]]; then
@@ -106,15 +107,16 @@ if [[ $ONGOING_BACKUP == false ]]; then
                         # Transfer backup using SSH_OPTS and RSYNC_ARGS:
                         rsync -a $RSYNC_ARGS -e "ssh $SSH_OPTS" $BACKUPS_MAIN_PATH/$domain/ $REMOTE_BACKUPS_MAIN_PATH/$domain/
 
-                        rsync_status=$?
-
                         # Depending on success with rsync, will add the VM to $remote_success or $remote_fail
-                        if [[ $rsync_status -eq 0 ]]; then
+                        if [[ $? -eq 0 ]]; then
 
                             # When rsync exited normally, adds the VM to $remote_sync_success:
                             remote_sync_success[$i]+=$domain
                             echo "$domain: Incremental backup was successfully synced onto remote endpoint"
                         else
+
+                            # Get last state for virtnbdbackup:
+                            rsync_failed_status=$?
 
                             # Otherwise, adds the VM to $remote_sync_failed list:
                             remote_sync_failed[$i]+=$domain
@@ -157,7 +159,11 @@ if [[ $ONGOING_BACKUP == false ]]; then
                     else
 
                         # VM failed to power on. This is an abnormal situation:
-                        echo "$domain: failed to power on (backup chain update could not be performed)"
+
+                        # Get last state for virsh:
+                        virsh_failed_status=$?
+
+                        echo "$domain: Failed to start with virsh status: $virsh_failed_status (backup chain update could not be performed)"
                         domain_poweron_failed[$i]=$domain
 
                         # Breaks the loop:
@@ -169,8 +175,6 @@ if [[ $ONGOING_BACKUP == false ]]; then
             # Increases the index to check the next VM:
             ((i++))
         done
-
-        unraid_notify "normal" "VM-Babysitter" "${backup_chain_success[@]}" "Scheduled Incremental Backup(s) completed"
 
         # Appends updated values
         FAILED_VMS_LIST+=(${domain_poweron_failed[@]})
@@ -213,10 +217,20 @@ if [[ $ONGOING_BACKUP == false ]]; then
             echo "Failed sync to remote mirror: ${remote_sync_failed[@]:-"None"}"
         fi
 
-        if [[ -z ${backup_chain_failed[@]} ]] && [[ -z ${domain_poweron_failed[@]} ]]; then
+        if [[ -z ${backup_chain_failed[@]} ]] && [[ -z ${domain_poweron_failed[@]} ]] && [[ -z ${remote_sync_failed[@]} ]]; then
 
             echo ""
-            echo "ALL VMs WERE BACKED UP SUCCESSFULLY!"
+            echo "All Backup Chains Updated!"
+
+            [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "Backup chain update" "Success"
+
+        elif [[ $(os_is_unraid) == yes ]]; then
+
+            [[ ! -z ${domain_poweron_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virsh failed (last status: $virsh_failed_status)" "Could not power on: ${domain_poweron_failed[@]}"
+
+            [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_failed_status)" "Could not update backup chain(s) for: ${backup_chain_failed[@]}"
+
+            [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync failed (last status: $rsync_failed_status)" "Could not sync backup chain(s) of: ${remote_sync_failed[@]} (Will be re-attempted on next schedule)"
         fi
 
         echo ""
@@ -224,14 +238,6 @@ if [[ $ONGOING_BACKUP == false ]]; then
         echo "Scheduled Incremental Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
         echo ""
 
-        if [[ $(os_is_unraid) == yes ]]; then
-
-            # On Unraid, notifies about operations exclusively related with virtnbdbackup and rsync (others are done from vm-babysitter monitoring):
-
-            [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "Rsync" "${remote_sync_failed[@]}:" "Could not sync to remote endpoint, it will be attempted again on next schedule (last status: $rsync_status)"
-
-            [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "Virtnbdbackup" "${backup_chain_failed[@]}:" "Could not perform the scheduled backup(s). Check $(basename $SCHEDULED_LOGPATH) for detailed info"
-        fi
     else
         echo "No Virtual machines on schedule. Exited"
     fi
