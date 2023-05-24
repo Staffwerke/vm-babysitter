@@ -372,13 +372,18 @@ check_backups()
                     if [[ $recoverable_backup_chain == true ]]; then
 
                         # Checks used RAM
-                        local ram_size=$(domain_getmem $domain --max)
                         local memlimit_active=""
-                        if [[ ! -z $RAM_LIMIT_PER_SCHED_BACKUP ]] && [[ $ram_size -gt $RAM_LIMIT_PER_SCHED_BACKUP ]]; then
+                        if [[ ! -z $RAM_LIMIT_PER_SCHED_BACKUP ]] && [[ $(domain_getmem $domain --max) -gt $RAM_LIMIT_PER_SCHED_BACKUP ]]; then
+
+                            local original_ram_size=$(domain_getmem $domain)
 
                             # Sets temporal limits of RAM before to perform the operation:
                             memlimit_active="yes"
-                            domain_setmem $domain $RAM_LIMIT_PER_SCHED_BACKUP
+                            domain_setmem "$domain" "$RAM_LIMIT_PER_SCHED_BACKUP"
+
+                            [[ $? -eq 0 ]] \
+                                    && echo "$domain: RAM size temporarily throttled from ${original_ram_size// / \/ } to $RAM_LIMIT_PER_SCHED_BACKUP KiB for this task" \
+                                    || echo "WARNING: Failed to set $domain RAM size to user defined limit of $RAM_LIMIT_PER_SCHED_BACKUP KiB"
                         fi
 
                         domain_start $domain --nowait
@@ -388,8 +393,15 @@ check_backups()
 
                         domain_shutdown $domain --nowait
 
-                        # Reverts RAM limits when these was previously changed:
-                        [[ ! -z $memlimit_active ]] && domain_setmem $domain $original_ram_size
+                        if [[ ! -z $memlimit_active ]]; then
+
+                            # Reverts RAM limits when these was previously changed:
+                            domain_setmem "$domain" "$original_ram_size"
+
+                            [[ $? -eq 0 ]] \
+                                && echo "$domain: Reverted RAM size to its original setting of ${original_ram_size// / \/ } KiB" \
+                                || echo "WARNING: Failed to revert $domain RAM size to its original setting!"
+                        fi
                     fi
 
                     # Backup chain will be treated as preserved:
@@ -608,8 +620,8 @@ create_backup_chain()
                         domain_setmem "$domain" "$original_ram_size"
 
                         [[ $? -eq 0 ]] \
-                        && echo "$domain: Reverted RAM size to its original setting of ${original_ram_size// / \/ } KiB" \
-                        || echo "WARNING: Failed to revert $domain RAM size to its original setting!"
+                            && echo "$domain: Reverted RAM size to its original setting of ${original_ram_size// / \/ } KiB" \
+                            || echo "WARNING: Failed to revert $domain RAM size to its original setting!"
                     fi
                 fi
 
@@ -658,7 +670,10 @@ create_backup_chain()
 
                         # Applies temporal values (according user input, but values are grabbed from virsh in KiB):
                         domain_setmem "$domain" "$RAM_LIMIT_PER_SCHED_BACKUP"
-                        echo "$domain: RAM size temporarily throttled from ${original_ram_size// / \/ } to $RAM_LIMIT_PER_SCHED_BACKUP KiB for this task"
+
+                        [[ $? -eq 0 ]] \
+                            && echo "$domain: RAM size temporarily throttled from ${original_ram_size// / \/ } to $RAM_LIMIT_PER_SCHED_BACKUP KiB for this task" \
+                            || echo "WARNING: Failed to set $domain RAM size to user defined limit of $RAM_LIMIT_PER_SCHED_BACKUP KiB"
                     fi
                 fi
 

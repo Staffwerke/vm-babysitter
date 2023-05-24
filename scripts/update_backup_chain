@@ -94,8 +94,8 @@ if [[ $ONGOING_BACKUP == false ]]; then
                             domain_setmem "$domain" "$original_ram_size"
 
                             [[ $? -eq 0 ]] \
-                            && echo "$domain: Reverted RAM size to its original setting of ${original_ram_size// / \/ } KiB" \
-                            || echo "WARNING: Failed to revert $domain RAM size to its original setting!"
+                                && echo "$domain: Reverted RAM size to its original setting of ${original_ram_size// / \/ } KiB" \
+                                || echo "WARNING: Failed to revert $domain RAM size to its original setting!"
                         fi
                     fi
 
@@ -144,7 +144,10 @@ if [[ $ONGOING_BACKUP == false ]]; then
 
                             # Applies temporal values (according user input, but values are grabbed from virsh in KiB):
                             domain_setmem "$domain" "$RAM_LIMIT_PER_SCHED_BACKUP"
-                            echo "$domain: RAM size temporarily throttled from ${original_ram_size// / \/ } to $RAM_LIMIT_PER_SCHED_BACKUP KiB for this task"
+
+                            [[ $? -eq 0 ]] \
+                                && echo "$domain: RAM size temporarily throttled from ${original_ram_size// / \/ } to $RAM_LIMIT_PER_SCHED_BACKUP KiB for this task" \
+                                || echo "WARNING: Failed to set $domain RAM size to user defined limit of $RAM_LIMIT_PER_SCHED_BACKUP KiB"
                         fi
                     fi
 
