@@ -553,6 +553,9 @@ create_backup_chain()
     local domain_poweron_success
     local remote_sync_failed
     local remote_sync_success
+    local rsync_failed_status
+    local virsh_failed_status
+    local virtnbdbackup_failed_status
 
     echo ""
     echo "___________________________________________________________________________________________________"
@@ -575,13 +578,14 @@ create_backup_chain()
                 # Only when VM is running, attempts to create a new backup chain:
                 do_backup_chain $domain "full" $BACKUPS_MAIN_PATH $VIRTNBDBACKUP_ARGS
 
-                local virtnbdbackup_status=$?
-
-                if [[ $virtnbdbackup_status -eq 0 ]]; then
+                if [[ $? -eq 0 ]]; then
 
                     # Backup chain creation was successful!
                     backup_chain_success[$i]=$domain
                 else
+
+                    # Get last state for virtnbdbackup:
+                    virtnbdbackup_failed_status=$?
 
                     # Failed to create a new backup chain:
                     backup_chain_failed[$i]=$domain
@@ -613,19 +617,20 @@ create_backup_chain()
                     # Transfer backup using SSH_OPTS and RSYNC_ARGS:
                     rsync -a $RSYNC_ARGS -e "ssh $SSH_OPTS" $BACKUPS_MAIN_PATH/$domain/ $REMOTE_BACKUPS_MAIN_PATH/$domain/
 
-                    local rsync_status=$?
-
                     # Depending on success with rsync, will add the VM to $remote_success or $remote_fail
-                    if [[ $rsync_status -eq 0 ]]; then
+                    if [[ $? -eq 0 ]]; then
 
                         # When rsync exited normally, adds the VM to $remote_sync_success:
                         remote_sync_success[$i]+=$domain
                         echo "$domain: New backup chain was copied successfuly to configured remote mirror"
                     else
 
-                        # Otherwise, adds the VM to $remote_sync_failed list:
+                        # Get last state for virtnbdbackup:
+                        rsync_failed_status=$?
+
+                        # Adds the VM to $remote_sync_failed list:
                         remote_sync_failed[$i]+=$domain
-                        echo "$domain: Failed to copy new backup chain to configured remote mirror with status $rsync_status"
+                        echo "$domain: Failed to copy new backup chain to configured remote mirror with status $rsync_failed_status"
                     fi
                 fi
 
@@ -664,7 +669,11 @@ create_backup_chain()
                 else
 
                     # VM failed to power on. This is an abnormal situation:
-                    echo "$domain: Failed to proceed (no backup chain could be created)"
+
+                    # Get last state for virsh:
+                    virsh_failed_status=$?
+
+                    echo "$domain: Failed to start with virsh status: $virsh_failed_status (no backup chain could be created)"
                     domain_poweron_failed[$i]=$domain
 
                     # Breaks the loop:
@@ -721,14 +730,16 @@ create_backup_chain()
         echo ""
         echo "All Backup Chains Created!"
 
-        [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "Backup chain creation" "Finished"
+        [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "Backup chain creation" "Success"
 
     elif [[ $(os_is_unraid) == yes ]]; then
         # On Unraid, notifies about failed operations exclusively related with virtnbdbackup and rsync (others are done from vm-babysitter monitoring):
 
-        [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_status)" "Could not create backup chain(s) for: ${backup_chain_failed[@]}"
+        [[ ! -z ${domain_poweron_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virsh failed (last status: $virsh_failed_status)" "Could not power on: ${backup_chain_failed[@]}"
 
-        [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync failed (last status: $rsync_status)" "Could not sync backup chain(s) for: ${remote_sync_failed[@]} (It will be anyway attempted at next schedule)"
+        [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_failed_status)" "Could not create backup chain(s) for: ${backup_chain_failed[@]}"
+
+        [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync failed (last status: $rsync_failed_status)" "Could not sync backup chain(s) of: ${remote_sync_failed[@]} (Will be attempted again at next schedule)"
     fi
 }
 
