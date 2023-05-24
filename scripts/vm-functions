@@ -204,7 +204,7 @@ domain_powercycle()
 }
 
 #------------------------------------------------------------------------------
-# From a given domain and size(s) and/or flags, silently sets VM RAM. If both max and used ram sizes are passed, configures each. If one value and '--max' or '--used' are passed, configures according the flag. If one size is passed with no flag, configures both max and used the same. Returns status '0' if sucess and '1' if any of the operations failed:
+# From a given domain and size(s) and/or flags, sets VM RAM. If both max and used ram sizes are passed, configures each. If one value and '--max' or '--used' are passed, configures according the flag. If one size is passed with no flag, configures both max and used the same. Returns status '0' if sucess and '1' if any of the operations failed:
 #------------------------------------------------------------------------------
 domain_setmem()
 {
@@ -222,25 +222,25 @@ domain_setmem()
     case ${parameter_list[1]} in
 
         --max) # Assumes index 0 as max memory:
-            &> /dev/null virsh ${command_list[0]} $domain ${parameter_list[1]} --config
+            virsh ${command_list[0]} $domain ${parameter_list[1]} --config
             domain_setmem_status=$?
         ;;
 
         --used) # index 0 as used memory:
-            &> /dev/null virsh ${command_list[1]} $domain ${parameter_list[1]} --config
+            virsh ${command_list[1]} $domain ${parameter_list[1]} --config
             domain_setmem_status=$?
         ;;
 
         "") # Assumes index 0 as both, max and used memory (updates status if fails):
             for set in ${command_list[@]}; do
-                &> /dev/null virsh $set $domain ${parameter_list[0]} --config || domain_setmem_status=$?
+                virsh $set $domain ${parameter_list[0]} --config || domain_setmem_status=$?
             done
         ;;
 
         *) # Assumes index 0 as max memory and index 1 as used memory (updates status if fails):
             local i=0
             for set in ${command_list[@]}; do
-                &> /dev/null virsh $set $domain ${parameter_list[$i]} --config || domain_setmem_status=$?
+                virsh $set $domain ${parameter_list[$i]} --config || domain_setmem_status=$?
                 ((i++))
             done
         ;;
