@@ -91,7 +91,7 @@ if [[ $ONGOING_BACKUP == false ]]; then
                         if [[ $memlimit_active == yes ]]; then
 
                             # RAM was previously throttled. Reverting to its original values:
-                            domain_setmem $domain $original_ram_size
+                            domain_setmem "$domain" "$original_ram_size"
 
                             [[ $? -eq 0 ]] \
                             && echo "$domain: Reverted RAM size to its original setting of ${original_ram_size// / \/ } KiB" \
@@ -130,9 +130,7 @@ if [[ $ONGOING_BACKUP == false ]]; then
                     break
 
                 else
-
                     # VM is presumably shut off. Will attempts to start it:
-
                     if [[ ! -z $RAM_LIMIT_PER_SCHED_BACKUP ]]; then
 
                         # And needs to check how much memory uses by default, throttling it if limits are established:
@@ -141,12 +139,12 @@ if [[ $ONGOING_BACKUP == false ]]; then
                             # If max value is greater than the established limit, sets the VM RAM temporarily to such limit:
                             memlimit_active="yes"
 
-                            # Gets the original RAM sizes:
+                            # Saves apart original RAM sizes:
                             original_ram_size=$(domain_getmem $domain)
 
-                            domain_setmem $domain $RAM_LIMIT_PER_SCHED_BACKUP
-
-                            echo "$domain: RAM size temporarily throttled from ${original_ram_size// / \/ } KiB to $RAM_LIMIT_PER_SCHED_BACKUP KiB for this task"
+                            # Applies temporal values (according user input, but values are grabbed from virsh in KiB):
+                            domain_setmem "$domain" "$RAM_LIMIT_PER_SCHED_BACKUP"
+                            echo "$domain: RAM size temporarily throttled from ${original_ram_size// / \/ } to $(domain_getmem $domain --max) KiB for this task"
                         fi
                     fi
 
