@@ -37,7 +37,7 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 
 **`MAX_BACKUP_CHAINS_PER_VM`**: How many old backup chains to keep archived locally under BACKUPS_MAIN_PATH (Default value: Infinite, set to "0" to disable backups archiving)
 
-**`RAM_LIMIT_PER_SCHED_BACKUP`**: How much RAM in KiB to assign a shut down VM temporarily to perform backup tasks (Default value: No limit)
+**`RAM_LIMIT_PER_SCHED_BACKUP`**: How much RAM to assign a shut down VM temporarily to perform backup tasks. Accepts CAP multipliers (e.g. 1048576K, 2048M, 4G, etc. otherwise assumes Bytes (Default value: No limit)
 
 **`REMOTE_BACKUPS_MAIN_PATH`**: SSH syntax of remote absolute path (e.g. user@host:/absolute/path/to/folder) to rsync successful backup chain tasks (Default value: Disabled)
 
