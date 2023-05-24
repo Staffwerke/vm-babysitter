@@ -92,7 +92,10 @@ if [[ $ONGOING_BACKUP == false ]]; then
 
                             # RAM was previously throttled. Reverting to its original values:
                             domain_setmem $domain $original_ram_size
-                            echo "$domain: Reverted RAM size to its original setting of ${original_ram_size// / \/ } KiB"
+
+                            [[ $? -eq 0 ]] \
+                            && echo "$domain: Reverted RAM size to its original setting of ${original_ram_size// / \/ } KiB" \
+                            || echo "WARNING: Failed to revert $domain RAM size to its original setting!"
                         fi
                     fi
 
