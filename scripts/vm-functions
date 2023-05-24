@@ -204,11 +204,46 @@ domain_powercycle()
 }
 
 #------------------------------------------------------------------------------
-# From a given domain and size, changes max ('--max')  or used ('--used') according the 3rd argument (changes both if no argument is given.) Returns status '0' if sucess and '1' if any of the operations failed:
+# From a given domain and size(s) or flags sets VM RAM. If both max and used ram are passed, configures both. If one value and '--max' or '--used' are passed, configures according the flag. If one value is passed only, configures both max and used the same. Returns status '0' if sucess and '1' if any of the operations failed:
 #------------------------------------------------------------------------------
 domain_setmem()
 {
 
+    local domain_setmem_status=0
+
+    case $3 in
+
+        --max) # Assumes $2 is max memory:
+            > /dev/null virsh setmaxmem $1 $2 --config
+            domain_setmem_status=$?
+        ;;
+
+        --used) # Assumes $2 is used memory:
+            > /dev/null virsh setmem $1 $2 --config
+            domain_setmem_status=$?
+        ;;
+
+        [0-9]) # Assumes $2 as max memory and $3 as used memory:
+            local values_list=($2 $3)
+            local i=0
+            for range in setmaxmem setmem; do
+                > /dev/null virsh $range $1 ${values_list[$i]} --config
+                [[ $? -ne 0 ]] && domain_setmem_status=$?
+                ((i++))
+            done
+        ;;
+
+        "") # Assumes $2 as both max and used memory:
+            for range in setmaxmem setmem; do
+                > /dev/null virsh $range $1 $2 --config
+                [[ $? -ne 0 ]] && domain_setmem_status=$?
+            done
+        ;;
+        esac
+
+    return $domain_setmem_status
+
+: << 'disabled'
     local domain_setmem_status=0
 
     if [[ -z $3 ]]; then
@@ -230,7 +265,7 @@ domain_setmem()
     fi
 
     return $domain_setmem_status
-
+disabled
 }
 
 # -----------------------------------------------------------------------------
