@@ -726,9 +726,9 @@ create_backup_chain()
     elif [[ $(os_is_unraid) == yes ]]; then
         # On Unraid, notifies about failed operations exclusively related with virtnbdbackup and rsync (others are done from vm-babysitter monitoring):
 
-        [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_status)" "Could not create backup chain(s) for: ${domain_poweron_failed[@]} ${backup_chain_failed[@]}. Check $(basename $MAIN_LOGPATH) for detailed info"
+        [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_status)" "Could not create backup chain(s) for: ${domain_poweron_failed[@]} ${backup_chain_failed[@]}"
 
-        [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync failed (last status: $rsync_status)" "Could not sync backup chain(s) for: ${remote_sync_failed[@]}. Check $(basename $MAIN_LOGPATH) for detailed info"
+        [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync failed (last status: $rsync_status)" "Could not sync backup chain(s) for: ${remote_sync_failed[@]} (It will be anyway attempted at next schedule)"
     fi
 }
 
