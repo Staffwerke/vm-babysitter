@@ -1280,7 +1280,7 @@ end_of_external_variables
 
                         if [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
 
-                            failed_vms_message="Perform a FULL MANUAL CHECK of: ${FAILED_VMS_LIST[@]} as SOON as POSSIBLE! Some check, backup or another operation failed unexpectedly (it will be permanently ignored until container restart)"
+                            failed_vms_message="Perform a FULL MANUAL CHECK of: ${FAILED_VMS_LIST[@]} as SOON as POSSIBLE! Some check, backup or another operation failed unexpectedly (it will be permanently ignored until container restart). Check $(basename $MAIN_LOGPATH) for detailed info"
 
                             echo  "ERROR: $failed_vms_message"
                             [[ $(os_is_unraid) == yes ]] && unraid_notify "alert" "VM-Babysitter" "$user_action_message" "$failed_vms_message"
