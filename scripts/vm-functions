@@ -194,7 +194,7 @@ domain_powercycle()
 
         # Turns on the domain again:
         virsh start $domain
-        [[ $? -eq 0 ]] && { powercycle_domain_status=0; echo "$domain: Full power cycle completed successfully"; } || echo "ERROR: Failed to complete a full power cyacle of VM $domain (could not be started after shut down)"
+        [[ $? -eq 0 ]] && { powercycle_domain_status=0; echo "$domain: Full power cycle completed successfully"; } || echo "ERROR: Failed to complete a full power cycle of VM $domain (could not be started after shut down)"
 
     else
         echo "ERROR: Libvirt failed to perform a power cycle to VM $domain"
@@ -402,7 +402,7 @@ domain_start()
                 echo "$domain: Started successfully"
 
             elif [[ $agent_status -ne 0 ]]; then
-                echo "WARNING: Gave up after $wait_time seconds awaiting for QEMU agent in VM $domain. Ensure this service is installed on the guest OS, and configured at VM definitions in order to warrant concurrent data within backups."
+                echo "WARNING: Gave up after $wait_time seconds awaiting for QEMU agent in VM '$domain'. Ensure this service is installed on the guest OS, and configured at VM definitions in order to warrant concurrent data within backups."
             fi
         else
             echo "ERROR: Libvirt failed to start VM $domain"
@@ -474,7 +474,7 @@ do_backup_chain()
     else
 
         echo ""
-        echo "WARNING: $domain: virtnbdbackup failed with status $create_backup_chain_status. Read the logs above for more details."
+        echo "WARNING: $domain: virtnbdbackup failed with status $create_backup_chain_status. Read the logs above for more details"
 
     fi
 
@@ -686,7 +686,6 @@ patch_xml()
 # Guess OS name by kernel and returns a string with 'yes' if OS is Unraid, and otherwise 'no':
 # -----------------------------------------------------------------------------
 os_is_unraid()
-#is_unraid()
 {
     local is_unraid_status=1
     [[ ! -z $(uname  -r | grep -e "-Unraid$") ]] && echo "yes" || echo "no"
