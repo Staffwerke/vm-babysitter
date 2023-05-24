@@ -210,7 +210,7 @@ domain_setmem()
 {
     local domain=$1                             # First argument is always VM
     shift
-    local parameter_list=($2)                   # Remaining parameters are expected to be a string:
+    local parameter_list=($@)                   # Remaining parameters are expected to be a string:
                                                 # index 0 is always asumed as integer (RAM value in KiB)
                                                 # index 1 can be another integer RAM value, a flag or null.
     shift
@@ -222,12 +222,12 @@ domain_setmem()
     case ${parameter_list[1]} in
 
         --max) # Assumes index 0 as max memory:
-            virsh ${command_list[0]} $domain ${parameter_list[1]} --config
+            virsh ${command_list[0]} $domain ${parameter_list[0]} --config
             domain_setmem_status=$?
         ;;
 
         --used) # index 0 as used memory:
-            virsh ${command_list[1]} $domain ${parameter_list[1]} --config
+            virsh ${command_list[1]} $domain ${parameter_list[0]} --config
             domain_setmem_status=$?
         ;;
 
