@@ -726,7 +726,7 @@ create_backup_chain()
     elif [[ $(os_is_unraid) == yes ]]; then
         # On Unraid, notifies about failed operations exclusively related with virtnbdbackup and rsync (others are done from vm-babysitter monitoring):
 
-        [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_status)" "Could not create backup chain(s) for: ${domain_poweron_failed[@]} ${backup_chain_failed[@]}"
+        [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_status)" "Could not create backup chain(s) for: ${backup_chain_failed[@]}"
 
         [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync failed (last status: $rsync_status)" "Could not sync backup chain(s) for: ${remote_sync_failed[@]} (It will be anyway attempted at next schedule)"
     fi
@@ -1266,7 +1266,7 @@ end_of_external_variables
 
                         if [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
 
-                            shutdown_required_message="Perform a manual SHUT DOWN of: ${SHUTDOWN_REQUIRED_VMS_LIST[@]} as SOON as POSSIBLE! This is needed to allow being checked automatically (meanwhile, it will be skipped of checks/backups)"
+                            shutdown_required_message="Perform a manual SHUT DOWN of: ${SHUTDOWN_REQUIRED_VMS_LIST[@]} as SOON as POSSIBLE! This is needed to allow being checked automatically (can't perform checks/backups until action has been taken)"
 
                             echo "WARNING: $shutdown_required_message"
                             [[ $(os_is_unraid) == yes ]] && unraid_notify "warning" "VM-Babysitter" "$user_action_message" "$shutdown_required_message"
@@ -1274,7 +1274,7 @@ end_of_external_variables
 
                         if [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
 
-                            failed_vms_message="Perform a FULL MANUAL CHECK of: ${FAILED_VMS_LIST[@]} as SOON as POSSIBLE! Some check, backup or another operation failed unexpectedly (it will be permanently ignored until container restart). Check $(basename $MAIN_LOGPATH) for detailed info"
+                            failed_vms_message="Perform a FULL MANUAL CHECK of: ${FAILED_VMS_LIST[@]} as SOON as POSSIBLE! Some check, backup or another operation failed unexpectedly. Check $(basename $MAIN_LOGPATH) for detailed info"
 
                             echo  "ERROR: $failed_vms_message"
                             [[ $(os_is_unraid) == yes ]] && unraid_notify "alert" "VM-Babysitter" "$user_action_message" "$failed_vms_message"
