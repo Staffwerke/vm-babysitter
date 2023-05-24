@@ -92,11 +92,10 @@ if [[ $ONGOING_BACKUP == false ]]; then
 
                             # RAM was previously throttled. Reverting to its original values:
                             domain_setmem $domain $original_ram_size
-                            echo "$domain: Reverted RAM size to its original setting of $original_ram_size KiB"
+                            echo "$domain: Reverted RAM size to its original setting of ${original_ram_size// / \/ } KiB"
                         fi
                     fi
 
-                    # To DO: Sync on remote endpoint when REMOTE_BACKUPS_MAIN_PATH is set and bring status.
                     if [[ ${backup_chain_success[$i]} == $domain ]] && [[ ! -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
 
                         # Incremental backup was successful and remote endpoint is (correctly) set,
@@ -134,17 +133,17 @@ if [[ $ONGOING_BACKUP == false ]]; then
                     if [[ ! -z $RAM_LIMIT_PER_SCHED_BACKUP ]]; then
 
                         # And needs to check how much memory uses by default, throttling it if limits are established:
+                        if [[ $(domain_getmem $domain --max) -gt $RAM_LIMIT_PER_SCHED_BACKUP ]]; then
 
-                        # Gets the original RAM size
-                        original_ram_size=$(domain_getmem $domain --max)
-
-                        # If the above value is greater than the established limit, sets the VM RAM temporarily to such limit:
-                        if [[ $original_ram_size -gt $RAM_LIMIT_PER_SCHED_BACKUP ]]; then
-
+                            # If max value is greater than the established limit, sets the VM RAM temporarily to such limit:
                             memlimit_active="yes"
+
+                            # Gets the original RAM sizes:
+                            original_ram_size=$(domain_getmem $domain)
+
                             domain_setmem $domain $RAM_LIMIT_PER_SCHED_BACKUP
 
-                            echo "$domain: RAM size temporarily throttled from $original_ram_size KiB to $RAM_LIMIT_PER_SCHED_BACKUP KiB for this task"
+                            echo "$domain: RAM size temporarily throttled from ${original_ram_size// / \/ } KiB to $RAM_LIMIT_PER_SCHED_BACKUP KiB for this task"
                         fi
                     fi
 
