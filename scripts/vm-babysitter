@@ -39,8 +39,8 @@ SSH_OPTS=${SSH_OPTS:-"-q -o IdentityFile=/private/hostname.key -o BatchMode=yes 
 
 # Logrotate Variables:
 LOGROTATE_SCHEDULE=${LOGROTATE_SCHEDULE:-"@daily"}
-LOGROTATE_CONFIG_PATH=${LOGROTATE_CONFIG_PATH:-"/tmp/logrotate.d/vm-babysitter.conf"}
-LOGROTATE_SETTINGS=${LOGROTATE_SETTINGS:-"daily\ncompress\ndateext\nmissingok\nrotate 30"}
+LOGROTATE_CONFIG_PATH=${LOGROTATE_CONFIG_PATH:-"/tmp/logrotate.d/vm-babysitter"}
+LOGROTATE_SETTINGS=${LOGROTATE_SETTINGS:-"compress\ncopytruncate\ndateext\ndateformat -%Y%m%d-%s\nmissingok\nrotate 30"}
 
 ###############################################################################
 # Specific procedures:
