@@ -23,7 +23,7 @@ MAIN_LOGPATH=${MAIN_LOGPATH:-"/logs/vm-babysitter.log"}
 scheduled_backup_script="/usr/local/bin/update_backup_chain"
 
 # Log file path for the scheduler script:
-SCHEDULED_LOGPATH=${SCHEDULED_LOGPATH:-"/logs/scheduled-backups.log"}
+#SCHEDULED_LOGPATH=${SCHEDULED_LOGPATH:-"/logs/scheduled-backups.log"}
 
 # Location of current Time Zone (if defined in ENV TZ):
 [[ -f /usr/share/zoneinfo/$TZ ]] && local_timezone_file="/usr/share/zoneinfo/$TZ"
@@ -1073,7 +1073,7 @@ BACKUPS_MAIN_PATH="$BACKUPS_MAIN_PATH"
 RAM_LIMIT_PER_SCHED_BACKUP="$RAM_LIMIT_PER_SCHED_BACKUP"
 REMOTE_BACKUPS_MAIN_PATH="$REMOTE_BACKUPS_MAIN_PATH"
 RSYNC_ARGS="$RSYNC_ARGS"
-SCHEDULED_LOGPATH="$SCHEDULED_LOGPATH"
+MAIN_LOGPATH="$MAIN_LOGPATH"
 SSH_OPTS="$SSH_OPTS"
 VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS"
 
@@ -1090,7 +1090,7 @@ end_of_crontab
 
     # Sets the cron task:
     crontab $crontab_file
-
+: << 'disabled_code'
     if [[ ! -f $SCHEDULED_LOGPATH ]]; then
 
         # Creates folders in case doesn't exist:
@@ -1099,7 +1099,7 @@ end_of_crontab
         # Initializes the log file (in case doesn't exist):
         touch -a $SCHEDULED_LOGPATH
     fi
-
+disabled_code
     # Finally, runs cron and sends to background:
     cron -f -l -L2 &
 
