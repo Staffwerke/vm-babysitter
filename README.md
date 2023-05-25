@@ -45,7 +45,7 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 
 **`RESTART_VMS_IF_REQUIRED`**: When enabled performs a controlled powercycle of VMs, checking incremental backup patch and backup chains as needed. On Unraid, notifies the to perform such action, waiting for shut down VM(s) before to proceed (Default: Disabled)
 
-**`RSYNC_ARGS`**: Extra arguments for rsync when sends successful backups to REMOTE_BACKUPS_MAIN_PATH. E.g. `-aP --bwlimit=1179648` (Default: None)
+**`RSYNC_ARGS`**: Extra arguments for rsync when sends successful backups to REMOTE_BACKUPS_MAIN_PATH. E.g. `-aP --bwlimit=1179648` (Default: `-a`)
 
 **`SCHEDULED_LOGPATH`**: Internal path for scheduled backups log file (Default: `/logs/scheduled-backups.log`")
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ###############################################################################
-# Main variables:
+# Main variables defaults:
 ###############################################################################
 
 # Internal mount point for main backups folder:
@@ -30,6 +30,9 @@ SCHEDULED_LOGPATH=${SCHEDULED_LOGPATH:-"/logs/scheduled-backups.log"}
 
 # Converts scaled values to KiB:
 [[ ! -z $RAM_LIMIT_PER_SCHED_BACKUP ]] && RAM_LIMIT_PER_SCHED_BACKUP=$(numfmt --from=iec --to-unit=1Ki $RAM_LIMIT_PER_SCHED_BACKUP)
+
+# Rsync arguments:
+RSYNC_ARGS=${RSYNC_ARGS:-"-a"}
 
 ###############################################################################
 # Specific procedures:
@@ -633,7 +636,7 @@ create_backup_chain()
                     echo "$domain: Copying new backup chain to configured remote mirror..."
 
                     # Transfer backup using SSH_OPTS and RSYNC_ARGS:
-                    rsync -a $RSYNC_ARGS -e "ssh $SSH_OPTS" $BACKUPS_MAIN_PATH/$domain/ $REMOTE_BACKUPS_MAIN_PATH/$domain/
+                    rsync $RSYNC_ARGS -e "ssh $SSH_OPTS" $BACKUPS_MAIN_PATH/$domain/ $REMOTE_BACKUPS_MAIN_PATH/$domain/
 
                     # Depending on success with rsync, will add the VM to $remote_success or $remote_fail
                     if [[ $? -eq 0 ]]; then

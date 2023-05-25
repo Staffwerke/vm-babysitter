@@ -39,7 +39,7 @@
   <Config Name="Virtnbdbackup socket" Target="/var/tmp" Default="/var/tmp" Mode="rw" Description="" Type="Path" Display="advanced" Required="true" Mask="false">/var/tmp</Config>
   <Config Name="Libvirt socket API" Target="/run/libvirt" Default="/var/run/libvirt" Mode="rw" Description="" Type="Path" Display="advanced" Required="true" Mask="false">/var/run/libvirt</Config>
   <Config Name="Lock folder" Target="/run/lock" Default="/var/run/lock" Mode="rw" Description="" Type="Path" Display="advanced" Required="true" Mask="false">/var/run/lock</Config>
-  <Config Name="Rsync extra arguments" Target="RSYNC_ARGS" Default="" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false">-aP --bwlimit=1179648</Config>
+  <Config Name="Rsync extra arguments" Target="RSYNC_ARGS" Default="-a" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false">-aP --bwlimit=1179648</Config>
   <Config Name="Virtnbdbackup extra arguments" Target="VIRTNBDBACKUP_ARGS" Default="" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false">--compress</Config>
   <Config Name="Main monitor log path" Target="MAIN_LOGPATH" Default="/logs/vm-babysitter.log" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false">/logs/vm-babysitter.log</Config>
   <Config Name="Scheduled backups log path" Target="SCHEDULED_LOGPATH" Default="/logs/scheduled-backups.log" Mode="" Description="" Type="Variable" Display="advanced" Required="false" Mask="false">/logs/scheduled-backups.log</Config>

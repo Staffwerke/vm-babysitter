@@ -107,7 +107,7 @@ if [[ $ONGOING_BACKUP == false ]]; then
                         echo "$domain: Syncing changes to remote endpoint..."
 
                         # Transfer backup using SSH_OPTS and RSYNC_ARGS:
-                        rsync -a $RSYNC_ARGS -e "ssh $SSH_OPTS" $BACKUPS_MAIN_PATH/$domain/ $REMOTE_BACKUPS_MAIN_PATH/$domain/
+                        rsync $RSYNC_ARGS -e "ssh $SSH_OPTS" $BACKUPS_MAIN_PATH/$domain/ $REMOTE_BACKUPS_MAIN_PATH/$domain/
 
                         # Depending on success with rsync, will add the VM to $remote_success or $remote_fail
                         if [[ $? -eq 0 ]]; then
