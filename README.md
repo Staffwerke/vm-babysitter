@@ -1,6 +1,5 @@
 # VM-Babysitter
 
-
 Checks existing Virtual machines running on the local server, and performs the following actions:
 
 - Creates a list of (persistent) VMs registered in QEMU to be backed up regularly
@@ -27,19 +26,19 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 
 | Variable Name | Description | Default Value |
 | --- | --- | --- |
-|`AUTOSTART_VMS_LIST`|Space separated list of VMs that will be started along with the container||
+|`AUTOSTART_VMS_LIST`|Case Sensitive space separated list of VMs that will be started along with the container||
 |`BACKUPS_MAIN_PATH`|Continer path where vm-babysitter will search for, and save backup chains of all VMs. The container will fail if does not exist, or r/w permission issues are found |`/backups`|
 |`CRON_SCHEDULE`|Cron-like string for incremental backups (e.g. `* 2 * * *` triggers everyday at 2 am local time)|`@daily`|
-|`IGNORED_VMS_LIST`|Optional space separated list of VMs to ignore, not checking or adding them to scheduled backups||
-|`MAIN_LOGPATH`|Internal path for the main log file |`/logs/vm-babysitter.log`|
-|`MAX_BACKUP_CHAINS_PER_VM`|How many old backup chains to keep archived locally under `BACKUPS_MAIN_PATH` set to `0`to disable backups archiving (default is no limit)||
-|`RAM_LIMIT_PER_SCHED_BACKUP`|How much RAM to assign a shut down VM temporarily to perform backup tasks. Accepts CAP multipliers, e.g. `1048576K`, `2048M`, `4G`, etc. otherwise assumes Bytes (default is no touch RAM values)||
-|`REMOTE_BACKUPS_MAIN_PATH`|SSH syntax of remote absolute path, e.g. `user@host:/absolute/path/to/folder` to rsync successful backup chain tasks||
-|`REMOTE_MAX_BACKUP_CHAINS_PER_VM`|Same as `MAX_BACKUP_CHAINS_PER_VM`. Used by `REMOTE_BACKUPS_MAIN_PATH`||
+|`IGNORED_VMS_LIST`|Case Sensitive space separated list of VMs to ignore, so won't be checked or backed up||
+|`MAIN_LOGPATH`|Container path for the main log file |`/logs/vm-babysitter.log`|
+|`MAX_BACKUP_CHAINS_PER_VM`|How many old backup chains to keep archived locally under `BACKUPS_MAIN_PATH`. `0` disable backups archiving (default is no limit)||
+|`RAM_LIMIT_PER_SCHED_BACKUP`|How much RAM to assign temporarily to a shut down VM to perform backup tasks. Accepts CAPS multipliers without spaces, e.g. `1048576K`, `2048M`, `4G`, etc. otherwise assumes Bytes (default is not to touch RAM values)||
+|`REMOTE_BACKUPS_MAIN_PATH`|SSH syntax of remote absolute path, e.g. `user@host:/absolute/path/to/folder` to rsync successful backup chain tasks (requires r/w permissions)||
+|`REMOTE_MAX_BACKUP_CHAINS_PER_VM`|Same functioning as `MAX_BACKUP_CHAINS_PER_VM` (default is no limit)||
 |`RESTART_VMS_IF_REQUIRED`|When enabled performs a controlled powercycle of VMs, checking incremental backup patch and backup chains as needed. On Unraid, notifies the to perform such action, waiting for shut down VM(s) before to proceed (default is not restart VMs) ||
 |`RSYNC_ARGS`|Extra arguments for rsync when sends successful backups to `REMOTE_BACKUPS_MAIN_PATH`, e.g. `-aP --bwlimit=1179648`|`-a`|
-|`SCHEDULED_LOGPATH`|Internal path for scheduled backups log file |`/logs/scheduled-backups.log`|
-|`SSH_OPTS`|SSH options for communications with involved hosts, including rsync, sshfs and Unraid notifications|`-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10`|
+|`SCHEDULED_LOGPATH`|Container path for scheduled backups log file |`/logs/scheduled-backups.log`|
+|`SSH_OPTS`|SSH options for communications with involved hosts, including rsync, and Unraid notifications to localhost|`-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10`|
 |`TZ`|Local timezone. Most likely the same on the server running docker (default is container's time) ||
 |`VIRTNBDBACKUP_ARGS`|Extra arguments passed to virtnbdbackup, in both full and inc backup, e.g. `--compress`||
 |`WAIT_TIME`|Maximum time in seconds to await for VMs to confirm it has reached on/off states in certain scenarios|`60`|
@@ -191,7 +190,6 @@ Scheduling all found VMs for (compressed) incremental backups on local endpoint 
     -v /usr/share/qemu/ovmf-x64:/usr/share/qemu/ovmf-x64 \
     -v /var/tmp:/var/tmp \
     <container_name>
-
 ```
 
 Scheduling all found VMs for (compressed) incremental backups on both local and remote endpoint (at a max of 1179648 Kbps or 1 Gbps) every 12 hours (Berlin time) and will save up to 3 backup chains per VM remotely, in case one needs to be rebuilt but not saving any backup chain on local endpoint at all; throttling RAM's VMs to 8 GiB when its original setting is above this value.
