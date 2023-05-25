@@ -37,6 +37,11 @@ RSYNC_ARGS=${RSYNC_ARGS:-"-a"}
 # SSH Options:
 SSH_OPTS=${SSH_OPTS:-"-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"}
 
+# Logrotate Variables:
+LOGROTATE_SCHEDULE=${LOGROTATE_SCHEDULE:-"@daily"}
+LOGROTATE_CONFIG_PATH=${LOGROTATE_CONFIG_PATH:-"/tmp/logrotate.d/vm-babysitter.conf"}
+LOGROTATE_SETTINGS=${LOGROTATE_SETTINGS:-"daily\ncompress\ndateext\nmissingok\nrotate 30"}
+
 ###############################################################################
 # Specific procedures:
 ###############################################################################
@@ -1024,6 +1029,23 @@ fi
 
 if [[ $domains_list_status == OK ]] && [[ $backups_main_path_status == OK ]] && [[ ! -z $remote_backups_main_path_status ]]; then
 
+    # 2.0 Create logrotate config:
+    #------------------------------------------------------------------------------
+
+    if [[ -z $DISABLE_LOGROTATE ]]; then
+
+        echo "Configuring logrotate..."
+
+        # Create directory if doesn't exist:
+        mkdir -p $(dirname $LOGROTATE_CONFIG_PATH)
+
+        # Parse logrotate configuration (overwriting, if any previous):
+        echo -e "$MAIN_LOGPATH {\n$LOGROTATE_SETTINGS\n}" > $LOGROTATE_CONFIG_PATH
+    else
+        # Convert variable into a comment, to be added to crontab
+        DISABLE_LOGROTATE="# "
+    fi
+
     # 2.1 Create/update Cron task for VMs to be (progressively) included in $scheduled_backups_list:
     #------------------------------------------------------------------------------
 
@@ -1059,7 +1081,11 @@ VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS"
 functions_path="$functions_path"
 external_vars="$external_vars"
 
+# Schedule for $(basename $scheduled_backup_script):
 $CRON_SCHEDULE $scheduled_backup_script
+
+# Schedule for logrotate:
+$DISABLE_LOGROTATE$LOGROTATE_SCHEDULE /usr/sbin/logrotate $LOGROTATE_CONFIG_PATH
 end_of_crontab
 
     # Sets the cron task:

@@ -13,7 +13,7 @@ LABEL maintainer="Adrián Parilli <a.parilli@staffwerke.de>"
 RUN \
 apt-get update && \
 apt-get install -y --no-install-recommends \
-ca-certificates cron git libvirt-clients python3-all python3-libnbd python3-libvirt python3-lxml python3-lz4 python3-paramiko python3-setuptools python3-tqdm python3-lxml python3-paramiko qemu-utils rsync sshfs uuid-runtime && \
+ca-certificates cron git libvirt-clients logrotate python3-all python3-libnbd python3-libvirt python3-lxml python3-lz4 python3-paramiko python3-setuptools python3-tqdm python3-lxml python3-paramiko qemu-utils rsync sshfs uuid-runtime && \
 git clone -b $VIRTNBDBACKUP_VERSION --single-branch $VIRTNBDBACKUP_SOURCE_URL.git && \
 cd virtnbdbackup && python3 setup.py install && cd .. && \
 apt-get purge -y git ca-certificates && apt-get -y autoremove --purge && apt-get clean && \
