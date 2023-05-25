@@ -49,7 +49,7 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 
 **`SCHEDULED_LOGPATH`**: Internal path for scheduled backups log file (Default: `/logs/scheduled-backups.log`")
 
-**`SSH_OPTS`**: SSH options for communications with involved hosts, including rsync, sshfs and Unraid notifications (Default: None)
+**`SSH_OPTS`**: SSH options for communications with involved hosts, including rsync, sshfs and Unraid notifications (Default: `-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10`)
 
 **`TZ`**: Local timezone (Default: `Etc/UTC`)
 

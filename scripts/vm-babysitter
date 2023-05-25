@@ -34,6 +34,9 @@ SCHEDULED_LOGPATH=${SCHEDULED_LOGPATH:-"/logs/scheduled-backups.log"}
 # Rsync arguments:
 RSYNC_ARGS=${RSYNC_ARGS:-"-a"}
 
+# SSH Options:
+SSH_OPTS=${SSH_OPTS:-"-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"}
+
 ###############################################################################
 # Specific procedures:
 ###############################################################################
