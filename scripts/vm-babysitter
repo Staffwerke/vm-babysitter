@@ -1082,10 +1082,10 @@ functions_path="$functions_path"
 external_vars="$external_vars"
 
 # Schedule for $(basename $scheduled_backup_script):
-$CRON_SCHEDULE $scheduled_backup_script
+$CRON_SCHEDULE $scheduled_backup_script > /dev/stdout 2>&1
 
 # Schedule for logrotate:
-$DISABLE_LOGROTATE$LOGROTATE_SCHEDULE /usr/sbin/logrotate $LOGROTATE_CONFIG_PATH
+$DISABLE_LOGROTATE$LOGROTATE_SCHEDULE /usr/sbin/logrotate $LOGROTATE_CONFIG_PATH > /dev/stdout 2>&1
 end_of_crontab
 
     # Sets the cron task:
