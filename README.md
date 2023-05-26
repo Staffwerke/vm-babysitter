@@ -24,12 +24,15 @@ Checks existing Virtual machines running on the local server, and performs the f
 
 VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 
-| Variable Name | Description | Default Value |
+| **Variable Name** | **Description** | **Default Value** |
 | --- | --- | --- |
 |`AUTOSTART_VMS_LIST`|Case Sensitive space separated list of VMs that will be started along with the container||
 |`BACKUPS_MAIN_PATH`|Continer path where vm-babysitter will search for, and save backup chains of all VMs. The container will fail if does not exist, or r/w permission issues are found |`/backups`|
 |`CRON_SCHEDULE`|Cron-like string for incremental backups (e.g. `* 2 * * *` triggers everyday at 2 am local time)|`@daily`|
 |`IGNORED_VMS_LIST`|Case Sensitive space separated list of VMs to ignore, so won't be checked or backed up||
+|`LOGROTATE_SCHEDULE`|Same functioning as `CRON_SCHEDULE` but for trigger log rotation, and better if in different schedule that tis one|`@daily`|
+|`LOGROTATE_CONFIG_PATH`|Container path to place and read log rotation config|`/tmp/logrotate.d/vm-babysitter`|
+|`LOGROTATE_SETTINGS`|Parsed string with *escaped* logrotate config, written in `LOGROTATE_CONFIG_PATH` on startup|`compress\ncopytruncate\ndateext\ndateformat -%Y%m%d-%s\nmissingok\nrotate 30`|
 |`MAIN_LOGPATH`|Container path for the main log file |`/logs/vm-babysitter.log`|
 |`MAX_BACKUP_CHAINS_PER_VM`|How many old backup chains to keep archived locally under `BACKUPS_MAIN_PATH`. `0` disable backups archiving (default is no limit)||
 |`RAM_LIMIT_PER_SCHED_BACKUP`|How much RAM to assign temporarily to a shut down VM to perform backup tasks. Accepts CAPS multipliers without spaces, e.g. `1048576K`, `2048M`, `4G`, etc. otherwise assumes Bytes (default is not to touch RAM values)||
@@ -37,7 +40,6 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 |`REMOTE_MAX_BACKUP_CHAINS_PER_VM`|Same functioning as `MAX_BACKUP_CHAINS_PER_VM` (default is no limit)||
 |`RESTART_VMS_IF_REQUIRED`|When enabled performs a controlled powercycle of VMs, checking incremental backup patch and backup chains as needed. On Unraid, notifies the to perform such action, waiting for shut down VM(s) before to proceed (default is not restart VMs) ||
 |`RSYNC_ARGS`|Extra arguments for rsync when sends successful backups to `REMOTE_BACKUPS_MAIN_PATH`, e.g. `-aP --bwlimit=1179648`|`-a`|
-|`SCHEDULED_LOGPATH`|Container path for scheduled backups log file |`/logs/scheduled-backups.log`|
 |`SSH_OPTS`|SSH options for communications with involved hosts, including rsync, and Unraid notifications to localhost|`-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10`|
 |`TZ`|Local timezone. Most likely the same on the server running docker (default is container's time) ||
 |`VIRTNBDBACKUP_ARGS`|Extra arguments passed to virtnbdbackup, in both full and inc backup, e.g. `--compress`||
