@@ -53,10 +53,10 @@ check_patch()
                     # VM is (presumably) running and was patched before (e.g. in past iteration inside this loop)
                     echo "$domain: Incremental backup patch is present, but a power cycle is required to apply changes"
 
-                    if [[ ! -z $RESTART_VMS_IF_REQUIRED ]]; then
+                    if [[ ! -z $VM_ALLOW_POWERCYCLE ]]; then
 
                         # When permission is granted, and past iteration over the VM haven't triggered errors, attempts shuts down the VM temporarily:
-                        domain_shutdown $domain --wait $WAIT_TIME
+                        domain_shutdown $domain --wait $VM_WAIT_TIME
 
                         if [[ $? -eq 0 ]]; then
 
@@ -126,7 +126,7 @@ check_patch()
     echo "Incremental Backup Patch Summary:"
     echo ""
     echo "Patched for backups:          ${vm_patch_success[@]:-"None"}"
-    [[ ! -z $RESTART_VMS_IF_REQUIRED ]] && \
+    [[ ! -z $VM_ALLOW_POWERCYCLE ]] && \
     echo "Into automatic power cycle:   ${domain_shutdown_success[@]:-"None"}" || \
     echo "Manual shut down is required: ${domain_shutdown_failed[@]:-"None"}"
     echo "Could not apply patch:        ${vm_patch_failed[@]:-"None"}"
@@ -176,16 +176,16 @@ check_backups()
             #------------------------------------------------------------------------------
             if [[ -z $backup_folder_integrity ]] || [[ -z $recoverable_backup_chain ]]; then
 
-                if [[ ! -d $BACKUPS_MAIN_PATH/$domain ]] \
-                || [[ ! -f $BACKUPS_MAIN_PATH/$domain/$domain.cpt ]] \
-                || [[ ! -d $BACKUPS_MAIN_PATH/$domain/checkpoints ]]; then
+                if [[ ! -d $LOCAL_BACKUP_PATH/$domain ]] \
+                || [[ ! -f $LOCAL_BACKUP_PATH/$domain/$domain.cpt ]] \
+                || [[ ! -d $LOCAL_BACKUP_PATH/$domain/checkpoints ]]; then
 
                     backup_folder_integrity="false"
                     echo "$domain: No backup chain folder detected, or internal structure is inconsistent"
 
-                elif [[ ! -z $(find $BACKUPS_MAIN_PATH/$domain -type f -name "*.partial") ]]; then
+                elif [[ ! -z $(find $LOCAL_BACKUP_PATH/$domain -type f -name "*.partial") ]]; then
 
-                    local damaged_backup_checkpoint_list=($(backup_checkpoint_list $BACKUPS_MAIN_PATH/$domain))
+                    local damaged_backup_checkpoint_list=($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain))
 
                     if [[ ${#damaged_backup_checkpoint_list[@]} -eq 1 ]]; then
 
@@ -197,10 +197,10 @@ check_backups()
                         recoverable_backup_chain="false"
                         echo "$domain: An incremental backup operation was previously cancelled and RESTARTED_SERVER mode is active, not leaving chances to repair it. A new backup chain will be created"
 
-                    elif [[ -z $RESTART_VMS_IF_REQUIRED ]]; then
+                    elif [[ -z $VM_ALLOW_POWERCYCLE ]]; then
 
                         recoverable_backup_chain="false"
-                        echo "$domain: An incremental backup operation was previously cancelled and environment variable RESTART_VMS_IF_REQUIRED is not set (cannot attempt to repair). A new backup chain will be created"
+                        echo "$domain: An incremental backup operation was previously cancelled and environment variable VM_ALLOW_POWERCYCLE is not set (cannot attempt to repair). A new backup chain will be created"
 
                     else
 
@@ -215,15 +215,15 @@ check_backups()
                 fi
             fi
 
-            # Checks once if RESTARTED_SERVER is true, VM is running and RESTART_VMS_IF_REQUIRED is set
+            # Checks once if RESTARTED_SERVER is true, VM is running and VM_ALLOW_POWERCYCLE is set
             # (Will fail if can't shut down the VM):
             #------------------------------------------------------------------------------
             if [[ $RESTARTED_SERVER == true ]] && [[ $(domain_state $domain) == running ]]; then
 
-                if [[ ! -z $RESTART_VMS_IF_REQUIRED ]]; then
+                if [[ ! -z $VM_ALLOW_POWERCYCLE ]]; then
 
                     # Attempts to shut down the VM temporarily:
-                        domain_shutdown $domain --wait $WAIT_TIME
+                        domain_shutdown $domain --wait $VM_WAIT_TIME
 
                         if [[ $? -eq 0 ]]; then
 
@@ -269,7 +269,7 @@ check_backups()
                         # No QEMU checkpoints are found in this specific state. Falls back to checkpoints in backup:
 
                         echo "$domain: Reading checkpoints list from backup"
-                        checkpoint_list=($(backup_checkpoint_list $BACKUPS_MAIN_PATH/$domain))
+                        checkpoint_list=($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain))
                     else
 
                         echo "$domain: Reading checkpoints list from QEMU"
@@ -342,17 +342,17 @@ check_backups()
 
                         # Checks used RAM
                         local memlimit_active=""
-                        if [[ ! -z $RAM_LIMIT_PER_SCHED_BACKUP ]] && [[ $(domain_getmem $domain --max) -gt $RAM_LIMIT_PER_SCHED_BACKUP ]]; then
+                        if [[ ! -z $VM_RAM_LIMIT ]] && [[ $(domain_getmem $domain --max) -gt $VM_RAM_LIMIT ]]; then
 
                             local original_ram_size=$(domain_getmem $domain)
 
                             # Sets temporal limits of RAM before to perform the operation:
                             memlimit_active="yes"
-                            domain_setmem "$domain" "$RAM_LIMIT_PER_SCHED_BACKUP"
+                            domain_setmem "$domain" "$VM_RAM_LIMIT"
 
                             [[ $? -eq 0 ]] \
-                                    && echo "$domain: RAM size temporarily throttled from ${original_ram_size// / \/ } to $RAM_LIMIT_PER_SCHED_BACKUP KiB for this task" \
-                                    || echo "WARNING: Failed to set $domain RAM size to user defined limit of $RAM_LIMIT_PER_SCHED_BACKUP KiB"
+                                    && echo "$domain: RAM size temporarily throttled from ${original_ram_size// / \/ } to $VM_RAM_LIMIT KiB for this task" \
+                                    || echo "WARNING: Failed to set $domain RAM size to user defined limit of $VM_RAM_LIMIT KiB"
                         fi
 
                         domain_start $domain --nowait
@@ -388,7 +388,7 @@ check_backups()
                     # Gets both qemu and backup checkpoint lists:
                     checkpoint_list=($(domain_checkpoint_list $domain))
 
-                    local backup_chain_checkpoint_list=($(backup_checkpoint_list $BACKUPS_MAIN_PATH/$domain))
+                    local backup_chain_checkpoint_list=($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain))
 
                     if [[ ${checkpoint_list[@]} == ${backup_chain_checkpoint_list[@]} ]]; then
 
@@ -400,7 +400,7 @@ check_backups()
                             domain_delete_checkpoint $domain ${checkpoint_list[-1]}
 
                             echo "$domain: Power cycling VM to apply changes..."
-                            domain_powercycle $domain $WAIT_TIME
+                            domain_powercycle $domain $VM_WAIT_TIME
                         fi
 
                         # Backup chain is OK, mark as preserved:
@@ -433,7 +433,7 @@ check_backups()
             if [[ $backup_folder_integrity == false ]]; then
 
                 # Unrecoverable or unexistent backup chain folder. Delete it:
-                rm -rf $BACKUPS_MAIN_PATH/$domain
+                rm -rf $LOCAL_BACKUP_PATH/$domain
 
             elif [[ $recoverable_backup_chain == false ]]; then
 
@@ -443,19 +443,19 @@ check_backups()
                 timestamp=$(date '+%Y-%m-%d.%H:%M:%S')
 
                 # Processes backup for being archived locally:
-                archive_backup $BACKUPS_MAIN_PATH/$domain $MAX_BACKUP_CHAINS_PER_VM $timestamp
+                archive_backup $LOCAL_BACKUP_PATH/$domain $LOCAL_BACKUP_CHAINS_TO_KEEP $timestamp
 
                 # When remote endpoint is set, process remote backup copy to be archived:
-                [[ ! -z $REMOTE_BACKUPS_MAIN_PATH ]] && archive_remote_backup $REMOTE_BACKUPS_MAIN_PATH/$domain $REMOTE_MAX_BACKUP_CHAINS_PER_VM $timestamp
+                [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain $RSYNC_BACKUP_CHAINS_TO_KEEP $timestamp
 
             elif [[ $recoverable_backup_chain == true ]]; then
 
                 # Recoverable backup chain passed the test. Delete the demaged checkppoint and keep the backup chain:
 
-                echo "$domain: Fixing backup chain data in $BACKUPS_MAIN_PATH/$domain ..."
+                echo "$domain: Fixing backup chain data in $LOCAL_BACKUP_PATH/$domain ..."
 
                 # Deletes any related file with the damaged checkpoint:
-                find $BACKUPS_MAIN_PATH/$domain -name \*${checkpoint_list[-1]}* -type f -delete
+                find $LOCAL_BACKUP_PATH/$domain -name \*${checkpoint_list[-1]}* -type f -delete
 
                 # Deletes the last checkpoint from the list:
                 unset checkpoint_list[-1]
@@ -464,7 +464,7 @@ check_backups()
                 local new_checkpoint_list="${checkpoint_list[@]}"
 
                 # Rebuilds the cpt file with the parsed new list of checkpoints:
-                echo "[\"${new_checkpoint_list// /\", \"}\"]" > $BACKUPS_MAIN_PATH/$domain/$domain.cpt
+                echo "[\"${new_checkpoint_list// /\", \"}\"]" > $LOCAL_BACKUP_PATH/$domain/$domain.cpt
 
             fi
 
@@ -510,7 +510,7 @@ check_backups()
     echo ""
     echo "Added to Scheduled Backups:   ${preserved_backup_chain[@]:-"None"}"
     echo "In need of new backup chain:  ${broken_backup_chain[@]:-"None"}"
-    [[ ! -z $RESTART_VMS_IF_REQUIRED ]] && \
+    [[ ! -z $VM_ALLOW_POWERCYCLE ]] && \
     echo "Into automatic power cycle:   ${domain_shutdown_success[@]:-"None"}" || \
     echo "Manual shut down is required: ${domain_shutdown_failed[@]:-"None"}"
 
@@ -560,7 +560,7 @@ create_backup_chain()
             if [[ $(domain_state $domain) == running ]]; then
 
                 # Only when VM is running, attempts to create a new backup chain:
-                do_backup_chain $domain "full" $BACKUPS_MAIN_PATH $VIRTNBDBACKUP_ARGS
+                do_backup_chain $domain "full" $LOCAL_BACKUP_PATH $VIRTNBDBACKUP_ARGS
 
                 if [[ $? -eq 0 ]]; then
 
@@ -575,7 +575,7 @@ create_backup_chain()
                     backup_chain_failed[$i]=$domain
 
                     # Delete partial files (unusable garbage):
-                    rm -rf $BACKUPS_MAIN_PATH/$domain
+                    rm -rf $LOCAL_BACKUP_PATH/$domain
                 fi
 
                 if [[ ${domain_poweron_success[$i]} == $domain ]]; then
@@ -594,15 +594,15 @@ create_backup_chain()
                     fi
                 fi
 
-                if [[ ${backup_chain_success[$i]} == $domain ]] && [[ ! -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
+                if [[ ${backup_chain_success[$i]} == $domain ]] && [[ ! -z $RSYNC_BACKUP_PATH ]]; then
 
                     # Backup chain creation was successful and remote endpoint is (correctly) set,
                     # attempts to transfer changes via rsync:
 
                     echo "$domain: Copying new backup chain to configured remote mirror..."
 
-                    # Transfer backup using SSH_OPTS and RSYNC_ARGS:
-                    rsync $RSYNC_ARGS -e "ssh $SSH_OPTS" $BACKUPS_MAIN_PATH/$domain/ $REMOTE_BACKUPS_MAIN_PATH/$domain/
+                    # Transfer backup using SSH_OPTIONS and RSYNC_ARGS:
+                    rsync $RSYNC_ARGS -e "ssh $SSH_OPTIONS" $LOCAL_BACKUP_PATH/$domain/ $RSYNC_BACKUP_PATH/$domain/
 
                     # Depending on success with rsync, will add the VM to $remote_success or $remote_fail
                     if [[ $? -eq 0 ]]; then
@@ -626,10 +626,10 @@ create_backup_chain()
 
             else
                 # VM is presumably shut off. Will attempts to start it:
-                if [[ ! -z $RAM_LIMIT_PER_SCHED_BACKUP ]]; then
+                if [[ ! -z $VM_RAM_LIMIT ]]; then
 
                     # And needs to check how much memory uses by default, throttling it if limits are established:
-                    if [[ $(domain_getmem $domain --max) -gt $RAM_LIMIT_PER_SCHED_BACKUP ]]; then
+                    if [[ $(domain_getmem $domain --max) -gt $VM_RAM_LIMIT ]]; then
 
                         # If max value is greater than the established limit, sets the VM RAM temporarily to such limit:
                         memlimit_active="yes"
@@ -638,16 +638,16 @@ create_backup_chain()
                         original_ram_size=$(domain_getmem $domain)
 
                         # Applies temporal values (according user input, but values are grabbed from virsh in KiB):
-                        domain_setmem "$domain" "$RAM_LIMIT_PER_SCHED_BACKUP"
+                        domain_setmem "$domain" "$VM_RAM_LIMIT"
 
                         [[ $? -eq 0 ]] \
-                            && echo "$domain: RAM size temporarily throttled from ${original_ram_size// / \/ } to $RAM_LIMIT_PER_SCHED_BACKUP KiB for this task" \
-                            || echo "WARNING: Failed to set $domain RAM size to user defined limit of $RAM_LIMIT_PER_SCHED_BACKUP KiB"
+                            && echo "$domain: RAM size temporarily throttled from ${original_ram_size// / \/ } to $VM_RAM_LIMIT KiB for this task" \
+                            || echo "WARNING: Failed to set $domain RAM size to user defined limit of $VM_RAM_LIMIT KiB"
                     fi
                 fi
 
                 # Attempts to start the VM (awaits for VM's QEMU agent):
-                domain_start $domain --wait $WAIT_TIME
+                domain_start $domain --wait $VM_WAIT_TIME
                 if [[ $? -eq 0 ]]; then
 
                     domain_poweron_success[$i]=$domain
@@ -705,7 +705,7 @@ create_backup_chain()
     echo "Could not create new backup chain: ${backup_chain_failed[@]:-"None"}"
     echo "Could not power on:                ${domain_poweron_failed[@]:-"None"}"
 
-    if [[ ! -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
+    if [[ ! -z $RSYNC_BACKUP_PATH ]]; then
 
         # Only show remote stats when remote endppoint is set:
         echo ""
@@ -735,24 +735,24 @@ create_backup_chain()
 # User variables defaults (details on README.md):
 #------------------------------------------------------------------------------
 
-AUTOSTART_VMS_LIST=${AUTOSTART_VMS_LIST:-""}
-BACKUPS_MAIN_PATH=${BACKUPS_MAIN_PATH:-"/backups"}
-CRON_SCHEDULE=${CRON_SCHEDULE:-"@daily"}
-IGNORED_VMS_LIST=${IGNORED_VMS_LIST:-""}
-LOGROTATE_SCHEDULE=${LOGROTATE_SCHEDULE:-"@daily"}
+BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-"@daily"}
+LOCAL_BACKUP_CHAINS_TO_KEEP=${LOCAL_BACKUP_CHAINS_TO_KEEP:-""}
+LOCAL_BACKUP_PATH=${LOCAL_BACKUP_PATH:-"/backups"}
+LOGFILE_PATH=${LOGFILE_PATH:-"/logs/vm-babysitter.log"}
 LOGROTATE_CONFIG_PATH=${LOGROTATE_CONFIG_PATH:-"/tmp/logrotate.d/vm-babysitter"}
+LOGROTATE_SCHEDULE=${LOGROTATE_SCHEDULE:-"@daily"}
 LOGROTATE_SETTINGS=${LOGROTATE_SETTINGS:-"compress\ncopytruncate\ndateext\ndateformat -%Y%m%d-%s\nmissingok\nrotate 30"}
-MAIN_LOGPATH=${MAIN_LOGPATH:-"/logs/vm-babysitter.log"}
-MAX_BACKUP_CHAINS_PER_VM=${MAX_BACKUP_CHAINS_PER_VM:-""}
-[[ ! -z $RAM_LIMIT_PER_SCHED_BACKUP ]] && RAM_LIMIT_PER_SCHED_BACKUP=$(numfmt --from=iec --to-unit=1Ki $RAM_LIMIT_PER_SCHED_BACKUP)
-REMOTE_BACKUPS_MAIN_PATH=${REMOTE_BACKUPS_MAIN_PATH:-""}
-REMOTE_MAX_BACKUP_CHAINS_PER_VM=${REMOTE_MAX_BACKUP_CHAINS_PER_VM:-""}
-RESTART_VMS_IF_REQUIRED=${RESTART_VMS_IF_REQUIRED:-""}
 RSYNC_ARGS=${RSYNC_ARGS:-"-a"}
-SSH_OPTS=${SSH_OPTS:-"-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"}
+RSYNC_BACKUP_CHAINS_TO_KEEP=${RSYNC_BACKUP_CHAINS_TO_KEEP:-""}
+RSYNC_BACKUP_PATH=${RSYNC_BACKUP_PATH:-""}
+SSH_OPTIONS=${SSH_OPTIONS:-"-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"}
 [[ -f /usr/share/zoneinfo/$TZ ]] && local_timezone_file="/usr/share/zoneinfo/$TZ"
 VIRTNBDBACKUP_ARGS=${VIRTNBDBACKUP_ARGS:-""}
-WAIT_TIME=${WAIT_TIME:-"60"}
+VM_ALLOW_POWERCYCLE=${VM_ALLOW_POWERCYCLE:-""}
+VM_AUTOSTART_LIST=${VM_AUTOSTART_LIST:-""}
+VM_IGNORED_LIST=${VM_IGNORED_LIST:-""}
+[[ ! -z $VM_RAM_LIMIT ]] && VM_RAM_LIMIT=$(numfmt --from=iec --to-unit=1Ki $VM_RAM_LIMIT)
+VM_WAIT_TIME=${VM_WAIT_TIME:-"60"}
 
 # Internal Variables:
 #------------------------------------------------------------------------------
@@ -772,14 +772,14 @@ scheduled_backup_script="/usr/local/bin/update_backup_chain"
 # Main execution:
 ###############################################################################
 
-# Redirect system stdout and stderr to $MAIN_LOGPATH:
-exec > >(tee -a $MAIN_LOGPATH) 2> >(tee -a $MAIN_LOGPATH >&2)
+# Redirect system stdout and stderr to $LOGFILE_PATH:
+exec > >(tee -a $LOGFILE_PATH) 2> >(tee -a $LOGFILE_PATH >&2)
 
 # Load functions:
 source $functions_path
 
 # Create internal folders in case don't exist:
-[[ ! -d $( dirname $MAIN_LOGPATH) ]] && mkdir -p $(dirname $MAIN_LOGPATH)
+[[ ! -d $( dirname $LOGFILE_PATH) ]] && mkdir -p $(dirname $LOGFILE_PATH)
 
 # Sets the local timezone (if ENV TZ was set):
 if [[ ! -z $local_timezone_file ]]; then
@@ -811,13 +811,13 @@ DOMAINS_LIST=($(domains_list))
 
 if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
 
-    # 1.1.1 Check IGNORED_VMS_LIST:
+    # 1.1.1 Check VM_IGNORED_LIST:
     #------------------------------------------------------------------------------
-    if [[ ! -z $IGNORED_VMS_LIST ]]; then
+    if [[ ! -z $VM_IGNORED_LIST ]]; then
 
     echo ""
 
-        for domain in $IGNORED_VMS_LIST; do
+        for domain in $VM_IGNORED_LIST; do
 
             if [[ $(domain_exists $domain) == yes ]]; then
 
@@ -827,30 +827,30 @@ if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
                 # Rebuild indexes into the array:
                 DOMAINS_LIST=(${DOMAINS_LIST[@]})
 
-                echo "$domain: Into IGNORED_VMS_LIST, therefore ignored"
+                echo "$domain: Into VM_IGNORED_LIST, therefore ignored"
             else
-                echo "WARNING: VM '$domain' in IGNORED_VMS_LIST not found!"
+                echo "WARNING: VM '$domain' in VM_IGNORED_LIST not found!"
             fi
         done
     fi
 
-    # 1.1.2 Check AUTOSTART_VMS_LIST:
+    # 1.1.2 Check VM_AUTOSTART_LIST:
     #------------------------------------------------------------------------------
-    if [[ ! -z $AUTOSTART_VMS_LIST ]]; then
+    if [[ ! -z $VM_AUTOSTART_LIST ]]; then
 
     echo ""
 
     i=0
-        for domain in $AUTOSTART_VMS_LIST; do
+        for domain in $VM_AUTOSTART_LIST; do
 
             if [[ $(domain_exists $domain) == yes ]]; then
 
                 # Add VM to the list of VMs to be powered on when monitor starts:
                 POWEREDOFF_VMS_LIST+=($domain)
-                echo "$domain: Into AUTOSTART_VMS_LIST, therefore will be started (after initial check)"
+                echo "$domain: Into VM_AUTOSTART_LIST, therefore will be started (after initial check)"
             else
 
-                echo "WARNING: VM $domain in AUTOSTART_VMS_LIST not found!"
+                echo "WARNING: VM $domain in VM_AUTOSTART_LIST not found!"
             fi
             ((i++))
         done
@@ -918,95 +918,95 @@ else
     echo "ERROR: No persistent Virtual machines were found!"
 fi
 
-# 1.2 Check BACKUPS_MAIN_PATH
+# 1.2 Check LOCAL_BACKUP_PATH
 #------------------------------------------------------------------------------
 
 echo ""
 
-if  [[ -d $BACKUPS_MAIN_PATH ]]; then
+if  [[ -d $LOCAL_BACKUP_PATH ]]; then
 
-    # $BACKUPS_MAIN_PATH found
-    if  [[ -r $BACKUPS_MAIN_PATH ]] && [[ -w $BACKUPS_MAIN_PATH ]]; then
+    # $LOCAL_BACKUP_PATH found
+    if  [[ -r $LOCAL_BACKUP_PATH ]] && [[ -w $LOCAL_BACKUP_PATH ]]; then
 
-        # $BACKUPS_MAIN_PATH has read/write permissions.
-        backups_main_path_status="OK"
-        echo "Backups main path internally set to: $BACKUPS_MAIN_PATH"
+        # $LOCAL_BACKUP_PATH has read/write permissions.
+        LOCAL_BACKUP_PATH_status="OK"
+        echo "Backups main path internally set to: $LOCAL_BACKUP_PATH"
 
-        # Check for MAX_BACKUP_CHAINS_PER_VM:
-        if [[ $MAX_BACKUP_CHAINS_PER_VM =~ [0-9] ]]; then
+        # Check for LOCAL_BACKUP_CHAINS_TO_KEEP:
+        if [[ $LOCAL_BACKUP_CHAINS_TO_KEEP =~ [0-9] ]]; then
 
             # Is an integer number:
-            echo "Max backup chains per VM to keep locally: $MAX_BACKUP_CHAINS_PER_VM"
+            echo "Max backup chains per VM to keep locally: $LOCAL_BACKUP_CHAINS_TO_KEEP"
 
-        elif [[ -z $MAX_BACKUP_CHAINS_PER_VM ]]; then
+        elif [[ -z $LOCAL_BACKUP_CHAINS_TO_KEEP ]]; then
 
             # Was not set:
-            echo "Environment variable MAX_BACKUP_CHAINS_PER_VM not set. ALL recoverable backup chains will be archived locally"
+            echo "Environment variable LOCAL_BACKUP_CHAINS_TO_KEEP not set. ALL recoverable backup chains will be archived locally"
 
         else
             # Invalid value (unsets the 'OK' status):
-            unset backups_main_path_status
-            echo "ERROR: Incorrect value for environment variable MAX_BACKUP_CHAINS_PER_VM: '$MAX_BACKUP_CHAINS_PER_VM' <- It must be a natural integer"
+            unset LOCAL_BACKUP_PATH_status
+            echo "ERROR: Incorrect value for environment variable LOCAL_BACKUP_CHAINS_TO_KEEP: '$LOCAL_BACKUP_CHAINS_TO_KEEP' <- It must be a natural integer"
         fi
     else
 
-        echo "ERROR: Backups main path: $BACKUPS_MAIN_PATH <- Permission issues (cannot be read or written)"
+        echo "ERROR: Backups main path: $LOCAL_BACKUP_PATH <- Permission issues (cannot be read or written)"
     fi
 else
 
-    echo "ERROR: Backups main path: $BACKUPS_MAIN_PATH  <- Not found inside the container. Ensure you mount this correctly (e.g. '-v /path/to/backups-main-path:/$BACKUPS_MAIN_PATH')"
+    echo "ERROR: Backups main path: $LOCAL_BACKUP_PATH  <- Not found inside the container. Ensure you mount this correctly (e.g. '-v /path/to/backups-main-path:/$LOCAL_BACKUP_PATH')"
 fi
 
-# 1.3 Check REMOTE_BACKUPS_MAIN_PATH
+# 1.3 Check RSYNC_BACKUP_PATH
 #------------------------------------------------------------------------------
 
-if [[ -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
+if [[ -z $RSYNC_BACKUP_PATH ]]; then
 
-    remote_backups_main_path_status="UNUSED"
+    RSYNC_BACKUP_PATH_status="UNUSED"
     echo ""
-    echo "Environment variable REMOTE_BACKUPS_MAIN_PATH not set. No remote backup endpoint will be used"
+    echo "Environment variable RSYNC_BACKUP_PATH not set. No remote backup endpoint will be used"
     echo "No remote backup endpoint set"
 
-elif [[ $REMOTE_BACKUPS_MAIN_PATH == *@*:/* ]]; then
+elif [[ $RSYNC_BACKUP_PATH == *@*:/* ]]; then
 
     echo ""
 
     # Apparently includes correct remote login and path. Separates ssh login from remote path:
-    remote_server=$(echo $REMOTE_BACKUPS_MAIN_PATH | cut -d':' -f1)
-    remote_backups_main_path=$(echo $REMOTE_BACKUPS_MAIN_PATH | cut -d':' -f2)
+    remote_server=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f1)
+    RSYNC_BACKUP_PATH=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f2)
 
     # Attempts to comunicate with the remote host:
     #ssh_command $remote_server "exit 0"
-    ssh $SSH_OPTS $remote_server "exit 0"
+    ssh $SSH_OPTIONS $remote_server "exit 0"
     remote_server_status=$?
 
     if [[ $remote_server_status == 0 ]]; then
 
-        # Attempts to perform similar checks as with $BACKUPS_MAIN_PATH, except it only returns "OK" if there was success:
-        remote_backups_main_path_status=$(ssh $SSH_OPTS $remote_server "[[ -d $remote_backups_main_path ]] && [[ -r $remote_backups_main_path ]] && [[ -w $remote_backups_main_path ]] && echo 'OK' || { mkdir -p $remote_backups_main_path; [[ -d $remote_backups_main_path ]] && echo 'CREATED' || echo 'FAILED'; }")
+        # Attempts to perform similar checks as with $LOCAL_BACKUP_PATH, except it only returns "OK" if there was success:
+        RSYNC_BACKUP_PATH_status=$(ssh $SSH_OPTIONS $remote_server "[[ -d $RSYNC_BACKUP_PATH ]] && [[ -r $RSYNC_BACKUP_PATH ]] && [[ -w $RSYNC_BACKUP_PATH ]] && echo 'OK' || { mkdir -p $RSYNC_BACKUP_PATH; [[ -d $RSYNC_BACKUP_PATH ]] && echo 'CREATED' || echo 'FAILED'; }")
 
-        echo "$remote_server: $remote_backups_main_path status is $remote_backups_main_path_status"
+        echo "$remote_server: $RSYNC_BACKUP_PATH status is $RSYNC_BACKUP_PATH_status"
 
-        if [[ $remote_backups_main_path_status != FAILED ]]; then
+        if [[ $RSYNC_BACKUP_PATH_status != FAILED ]]; then
 
-            if [[ $REMOTE_MAX_BACKUP_CHAINS_PER_VM =~ [0-9] ]]; then
+            if [[ $RSYNC_BACKUP_CHAINS_TO_KEEP =~ [0-9] ]]; then
 
                 # Is an integer number:
-                echo "Max backup chains per VM to keep remotely: $REMOTE_MAX_BACKUP_CHAINS_PER_VM"
-            elif [[ -z $REMOTE_MAX_BACKUP_CHAINS_PER_VM ]]; then
+                echo "Max backup chains per VM to keep remotely: $RSYNC_BACKUP_CHAINS_TO_KEEP"
+            elif [[ -z $RSYNC_BACKUP_CHAINS_TO_KEEP ]]; then
 
                 # Was not set:
                 echo "All recoverable backup chains will be archived remotely"
             else
 
                 # Unset status variable to prevent keep running:
-                unset remote_backups_main_path_status
-                echo "ERROR: Incorrect value for environment variable REMOTE_MAX_BACKUP_CHAINS_PER_VM: '$REMOTE_MAX_BACKUP_CHAINS_PER_VM' <- It must be a natural integer"
+                unset RSYNC_BACKUP_PATH_status
+                echo "ERROR: Incorrect value for environment variable RSYNC_BACKUP_CHAINS_TO_KEEP: '$RSYNC_BACKUP_CHAINS_TO_KEEP' <- It must be a natural integer"
             fi
         else
 
-            unset remote_backups_main_path_status
-            echo "ERROR: Remote mirror: $REMOTE_BACKUPS_MAIN_PATH <- Permission issues (cannot be read or written) or is not a directory"
+            unset RSYNC_BACKUP_PATH_status
+            echo "ERROR: Remote mirror: $RSYNC_BACKUP_PATH <- Permission issues (cannot be read or written) or is not a directory"
         fi
     else
 
@@ -1014,7 +1014,7 @@ elif [[ $REMOTE_BACKUPS_MAIN_PATH == *@*:/* ]]; then
     fi
 else
 
-    echo "ERROR: Incorrect syntax for $REMOTE_BACKUPS_MAIN_PATH <- It must be an SSH-like absolute path (e.g. user@host:/absolute/path/to/mirror)"
+    echo "ERROR: Incorrect syntax for $RSYNC_BACKUP_PATH <- It must be an SSH-like absolute path (e.g. user@host:/absolute/path/to/mirror)"
 fi
 
 # 1.4 TO DO: Check other ENV variables, and SSH key:
@@ -1023,7 +1023,7 @@ fi
 # 2. Only when input parameters doesn't require to restart the container, it continues the rest of the checks:
 #------------------------------------------------------------------------------
 
-if [[ $domains_list_status == OK ]] && [[ $backups_main_path_status == OK ]] && [[ ! -z $remote_backups_main_path_status ]]; then
+if [[ $domains_list_status == OK ]] && [[ $LOCAL_BACKUP_PATH_status == OK ]] && [[ ! -z $RSYNC_BACKUP_PATH_status ]]; then
 
     # 2.0 Create logrotate config:
     #------------------------------------------------------------------------------
@@ -1036,7 +1036,7 @@ if [[ $domains_list_status == OK ]] && [[ $backups_main_path_status == OK ]] && 
         mkdir -p $(dirname $LOGROTATE_CONFIG_PATH)
 
         # Parse logrotate configuration (overwriting, if any previous):
-        echo -e "$MAIN_LOGPATH {\n$LOGROTATE_SETTINGS\n}" > $LOGROTATE_CONFIG_PATH
+        echo -e "$LOGFILE_PATH {\n$LOGROTATE_SETTINGS\n}" > $LOGROTATE_CONFIG_PATH
     else
         echo "Logrotate disabled by user"
         # Convert variable into a comment, to be added to crontab
@@ -1063,11 +1063,11 @@ SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Environment variables passed through Docker:
-BACKUPS_MAIN_PATH="$BACKUPS_MAIN_PATH"
-RAM_LIMIT_PER_SCHED_BACKUP="$RAM_LIMIT_PER_SCHED_BACKUP"
-REMOTE_BACKUPS_MAIN_PATH="$REMOTE_BACKUPS_MAIN_PATH"
+LOCAL_BACKUP_PATH="$LOCAL_BACKUP_PATH"
+VM_RAM_LIMIT="$VM_RAM_LIMIT"
+RSYNC_BACKUP_PATH="$RSYNC_BACKUP_PATH"
 RSYNC_ARGS="$RSYNC_ARGS"
-SSH_OPTS="$SSH_OPTS"
+SSH_OPTIONS="$SSH_OPTIONS"
 VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS"
 
 # Paths for functions and (shared) dynamic variables:
@@ -1075,7 +1075,7 @@ functions_path="$functions_path"
 external_vars="$external_vars"
 
 # Schedule for $(basename $scheduled_backup_script):
-$CRON_SCHEDULE $scheduled_backup_script > /proc/1/fd/1 2>&1
+$BACKUP_SCHEDULE $scheduled_backup_script > /proc/1/fd/1 2>&1
 
 # Schedule for logrotate:
 $DISABLE_LOGROTATE$LOGROTATE_SCHEDULE /usr/sbin/logrotate $LOGROTATE_CONFIG_PATH > /proc/1/fd/1 2>&1
@@ -1118,9 +1118,9 @@ end_of_crontab
 
                 if [[ $(domain_state $domain) != "shut off" ]]; then
 
-                    if [[ ! -z $RESTART_VMS_IF_REQUIRED ]]; then
+                    if [[ ! -z $VM_ALLOW_POWERCYCLE ]]; then
 
-                        domain_shutdown $domain --wait $WAIT_TIME
+                        domain_shutdown $domain --wait $VM_WAIT_TIME
                         if [[ $? -eq 0 ]]; then
 
                             # And into this list to be started as checks has been completed:
@@ -1148,7 +1148,7 @@ end_of_crontab
 
             echo "RESTARTED_SERVER mode Summary:"
             echo "Ready for further checks:     ${CHECK_PATCH_LIST[@]:-"None"}"
-            [[ ! -z $RESTART_VMS_IF_REQUIRED ]] && \
+            [[ ! -z $VM_ALLOW_POWERCYCLE ]] && \
             echo "Into automatic power cycle:   ${POWEREDOFF_VMS_LIST[@]:-"None"}" || \
             echo "Manual shut down is required: ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
         else
@@ -1319,7 +1319,7 @@ end_of_external_variables
 
                         if [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
 
-                            failed_vms_message="Perform a FULL MANUAL CHECK of: ${FAILED_VMS_LIST[@]} as SOON as POSSIBLE! Some check, backup or another operation failed unexpectedly. Check $(basename $MAIN_LOGPATH) for detailed info"
+                            failed_vms_message="Perform a FULL MANUAL CHECK of: ${FAILED_VMS_LIST[@]} as SOON as POSSIBLE! Some check, backup or another operation failed unexpectedly. Check $(basename $LOGFILE_PATH) for detailed info"
 
                             echo  "ERROR: $failed_vms_message"
                             [[ $(os_is_unraid) == yes ]] && unraid_notify "alert" "VM-Babysitter" "$user_action_message" "$failed_vms_message"
@@ -1335,7 +1335,7 @@ end_of_external_variables
 else
 
     # Initial checks have proven non-recoverable errors:
-    failed_initialize_message="Could not initialize due to errors! Check $(basename $MAIN_LOGPATH) for detailed info"
+    failed_initialize_message="Could not initialize due to errors! Check $(basename $LOGFILE_PATH) for detailed info"
 
     echo "ERROR: $message"
     [[ $(os_is_unraid) == yes ]] && unraid_notify "alert" "VM-Babysitter" "Failed to start container" "$failed_initialize_message"
