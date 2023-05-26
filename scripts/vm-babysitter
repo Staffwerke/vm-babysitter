@@ -1,48 +1,6 @@
 #!/bin/bash
 
 ###############################################################################
-# Main variables defaults:
-###############################################################################
-
-# Internal mount point for main backups folder:
-BACKUPS_MAIN_PATH=${BACKUPS_MAIN_PATH:-"/backups"}
-
-# Temporal crontab file (to be loaded for cron)
-crontab_file="/tmp/crontab"
-
-# Storing file for bash like lists shared between this script and the scheduler:
-external_vars="/tmp/vm-babysit-vars"
-
-# Main library where common functions and some variables are loaded:
-functions_path="/usr/local/bin/vm-functions"
-
-# Log file path for this script:
-MAIN_LOGPATH=${MAIN_LOGPATH:-"/logs/vm-babysitter.log"}
-
-# Path of the scheduler script (run by cron):
-scheduled_backup_script="/usr/local/bin/update_backup_chain"
-
-# Log file path for the scheduler script:
-#SCHEDULED_LOGPATH=${SCHEDULED_LOGPATH:-"/logs/scheduled-backups.log"}
-
-# Location of current Time Zone (if defined in ENV TZ):
-[[ -f /usr/share/zoneinfo/$TZ ]] && local_timezone_file="/usr/share/zoneinfo/$TZ"
-
-# Converts scaled values to KiB:
-[[ ! -z $RAM_LIMIT_PER_SCHED_BACKUP ]] && RAM_LIMIT_PER_SCHED_BACKUP=$(numfmt --from=iec --to-unit=1Ki $RAM_LIMIT_PER_SCHED_BACKUP)
-
-# Rsync arguments:
-RSYNC_ARGS=${RSYNC_ARGS:-"-a"}
-
-# SSH Options:
-SSH_OPTS=${SSH_OPTS:-"-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"}
-
-# Logrotate Variables:
-LOGROTATE_SCHEDULE=${LOGROTATE_SCHEDULE:-"@daily"}
-LOGROTATE_CONFIG_PATH=${LOGROTATE_CONFIG_PATH:-"/tmp/logrotate.d/vm-babysitter"}
-LOGROTATE_SETTINGS=${LOGROTATE_SETTINGS:-"compress\ncopytruncate\ndateext\ndateformat -%Y%m%d-%s\nmissingok\nrotate 30"}
-
-###############################################################################
 # Specific procedures:
 ###############################################################################
 
@@ -773,21 +731,55 @@ create_backup_chain()
 }
 
 ###############################################################################
+
+# User variables defaults (details on README.md):
+#------------------------------------------------------------------------------
+
+AUTOSTART_VMS_LIST=${AUTOSTART_VMS_LIST:-""}
+BACKUPS_MAIN_PATH=${BACKUPS_MAIN_PATH:-"/backups"}
+CRON_SCHEDULE=${CRON_SCHEDULE:-"@daily"}
+IGNORED_VMS_LIST=${IGNORED_VMS_LIST:-""}
+LOGROTATE_SCHEDULE=${LOGROTATE_SCHEDULE:-"@daily"}
+LOGROTATE_CONFIG_PATH=${LOGROTATE_CONFIG_PATH:-"/tmp/logrotate.d/vm-babysitter"}
+LOGROTATE_SETTINGS=${LOGROTATE_SETTINGS:-"compress\ncopytruncate\ndateext\ndateformat -%Y%m%d-%s\nmissingok\nrotate 30"}
+MAIN_LOGPATH=${MAIN_LOGPATH:-"/logs/vm-babysitter.log"}
+MAX_BACKUP_CHAINS_PER_VM=${MAX_BACKUP_CHAINS_PER_VM:-""}
+[[ ! -z $RAM_LIMIT_PER_SCHED_BACKUP ]] && RAM_LIMIT_PER_SCHED_BACKUP=$(numfmt --from=iec --to-unit=1Ki $RAM_LIMIT_PER_SCHED_BACKUP)
+REMOTE_BACKUPS_MAIN_PATH=${REMOTE_BACKUPS_MAIN_PATH:-""}
+REMOTE_MAX_BACKUP_CHAINS_PER_VM=${REMOTE_MAX_BACKUP_CHAINS_PER_VM:-""}
+RESTART_VMS_IF_REQUIRED=${RESTART_VMS_IF_REQUIRED:-""}
+RSYNC_ARGS=${RSYNC_ARGS:-"-a"}
+SSH_OPTS=${SSH_OPTS:-"-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"}
+[[ -f /usr/share/zoneinfo/$TZ ]] && local_timezone_file="/usr/share/zoneinfo/$TZ"
+VIRTNBDBACKUP_ARGS=${VIRTNBDBACKUP_ARGS:-""}
+WAIT_TIME=${WAIT_TIME:-"60"}
+
+# Internal Variables:
+#------------------------------------------------------------------------------
+
+# Temporal crontab file (to be loaded for cron)
+crontab_file="/tmp/crontab"
+
+# Storing file for bash like lists shared between this script and the scheduler:
+external_vars="/tmp/vm-babysit-vars"
+
+# Main library where common functions and some variables are loaded:
+functions_path="/usr/local/bin/vm-functions"
+
+# Path of the scheduler script (run by cron):
+scheduled_backup_script="/usr/local/bin/update_backup_chain"
+
 # Main execution:
 ###############################################################################
 
-#------------------------------------------------------------------------------
-# Internal global variables and common functions are managed via this script:
-source $functions_path
-#------------------------------------------------------------------------------
-# 1. Check input parameters (exits on error)
-#------------------------------------------------------------------------------
-
-# Creates internal folders in case don't exist:
-[[ ! -d $( dirname $MAIN_LOGPATH) ]] && mkdir -p $(dirname $MAIN_LOGPATH)
-
-# Copies stdout and stderr to $MAIN_LOGPATH:
+# Redirect system stdout and stderr to $MAIN_LOGPATH:
 exec > >(tee -a $MAIN_LOGPATH) 2> >(tee -a $MAIN_LOGPATH >&2)
+
+# Load functions:
+source $functions_path
+
+# Create internal folders in case don't exist:
+[[ ! -d $( dirname $MAIN_LOGPATH) ]] && mkdir -p $(dirname $MAIN_LOGPATH)
 
 # Sets the local timezone (if ENV TZ was set):
 if [[ ! -z $local_timezone_file ]]; then
@@ -796,11 +788,14 @@ if [[ ! -z $local_timezone_file ]]; then
     &> /dev/null dpkg-reconfigure -f noninteractive tzdata
 fi
 
-
 # Catches the signal sent from docker to stop execution:
 # The most gracefully way to stop this container is with:
 # 'docker kill --signal=SIGTERM <docker-name-or-id>'
 trap 'stop_container' SIGTERM
+
+#------------------------------------------------------------------------------
+# 1. Check input parameters (exits on error)
+#------------------------------------------------------------------------------
 
 echo "############################################################################################################"
 echo "Container started at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
@@ -970,6 +965,7 @@ if [[ -z $REMOTE_BACKUPS_MAIN_PATH ]]; then
     remote_backups_main_path_status="UNUSED"
     echo ""
     echo "Environment variable REMOTE_BACKUPS_MAIN_PATH not set. No remote backup endpoint will be used"
+    echo "No remote backup endpoint set"
 
 elif [[ $REMOTE_BACKUPS_MAIN_PATH == *@*:/* ]]; then
 
@@ -1000,7 +996,7 @@ elif [[ $REMOTE_BACKUPS_MAIN_PATH == *@*:/* ]]; then
             elif [[ -z $REMOTE_MAX_BACKUP_CHAINS_PER_VM ]]; then
 
                 # Was not set:
-                echo "Environment variable REMOTE_MAX_BACKUP_CHAINS_PER_VM not set. ALL recoverable backup chains will be archived remotely"
+                echo "All recoverable backup chains will be archived remotely"
             else
 
                 # Unset status variable to prevent keep running:
@@ -1042,6 +1038,7 @@ if [[ $domains_list_status == OK ]] && [[ $backups_main_path_status == OK ]] && 
         # Parse logrotate configuration (overwriting, if any previous):
         echo -e "$MAIN_LOGPATH {\n$LOGROTATE_SETTINGS\n}" > $LOGROTATE_CONFIG_PATH
     else
+        echo "Logrotate disabled by user"
         # Convert variable into a comment, to be added to crontab
         DISABLE_LOGROTATE="# "
     fi
@@ -1049,10 +1046,7 @@ if [[ $domains_list_status == OK ]] && [[ $backups_main_path_status == OK ]] && 
     # 2.1 Create/update Cron task for VMs to be (progressively) included in $scheduled_backups_list:
     #------------------------------------------------------------------------------
 
-    echo ""
-    echo "Deploying Cron task..."
-
-    [[ -z $CRON_SCHEDULE ]] && { CRON_SCHEDULE="@daily"; echo "Environment variable 'CRON_SCHEDULE' is not set. Using default scheduling '$CRON_SCHEDULE'"; }
+    echo "Configuring $(basename $scheduled_backup_script)..."
 
     # Silently deletes any previous cron task:
     &> /dev/null crontab -r
@@ -1073,7 +1067,6 @@ BACKUPS_MAIN_PATH="$BACKUPS_MAIN_PATH"
 RAM_LIMIT_PER_SCHED_BACKUP="$RAM_LIMIT_PER_SCHED_BACKUP"
 REMOTE_BACKUPS_MAIN_PATH="$REMOTE_BACKUPS_MAIN_PATH"
 RSYNC_ARGS="$RSYNC_ARGS"
-# MAIN_LOGPATH="$MAIN_LOGPATH"
 SSH_OPTS="$SSH_OPTS"
 VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS"
 
@@ -1090,17 +1083,9 @@ end_of_crontab
 
     # Sets the cron task:
     crontab $crontab_file
-: << 'disabled_code'
-    if [[ ! -f $SCHEDULED_LOGPATH ]]; then
 
-        # Creates folders in case doesn't exist:
-        mkdir -p $(dirname $SCHEDULED_LOGPATH)
-
-        # Initializes the log file (in case doesn't exist):
-        touch -a $SCHEDULED_LOGPATH
-    fi
-disabled_code
     # Finally, runs cron and sends to background:
+    echo "Starting Cron..."
     cron -f -l -L2 &
 
     # 2.2 Check if OS is Unraid and it has just been restarted (checking backups under this scenario assumes missing checkpoints / broken backup chains:
@@ -1189,7 +1174,6 @@ disabled_code
 
 # Dynamic arrays:
 SCHEDULED_BACKUPS_LIST=()
-CHECK_PATCH_LIST=(${CHECK_PATCH_LIST[@]})
 FAILED_VMS_LIST=()
 
 # Dynamic strings:
@@ -1251,7 +1235,7 @@ end_of_external_variables
 
                 echo ""
                 echo "____________________________________________________________________________________________________________"
-                echo "Status change detected at $(date "+%Y-%m-%d %H:%M:%S")"
+                #echo "Status change detected at $(date "+%Y-%m-%d %H:%M:%S")"
                 echo "Automatic check for VM(s) ${CHECK_PATCH_LIST[@]} in progress..."
 
                 check_patch
@@ -1340,15 +1324,6 @@ end_of_external_variables
                             echo  "ERROR: $failed_vms_message"
                             [[ $(os_is_unraid) == yes ]] && unraid_notify "alert" "VM-Babysitter" "$user_action_message" "$failed_vms_message"
                         fi
-                    fi
-
-                    if [[ -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
-
-                        no_schedules_message="At the moment, NO Virtual Machine is on schedule for incremental backup"
-
-                        echo ""
-                        echo $no_schedules_message
-                        #[[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "No schedules" "$no_schedules_message"
                     fi
                 fi
             fi
