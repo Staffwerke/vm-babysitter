@@ -16,7 +16,7 @@ source $external_vars
 #------------------------------------------------------------------------------
 
 # Copies stdout and stderr to $MAIN_LOGPATH:
-exec > >(tee -a $MAIN_LOGPATH) 2> >(tee -a $MAIN_LOGPATH >&2)
+#exec > >(tee -a $MAIN_LOGPATH) 2> >(tee -a $MAIN_LOGPATH >&2)
 
 if [[ $ONGOING_BACKUP == false ]]; then
 
