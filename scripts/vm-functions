@@ -542,7 +542,7 @@ archive_remote_backup()
     if [[ $remote_backups_to_keep != 0 ]]; then
 
         # Archives the current backup chain, by renaming it with time stamp:
-        ssh $SSH_OPTS $remote_server "mv $remote_backup_path $remote_backup_path.$timestamp"
+        ssh $SSH_OPTIONS $remote_server "mv $remote_backup_path $remote_backup_path.$timestamp"
 
         echo "$domain: Current backup chain at $remote_server renamed as $remote_backup_path.$timestamp"
 
@@ -554,12 +554,12 @@ archive_remote_backup()
             local index=$( expr $remote_backups_to_keep + 1 )
 
             # Creates a list with exact match of archived folders to delete (manually archived backup chains without this match aren't touched). Pattern is based upon $(date '+%Y-%m-%d.%H:%M:%S'):
-            remote_old_backups_list=$(ssh $SSH_OPTS $remote_server "find $remote_main_backup_path -type d -name "$domain.*" | sort -r | grep -E "^$domain.[0-9]{4}-[0-9]{2}-[0-9]{2}.[0-9]{2}:[0-9]{2}:[0-9]{2}$" | tail -n +$index")
+            remote_old_backups_list=$(ssh $SSH_OPTIONS $remote_server "find $remote_main_backup_path -type d -name "$domain.*" | sort -r | grep -E "^$domain.[0-9]{4}-[0-9]{2}-[0-9]{2}.[0-9]{2}:[0-9]{2}:[0-9]{2}$" | tail -n +$index")
 
             if [[ ! -z ${remote_old_backups_list[@]} ]]; then
 
                 # Deletes all folders in the above generated list:
-                ssh $SSH_OPTS $remote_server "rm -rf ${remote_old_backups_list[@]}"
+                ssh $SSH_OPTIONS $remote_server "rm -rf ${remote_old_backups_list[@]}"
 
                 echo "$domain: ${#remote_old_backups_list[@]} old backup chain(s) was found and deleted at $remote_server"
             fi
@@ -567,7 +567,7 @@ archive_remote_backup()
     else
 
         # When zero, remove backup chain directly:
-        ssh $SSH_OPTS $remote_server "rm -rf $remote_backup_path"
+        ssh $SSH_OPTIONS $remote_server "rm -rf $remote_backup_path"
         echo "$domain: Current backup chain at $remote_server deleted"
     fi
 }
@@ -805,7 +805,7 @@ unraid_notify()
     shift
     local message=\"$@\"
 
-   ssh $SSH_OPTS root@localhost "/usr/local/emhttp/plugins/dynamix/scripts/notify -i $severity -e $event -s $subject -d $message"
+   ssh $SSH_OPTIONS root@localhost "/usr/local/emhttp/plugins/dynamix/scripts/notify -i $severity -e $event -s $subject -d $message"
 
 # Adds a final delay to prevent false positive spamming detection (e.g. Telegram bots)
 sleep 1
