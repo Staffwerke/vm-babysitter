@@ -929,7 +929,7 @@ if  [[ -d $LOCAL_BACKUP_PATH ]]; then
     if  [[ -r $LOCAL_BACKUP_PATH ]] && [[ -w $LOCAL_BACKUP_PATH ]]; then
 
         # $LOCAL_BACKUP_PATH has read/write permissions.
-        LOCAL_BACKUP_PATH_status="OK"
+        local_backup_path_status="OK"
         echo "Backups main path internally set to: $LOCAL_BACKUP_PATH"
 
         # Check for LOCAL_BACKUP_CHAINS_TO_KEEP:
@@ -945,7 +945,7 @@ if  [[ -d $LOCAL_BACKUP_PATH ]]; then
 
         else
             # Invalid value (unsets the 'OK' status):
-            unset LOCAL_BACKUP_PATH_status
+            unset local_backup_path_status
             echo "ERROR: Incorrect value for environment variable LOCAL_BACKUP_CHAINS_TO_KEEP: '$LOCAL_BACKUP_CHAINS_TO_KEEP' <- It must be a natural integer"
         fi
     else
@@ -972,22 +972,22 @@ elif [[ $RSYNC_BACKUP_PATH == *@*:/* ]]; then
     echo ""
 
     # Apparently includes correct remote login and path. Separates ssh login from remote path:
-    remote_server=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f1)
-    RSYNC_BACKUP_PATH=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f2)
+    rsync_server=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f1)
+    rsync_path=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f2)
 
     # Attempts to comunicate with the remote host:
-    #ssh_command $remote_server "exit 0"
-    ssh $SSH_OPTIONS $remote_server "exit 0"
-    remote_server_status=$?
+    #ssh_command $rsync_server "exit 0"
+    ssh $SSH_OPTIONS $rsync_server "exit 0"
+    rsync_server_status=$?
 
-    if [[ $remote_server_status == 0 ]]; then
+    if [[ $rsync_server_status == 0 ]]; then
 
         # Attempts to perform similar checks as with $LOCAL_BACKUP_PATH, except it only returns "OK" if there was success:
-        RSYNC_BACKUP_PATH_status=$(ssh $SSH_OPTIONS $remote_server "[[ -d $RSYNC_BACKUP_PATH ]] && [[ -r $RSYNC_BACKUP_PATH ]] && [[ -w $RSYNC_BACKUP_PATH ]] && echo 'OK' || { mkdir -p $RSYNC_BACKUP_PATH; [[ -d $RSYNC_BACKUP_PATH ]] && echo 'CREATED' || echo 'FAILED'; }")
+        rsync_path_status=$(ssh $SSH_OPTIONS $rsync_server "[[ -d $rsync_path ]] && [[ -r $rsync_path ]] && [[ -w $rsync_path ]] && echo 'OK' || { mkdir -p $rsync_path; [[ -d $rsync_path ]] && echo 'CREATED' || echo 'FAILED'; }")
 
-        echo "$remote_server: $RSYNC_BACKUP_PATH status is $RSYNC_BACKUP_PATH_status"
+        echo "$rsync_server: $rsync_path status is $rsync_path_status"
 
-        if [[ $RSYNC_BACKUP_PATH_status != FAILED ]]; then
+        if [[ $rsync_path_status != FAILED ]]; then
 
             if [[ $RSYNC_BACKUP_CHAINS_TO_KEEP =~ [0-9] ]]; then
 
@@ -1000,17 +1000,17 @@ elif [[ $RSYNC_BACKUP_PATH == *@*:/* ]]; then
             else
 
                 # Unset status variable to prevent keep running:
-                unset RSYNC_BACKUP_PATH_status
+                unset rsync_path_status
                 echo "ERROR: Incorrect value for environment variable RSYNC_BACKUP_CHAINS_TO_KEEP: '$RSYNC_BACKUP_CHAINS_TO_KEEP' <- It must be a natural integer"
             fi
         else
 
-            unset RSYNC_BACKUP_PATH_status
-            echo "ERROR: Remote mirror: $RSYNC_BACKUP_PATH <- Permission issues (cannot be read or written) or is not a directory"
+            unset rsync_path_status
+            echo "ERROR: Remote mirror: $rsync_path <- Permission issues (cannot be read or written) or is not a directory"
         fi
     else
 
-        echo "ERROR: Connection with $remote_server failed with status $remote_server_status"
+        echo "ERROR: Connection with $rsync_server failed with status $rsync_server_status"
     fi
 else
 
@@ -1023,7 +1023,7 @@ fi
 # 2. Only when input parameters doesn't require to restart the container, it continues the rest of the checks:
 #------------------------------------------------------------------------------
 
-if [[ $domains_list_status == OK ]] && [[ $LOCAL_BACKUP_PATH_status == OK ]] && [[ ! -z $RSYNC_BACKUP_PATH_status ]]; then
+if [[ $domains_list_status == OK ]] && [[ $local_backup_path_status == OK ]] && [[ ! -z $rsync_path_status ]]; then
 
     # 2.0 Create logrotate config:
     #------------------------------------------------------------------------------
