@@ -440,13 +440,13 @@ check_backups()
                 # Backup chain is total or partially recoverable.
 
                 # Generate an updated time stamp to rename archived backups:
-                timestamp=$(date '+%Y-%m-%d.%H:%M:%S')
+                #timestamp=$(date '+%Y-%m-%d.%H:%M:%S')
 
                 # Processes backup for being archived locally:
-                archive_backup $LOCAL_BACKUP_PATH/$domain $LOCAL_BACKUP_CHAINS_TO_KEEP $timestamp
+                archive_backup $LOCAL_BACKUP_PATH/$domain $LOCAL_BACKUP_CHAINS_TO_KEEP
 
                 # When remote endpoint is set, process remote backup copy to be archived:
-                [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain $RSYNC_BACKUP_CHAINS_TO_KEEP $timestamp
+                [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain $RSYNC_BACKUP_CHAINS_TO_KEEP
 
             elif [[ $recoverable_backup_chain == true ]]; then
 

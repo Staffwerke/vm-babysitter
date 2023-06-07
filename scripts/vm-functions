@@ -482,7 +482,10 @@ archive_backup()
     [[ ! -z $2 ]] && [[ $2 =~ [0-9] ]] && local backups_to_keep=$2
 
     # And if second argument is OK, take the third as timestamp to be used to rename old backup:
-    [[ ! -z $backups_to_keep ]] && local timestamp=$3
+    #[[ ! -z $backups_to_keep ]] && local timestamp=$3
+
+    # Generate an updated time stamp to rename archived backups:
+    local timestamp=$(date '+%Y-%m-%d.%H:%M:%S')
 
     if [[ $backups_to_keep != 0 ]]; then
 
@@ -537,7 +540,10 @@ archive_remote_backup()
     [[ ! -z $2 ]] && [[ $2 =~ [0-9] ]] && local remote_backups_to_keep=$2
 
     # And if second argument is OK, take the third as timestamp to be used to rename old backup:
-    [[ ! -z $backups_to_keep ]] && local timestamp=$3
+    #[[ ! -z $backups_to_keep ]] && local timestamp=$3
+
+    # Generate an updated time stamp to rename archived backups:
+    local timestamp=$(date '+%Y-%m-%d.%H:%M:%S')
 
     if [[ $remote_backups_to_keep != 0 ]]; then
 
