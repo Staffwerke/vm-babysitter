@@ -437,21 +437,13 @@ check_backups()
 
             elif [[ $recoverable_backup_chain == false ]]; then
 
-                # Backup chain is total or partially recoverable.
-
-                # Generate an updated time stamp to rename archived backups:
-                #timestamp=$(date '+%Y-%m-%d.%H:%M:%S')
-
+                # Backup chain can't be used anymore, but is total or partially recoverable.
                 # Processes backup for being archived locally:
                 archive_backup $LOCAL_BACKUP_PATH/$domain $LOCAL_BACKUP_CHAINS_TO_KEEP
-
-                # When remote endpoint is set, process remote backup copy to be archived:
-                [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain $RSYNC_BACKUP_CHAINS_TO_KEEP
 
             elif [[ $recoverable_backup_chain == true ]]; then
 
                 # Recoverable backup chain passed the test. Delete the demaged checkppoint and keep the backup chain:
-
                 echo "$domain: Fixing backup chain data in $LOCAL_BACKUP_PATH/$domain ..."
 
                 # Deletes any related file with the damaged checkpoint:
@@ -465,7 +457,12 @@ check_backups()
 
                 # Rebuilds the cpt file with the parsed new list of checkpoints:
                 echo "[\"${new_checkpoint_list// /\", \"}\"]" > $LOCAL_BACKUP_PATH/$domain/$domain.cpt
+            fi
 
+            if [[ $recoverable_backup_chain == false ]] || [[ $backup_folder_integrity == false ]]; then
+
+                # When backups chains are unexistent, or by any reason unusable, and rsync endpoint is set; process remote backup copy to be archived:
+                [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain $RSYNC_BACKUP_CHAINS_TO_KEEP
             fi
 
             # Exits the loop:
