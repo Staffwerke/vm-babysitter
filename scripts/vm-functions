@@ -508,7 +508,7 @@ archive_backup()
 
                 # Deletes all folders in the above generated list:
                 rm -rf ${old_backups_list[@]}
-                echo "$domain: ${#old_backups_list[@]} old backup chain(s) was found and deleted"
+                echo "$domain: ${#old_backups_list[@]} archived backup chain(s) found and deleted"
             fi
         fi
     else
@@ -545,6 +545,48 @@ archive_remote_backup()
     # Generate an updated time stamp to rename archived backups:
     local timestamp=$(date '+%Y-%m-%d.%H:%M:%S')
 
+    # Checks in advance is remote backup path exists or not:
+    local remote_backup_chain_exists=$(ssh $SSH_OPTIONS $remote_server "[[ -d $remote_backup_path ]] && echo \"yes\" || echo \"no\"")
+
+    if [[ $remote_backup_chain_exists == "yes" ]]; then
+
+        # Previously active backup chain was found on remote endpoint:
+        case $remote_backups_to_keep in
+
+            0)
+                # When zero, do not archive. Remove backup chain directly:
+                ssh $SSH_OPTIONS $remote_server "rm -rf $remote_backup_path"
+                echo "$domain: Current backup chain at $remote_server deleted"
+            ;;
+
+            *)
+                # When not zero (natural integer or null expected, archive backup chain:
+                ssh $SSH_OPTIONS $remote_server "mv $remote_backup_path $remote_backup_path.$timestamp"
+                echo "$domain: Current backup chain at $remote_server renamed as $remote_backup_path.$timestamp"
+            ;;
+        esac
+    fi
+
+    if [[ $remote_backups_to_keep -ge 1 ]]; then
+
+        # Independently of any active backup chain found above, if retention policy is >=1, deletes found archived backup chains except the last ones as defined in the same variable:
+
+        # Position of the first folder to delete, ordered from most recent timestamp
+        local index=$( expr $remote_backups_to_keep + 1 )
+
+        # Creates a list with exact match of archived folders to delete (manually archived backup chains without this match aren't touched). Pattern is based upon $(date '+%Y-%m-%d.%H:%M:%S'):
+        remote_old_backups_list=$(ssh $SSH_OPTIONS $remote_server "find $remote_main_backup_path -type d -name \"$domain.*\" | sort -r | grep -E \"^$domain.[0-9]{4}-[0-9]{2}-[0-9]{2}.[0-9]{2}:[0-9]{2}:[0-9]{2}$\" | tail -n +$index")
+
+        if [[ ! -z ${remote_old_backups_list[@]} ]]; then
+
+            # Deletes all folders in the above generated list:
+            ssh $SSH_OPTIONS $remote_server "rm -rf ${remote_old_backups_list[@]}"
+
+            echo "$domain: ${#remote_old_backups_list[@]} archived backup chain(s) found and deleted at $remote_server"
+        fi
+    fi
+
+: << 'disabled_code'
     if [[ $remote_backups_to_keep != 0 ]]; then
 
         # Archives the current backup chain, by renaming it with time stamp:
@@ -576,6 +618,7 @@ archive_remote_backup()
         ssh $SSH_OPTIONS $remote_server "rm -rf $remote_backup_path"
         echo "$domain: Current backup chain at $remote_server deleted"
     fi
+disabled_code
 }
 
 # -----------------------------------------------------------------------------
