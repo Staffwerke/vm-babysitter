@@ -2,7 +2,7 @@ FROM debian:bullseye-slim
 
 ARG DEBIAN_FRONTEND="noninteractive"
 ARG VIRTNBDBACKUP_SOURCE_URL="https://github.com/abbbi/virtnbdbackup"
-ARG VIRTNBDBACKUP_VERSION="v0.42"
+ARG VIRTNBDBACKUP_VERSION="v0.56"
 
 LABEL container.name="vm-babysitter"
 LABEL container.description="Automatic Backup & Monitoring utility for QEMU/KVM Virtual Machines (powered by Virtnbdbackup)"
