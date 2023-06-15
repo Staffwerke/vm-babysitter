@@ -1061,7 +1061,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Environment variables passed through Docker:
 LOCAL_BACKUP_PATH="$LOCAL_BACKUP_PATH"
-VM_RAM_LIMIT="$VM_RAM_LIMIT"
+#VM_RAM_LIMIT="$VM_RAM_LIMIT"
 RSYNC_BACKUP_PATH="$RSYNC_BACKUP_PATH"
 RSYNC_ARGS="$RSYNC_ARGS"
 SSH_OPTIONS="$SSH_OPTIONS"
