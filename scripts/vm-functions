@@ -9,9 +9,6 @@
 # Base MAC address used on the qemu/kvm implementation:
 base_mac_addr="52:54:00"
 
-# SSH port can be omitted if 22. Otherwise, '-p <port_number>' :
-ssh_port=""
-
 ###############################################################################
 # Libvirt Related Functions:
 ###############################################################################
@@ -746,42 +743,6 @@ os_is_unraid()
 sort_items()
 {
     echo $@ | xargs -n1 | sort -V | xargs
-}
-
-###############################################################################
-# Remote Commands & File Transfer Related Functions:
-###############################################################################
-
-# -----------------------------------------------------------------------------
-# Sends a command string $2 via ssh to the server $1, returning the status of the operation:
-#------------------------------------------------------------------------------
-ssh_command()
-{
-    local wait_time=15
-
-    ssh $ssh_port -q -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=$wait_time $1 $2
-    return $?
-
-}
-
-# -----------------------------------------------------------------------------
-# Sends a file $2 with scp to the server $1 at path $3, returning the status of the operation:
-#------------------------------------------------------------------------------
-scp_command()
-{
-    local wait_time=15
-
-    scp $ssh_port -q -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=$wait_time $2 $1:$3
-}
-
-# -----------------------------------------------------------------------------
-# Onto a local folder $3, mounts a remote folder located at $1:$2 via ssh, returning the status of the operation (to close the connection, only needs to 'umount $3'):
-#------------------------------------------------------------------------------
-sshfs_command()
-{
-    local wait_time=15
-
-    sshfs $ssh_port -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=$wait_time  $1:$2 $3
 }
 
 ###############################################################################
