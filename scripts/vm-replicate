@@ -127,14 +127,14 @@ if [ -z $@ ]; then
 
                             # Test remote host connectivity and libvirt:
                             #ssh_command $remote_server "exit 0"
-                            ssh $SSH_OPTS $remote_server "exit 0"
+                            ssh $SSH_OPTIONS $remote_server "exit 0"
                             remote_server_status=$?
 
                             if [ $remote_server_status == 0 ]; then
 
                                 # Server returns the command status sent. Looks up for libvirt API:
                                 #remote_api_version=$(ssh_command $remote_server 'echo $(virsh --version)')
-                                remote_api_version=$(ssh $SSH_OPTS $remote_server 'echo $(virsh --version)')
+                                remote_api_version=$(ssh $SSH_OPTIONS $remote_server 'echo $(virsh --version)')
                                 remote_api_status=$?
 
                                 if [ $remote_api_status == 0 ]; then
@@ -146,7 +146,7 @@ if [ -z $@ ]; then
 
                                     # Gets the list of VMs from $remote_server to discard duplicates on the remote endpoint:
                                     #vms_list=($(ssh_command $remote_server "virsh list --all --persistent --name"))
-                                    vms_list=($(ssh $SSH_OPTS $remote_server "virsh list --all --persistent --name"))
+                                    vms_list=($(ssh $SSH_OPTIONS $remote_server "virsh list --all --persistent --name"))
 
                                     # Breaks both loops:
                                     break 2
@@ -435,10 +435,10 @@ if [ -z $@ ]; then
                         mkdir -p $working_path/remote
 
                         #ssh_command $remote_server "mkdir -p $(dirname $image_path)"
-                        ssh $SSH_OPTS $remote_server "mkdir -p $(dirname $image_path)"
+                        ssh $SSH_OPTIONS $remote_server "mkdir -p $(dirname $image_path)"
 
                         #sshfs_command $remote_server $(dirname $image_path) $working_path/remote
-                        sshfs $remote_server:$(dirname $image_path) $working_path/remote $SSH_OPTS
+                        sshfs $remote_server:$(dirname $image_path) $working_path/remote $SSH_OPTIONS
 
                         if [[ $? -eq 0 ]]; then
 
@@ -489,7 +489,7 @@ if [ -z $@ ]; then
 
                 #[[ $endpoint == remote ]] && { ssh_command $remote_server "mkdir -p $(basedir $vm_nvram_path)"; scp_command $remote_server $template_nvram_path $vm_nvram_path; }
 
-                [[ $endpoint == remote ]] && { ssh $SSH_OPTS $remote_server "mkdir -p $(basedir $vm_nvram_path)"; scp $SSH_OPTS $template_nvram_path $remote_server:$vm_nvram_path; }
+                [[ $endpoint == remote ]] && { ssh $SSH_OPTIONS $remote_server "mkdir -p $(basedir $vm_nvram_path)"; scp $SSH_OPTIONS $template_nvram_path $remote_server:$vm_nvram_path; }
 
                 [[ $? -eq 0 ]] && echo "INFO: NVRAM device '$vm_nvram_path' successfully created on $endpoint endpoint." || echo "WARNING: Could not create a NVRAM device at $endpoint endpoint. (Read logs above for more info)"
             fi
@@ -510,14 +510,14 @@ if [ -z $@ ]; then
             remote_vm_definitions_file="/tmp/$(basename $vm_definitions_file)"
 
             #scp_command $remote_server $vm_definitions_file $remote_vm_definitions_file
-            scp $SSH_OPTS $vm_definitions_file $remote_server:$remote_vm_definitions_file
+            scp $SSH_OPTIONS $vm_definitions_file $remote_server:$remote_vm_definitions_file
 
             #ssh_command $remote_server "&> /dev/null virsh define $remote_vm_definitions_file"
-            ssh $SSH_OPTS $remote_server "&> /dev/null virsh define $remote_vm_definitions_file"
+            ssh $SSH_OPTIONS $remote_server "&> /dev/null virsh define $remote_vm_definitions_file"
 
             vm_define_status=$?
             #ssh_command $remote_server "rm -f $remote_vm_definitions_file"
-            ssh $SSH_OPTS $remote_server "rm -f $remote_vm_definitions_file"
+            ssh $SSH_OPTIONS $remote_server "rm -f $remote_vm_definitions_file"
         fi
 
         if [[ $vm_define_status -eq 0 ]]; then
