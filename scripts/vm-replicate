@@ -345,7 +345,7 @@ if [ -z $@ ]; then
         # Gets the original list of MAC addresses from $src_vm:
         src_macaddr_list=($(domain_macaddr_list $src_vm))
 
-        for mac in ${vm_mac_addr_list[@]}; do
+        for mac in ${src_macaddr_list[@]}; do
 
             # Creates a random MAC addr for the given $src_vm MAC
             dest_macaddr_list+=($(gen_random_macaddr))
