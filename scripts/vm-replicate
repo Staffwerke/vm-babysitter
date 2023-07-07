@@ -3,7 +3,6 @@
 # Variables:
 # -----------------------------------------------------------------------------
 # Temporal path to store files (as .xml):
-#working_path="$HOME/.$(basename $0).tmp"
 working_path="/tmp/.$(basename $0).tmp"
 
 # Location of the script where all functions and global variables to be used are declared:
@@ -16,10 +15,9 @@ show_info()
 {
 cat << end_of_info
 
- $(basename $0) -- Replicates a given virtual machine onto a local or remote endpoint  (Author: Adrián Parilli <a.parilli@staffwerke.de>)
+ $(basename $0) -- Replicates a given virtual machine onto a local or remote endpoint
 
  REQUIREMENTS:
-    (All except the first one, refer only to remote replication)
     - libvirt service running (in all involved hosts)
     - qemu-img (this host)
     - ssh, scp and sshfs (this host)
@@ -31,6 +29,7 @@ cat << end_of_info
     - You will be asked for confirmation before to start the process
     - Once completed, it will display the final result about the operation.
 
+(Maintainer: Adrián Parilli <a.parilli@staffwerke.de>)
 end_of_info
 }
 
@@ -86,7 +85,7 @@ if [ -z $@ ]; then
         src_vm_img_paths_list=($(domain_img_paths_list $src_vm))
         vm_drives_list=(${vm_drives_list[(( $choice - 1 ))]})
 
-        echo "INFO: VM '$src_vm' selected for being replicated"
+        echo "VM '$src_vm' selected for being replicated"
 
         # Asks the user to replicate onto local, or remote VM:
         # -----------------------------------------------------------------------------
@@ -105,56 +104,42 @@ if [ -z $@ ]; then
 
                 1)
                     endpoint="local"
-                    echo "INFO: Destination endpoint set to '$localhost'"
+                    echo "Destination endpoint set to '$localhost'"
                     break
                 ;;
                 2)
                     endpoint="remote"
                     while true; do
 
-                        read -p "Insert user name and server's DNS name or IP where $src_vm will be replicated (e.g. user@hostname): " remote_server
+                        read -p "Insert user name and server's FQDN/IP where $src_vm will be replicated (e.g. user@hostname): " remote_server
 
                         if [[ $remote_server == *@* ]]; then
 
                             # Grabs remote user and server separately:
-                            #remote_server_user=$(echo $remote_server | cut -d'@' -f1)
                             remote_server_name=$(echo $remote_server | cut -d'@' -f2)
 
-                            #remote_port=$(choose_number "Insert port number to connect with host '$remote_server_name':" "0" "65535" "22")
-
-                            # When port is 22, there's no need to specify the '-p <port_number>' to SSH (and related) commands:
-                            #[[ $remote_port -ne 22 ]] && ssh_port="-p $remote_port"
-
                             # Test remote host connectivity and libvirt:
-                            #ssh_command $remote_server "exit 0"
                             ssh $SSH_OPTIONS $remote_server "exit 0"
                             remote_server_status=$?
 
                             if [ $remote_server_status == 0 ]; then
 
                                 # Server returns the command status sent. Looks up for libvirt API:
-                                #remote_api_version=$(ssh_command $remote_server 'echo $(virsh --version)')
                                 remote_api_version=$(ssh $SSH_OPTIONS $remote_server 'echo $(virsh --version)')
                                 remote_api_status=$?
 
                                 if [ $remote_api_status == 0 ]; then
 
                                     echo ""
-                                    #echo "INFO: Destination endpoint set to '$remote_server_name' port $remote_port (libvirt $remote_api_version)"
-
-                                    echo "INFO: Destination endpoint set to '$remote_server_name' (libvirt $remote_api_version)"
+                                    echo "Destination endpoint set to '$remote_server_name' (libvirt $remote_api_version)"
 
                                     # Gets the list of VMs from $remote_server to discard duplicates on the remote endpoint:
-                                    #vms_list=($(ssh_command $remote_server "virsh list --all --persistent --name"))
                                     vms_list=($(ssh $SSH_OPTIONS $remote_server "virsh list --all --persistent --name"))
 
                                     # Breaks both loops:
                                     break 2
                                 else
-                                    #echo "ERROR: Cannot connect with libvirt service at endpoint '$remote_server_name' port $remote_port (failed with status $remote_api_status)"
-
                                     echo "ERROR: Cannot connect with libvirt service at endpoint '$remote_server_name' (failed with status $remote_api_status)"
-                                    #exit $status
                                 fi
                             else
                                 echo "ERROR: Cannot connect with endpoint '$remote_server_name' port $remote_port (failed with status $remote_server_status)"
@@ -191,15 +176,15 @@ if [ -z $@ ]; then
             case $copy_disks in
 
                 yes)
-                    echo "INFO: Disk images will be provisioned"
+                    echo "Disk images will be provisioned"
 
                     # Looks for the VM state and notifies about a sudden shutdown (necessary to perform disk clonning:
                     src_vm_state=$(domain_state $src_vm)
-                    [[  $src_vm_state != "shut off" ]] && echo "WARNING: VM '$src_vm' is currently $src_vm_state. It will be temporarily shutted down during the process."
+                    [[  $src_vm_state != "shut off" ]] && echo "WARNING: VM '$src_vm' is currently $src_vm_state. It will be temporarily SHUT DOWN during the process."
                 ;;
 
                 no)
-                    echo "INFO: No disk images will be provisioned (you must provide them manually)"
+                    echo "No disk images will be provisioned (you must provide them manually)"
 
                     # Asks the user for checking / modifying paths:
                     # -----------------------------------------------------------------------------
@@ -296,14 +281,14 @@ if [ -z $@ ]; then
                         ;;
                     esac
 
-                    echo "INFO: Disk image path for ${vm_drives_list[$i]} set to ${dest_vm_img_paths_list[$i]}"
+                    echo "Disk image path for ${vm_drives_list[$i]} set to ${dest_vm_img_paths_list[$i]}"
                 done
             fi
         else
-            echo "INFO: VM '$src_vm' has no writable disks that can be replicated"
+            echo "VM '$src_vm' has no writable disks that can be replicated"
         fi
 
-# ADD MEMORY CHANGE HERE
+# ADD MEMORY/MAC ADDR CHANGES HERE:
 
         # If incremental backup patch is not detected in $src_vm, asks the user for applying this patch into $dest_vm:
         # -----------------------------------------------------------------------------
@@ -324,7 +309,7 @@ if [ -z $@ ]; then
         # Beginning of modification on $vm_definitions_file
         # -----------------------------------------------------------------------------
 
-        echo "INFO: Processing parameters for VM '$dest_vm'..."
+        echo "Processing parameters for VM '$dest_vm'..."
 
         # Dumps $src_vm definitions apart, and apply changes:
         # -----------------------------------------------------------------------------
@@ -386,7 +371,7 @@ if [ -z $@ ]; then
             # Patches $dest_vm:
             patch_xml $vm_definitions_file
 
-            [[ $? -eq 0 ]] && echo "INFO: Incremental backup capability successfully added to VM '$dest_vm'" || echo "WARNING: Could not add incremental backup capability to VM '$dest_vm'"
+            [[ $? -eq 0 ]] && echo "Incremental backup capability successfully added to VM '$dest_vm'" || echo "WARNING: Could not add incremental backup capability to VM '$dest_vm'"
         fi
         # -----------------------------------------------------------------------------
         # End of modifications on $vm_definitions_file.
@@ -410,7 +395,6 @@ if [ -z $@ ]; then
                 # Gets the status of the operation:
                 shutdown_status=$?
             else
-
                 shutdown_status=0
             fi
 
@@ -420,42 +404,37 @@ if [ -z $@ ]; then
                 for image_path in ${dest_vm_img_paths_list[@]}; do
 
                     # Copies the image disk only when conditions apply:
-                    echo "INFO: Replicating '${src_vm_img_paths_list[$i]}' as '$image_path' on $endpoint endpoint (this may take some time...)"
+                    echo "Replicating '${src_vm_img_paths_list[$i]}' as '$image_path' on $endpoint endpoint..."
 
                     if [[ $endpoint == local ]]; then
 
                         # Creates folder and dumps a copy of the disk image with qemu-img convert:
                         mkdir -p $(dirname $image_path)
-                        qemu-img convert -O qcow2 ${src_vm_img_paths_list[$i]} $image_path
+                        qemu-img convert -p -O qcow2 ${src_vm_img_paths_list[$i]} $image_path
                         image_path_status=$?
 
                     elif [[ $endpoint == remote ]]; then
 
                         # Creates remote folder, creates local mountpoint, mounts the remote folder and dumps with qemu-img convert directly:
                         mkdir -p $working_path/remote
-
-                        #ssh_command $remote_server "mkdir -p $(dirname $image_path)"
                         ssh $SSH_OPTIONS $remote_server "mkdir -p $(dirname $image_path)"
-
-                        #sshfs_command $remote_server $(dirname $image_path) $working_path/remote
                         sshfs $remote_server:$(dirname $image_path) $working_path/remote $SSH_OPTIONS
 
                         if [[ $? -eq 0 ]]; then
 
                             # Will only replicate the disk if mount of remote endpoint is successful:
-                            qemu-img convert -O qcow2 ${src_vm_img_paths_list[$i]} $working_path/remote/$(basename $image_path)
+                            qemu-img convert -p -O qcow2 ${src_vm_img_paths_list[$i]} $working_path/remote/$(basename $image_path)
                             image_path_status=$?
 
                             # Unmounts the remote folder after completion:
                             umount $working_path/remote
                         else
-
                             echo "ERROR: Cannot mount the remote folder on host '$remote_server_name' to replicate '$(basename $image_path)'. Skipped"
                         fi
                     fi
 
                     # Notifies about success or fail of each disk image provisioning for $dest_vm:
-                    [[ $image_path_status -eq 0 ]] && echo "INFO: $image_path provisioned successfully" || echo "ERROR: Failed provisioning $image_path."
+                    [[ $image_path_status -eq 0 ]] && echo "$image_path provisioned successfully" || echo "ERROR: Failed provisioning $image_path."
 
                     ((i++))
                 done
@@ -466,33 +445,61 @@ if [ -z $@ ]; then
             if [ ! -z $src_vm_was_on ]; then
 
                 # Starts $src_vm if it was previously running before the copy:
-                echo "INFO: Powering on $src_vm..."
-                virsh start $src_vm
+                echo "Powering on $src_vm..."
+                domain_start $src_vm --nowait
             fi
         fi
 
-        # On UnRaid, checks for nvram (already replaced with $dest_uuid, if exists):
-        # -----------------------------------------------------------------------------
-        if [[ $(os_is_unraid) == yes ]]; then
+        # Tries to get an nvram file path of the VM that will be replicated:
+        src_vm_nvram_path=$(domain_nvram_path $src_vm)
 
-            vm_nvram_path=$(grep -e "<nvram>" $vm_definitions_file | cut -d'>' -f2 | cut -d '<' -f1)
+        if [ ! -z $vm_nvram_path ]; then
 
-            if [ ! -z $vm_nvram_path ]; then
+            # Source VM requires nvram file to work, therefore it has to be provisioned:
+            echo "Persistent Nvram file detected. Attempting provisioning..."
 
-                # If exists in definitions and not as file, a new nvram file must be provisioned.
-                # On UnRaid, it's located at a well defined path:
-                template_nvram_path="/usr/share/qemu/ovmf-x64/OVMF_VARS-pure-efi.fd"
+            # Get nvram file path of the VM that will be replicated.
+            # Path might have changed with uuid replacement on new XML definitions file made in previous step:
+            dest_vm_nvram_path=$(domain_nvram_path $dest_vm)
 
-                # So, simply copies the template, renamed as the nvram file defined for $dest_vm:
+            if [[ $endpoint == local ]]; then
 
-                [[ $endpoint == local ]] && cp -f $template_nvram_path $vm_nvram_path
+                if [[ $src_vm_nvram_path != $dest_vm_nvram_path ]]; then
 
-                #[[ $endpoint == remote ]] && { ssh_command $remote_server "mkdir -p $(basedir $vm_nvram_path)"; scp_command $remote_server $template_nvram_path $vm_nvram_path; }
+                    # When endpoint is local and both nvram file paths differ, copy the source nvram file with the new destination name:
+                    cp -f $src_vm_nvram_path $dest_vm_nvram_path
+                    nvram_copy_status=$?
+                fi
 
-                [[ $endpoint == remote ]] && { ssh $SSH_OPTIONS $remote_server "mkdir -p $(basedir $vm_nvram_path)"; scp $SSH_OPTIONS $template_nvram_path $remote_server:$vm_nvram_path; }
+            elif [[ $endpoint == remote ]]; then
 
-                [[ $? -eq 0 ]] && echo "INFO: NVRAM device '$vm_nvram_path' successfully created on $endpoint endpoint." || echo "WARNING: Could not create a NVRAM device at $endpoint endpoint. (Read logs above for more info)"
+                # Checks if nvram device, as currently defined in dest VM, exists in remote endpoint, returning an answer:
+                remote_nvram_exists=$(ssh $SSH_OPTIONS $remote_server "[[ -f $dest_vm_nvram_path ]] && echo yes || echo no")
+
+                if [[ $remote_nvram_exists == no ]]; then
+
+                    # Remote nvram device doesn't exist in remote endpoint.
+                    # Create directory (in case also doesn't exists) and copy source nvram as dest nvram:
+                    ssh $SSH_OPTIONS $remote_server "mkdir -p $(basedir $dest_vm_nvram_path)" && \
+                    scp $SSH_OPTIONS $src_vm_nvram_path $remote_server:$dest_vm_nvram_path
+                    nvram_copy_status=$?
+                fi
             fi
+
+            case $nvram_copy_status in
+
+                # As no status is given, logic assumes files are identical and no copy was made:
+                '') echo "Source and destination Nvram file paths are identical in $endpoint endpoint ($src_vm_nvram_path) so nothing was copied"
+                ;;
+
+                # Local or remote copy was successful:
+                0) echo "Nvram file in $src_vm_nvram_path successfully provisioned to $endpoint endpoint as $dest_vm_nvram_path"
+                ;;
+
+                # There were errors copying nvram file:
+                *) "WARNING: Nvram file provisioning failed! You need to source this file manually (and possibly edit $dest_vm config) in order to make it run (status: $nvram_copy_status)"
+                ;;
+            esac
         fi
 
         # Finally, defines the VM in QEMU/KVM and cleanses temporal files:
@@ -506,36 +513,34 @@ if [ -z $@ ]; then
 
          elif [[ $endpoint == remote ]]; then
 
-            # When remote, transfers $vm_definitions_file to the host, defines it, fetches the state of the operation and then deletes the transferred file:
+            # When remote, transfers $vm_definitions_file to the host, defines it and fetches the state of the operation:
             remote_vm_definitions_file="/tmp/$(basename $vm_definitions_file)"
-
-            #scp_command $remote_server $vm_definitions_file $remote_vm_definitions_file
             scp $SSH_OPTIONS $vm_definitions_file $remote_server:$remote_vm_definitions_file
-
-            #ssh_command $remote_server "&> /dev/null virsh define $remote_vm_definitions_file"
             ssh $SSH_OPTIONS $remote_server "&> /dev/null virsh define $remote_vm_definitions_file"
-
             vm_define_status=$?
-            #ssh_command $remote_server "rm -f $remote_vm_definitions_file"
+
+            # And then deletes the transferred file:
             ssh $SSH_OPTIONS $remote_server "rm -f $remote_vm_definitions_file"
         fi
 
         if [[ $vm_define_status -eq 0 ]]; then
 
             echo ""
-            echo "INFO: VM $dest_vm replicated at $endpoint endpoint successfully!"
+            echo "VM $dest_vm replicated at $endpoint endpoint successfully!"
             rm -rf $working_path
             status=0
         else
-            echo "ERROR: Could not define VM $dest_vm to QEMU/KVM. Check $working_path in order to see what could be wrong."
+            echo "ERROR: Could not define VM $dest_vm to QEMU/KVM. Check $working_path in order to see what could be wrong"
         fi
 
     else
         echo "ERROR: No persistent Virtual Machines detected! (is libvirt service running?)"
     fi
 else
+
     # Argument(s) detected. By now, only shows the help and exits:
     show_info
+
     echo "Run this script without arguments to start the interactive mode. Exited."
     status=0
 fi
