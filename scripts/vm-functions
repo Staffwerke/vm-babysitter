@@ -147,11 +147,29 @@ domain_is_patched()
 }
 
 # -----------------------------------------------------------------------------
+# Returns a string that is the loader path of a given VM, passed as argument:
+# -----------------------------------------------------------------------------
+domain_loader_path()
+{
+    local domain=$1
+    echo $(virsh dumpxml --inactive --security-info $domain | grep -e "<loader" | cut -d'>' -f2 | cut -d '<' -f1)
+}
+
+# -----------------------------------------------------------------------------
 # Returns a string that is a space separated list of mac addresses of a given VM:
 # -----------------------------------------------------------------------------
 domain_macaddr_list()
 {
     echo $(virsh domiflist --inactive $1 | grep -o -E '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}')
+}
+
+# -----------------------------------------------------------------------------
+# Returns a string that is the nvram path of a given VM, passed as argument:
+# -----------------------------------------------------------------------------
+domain_nvram_path()
+{
+    local domain=$1
+    echo $(virsh dumpxml --inactive --security-info $domain | grep -e "<nvram>" | cut -d'>' -f2 | cut -d '<' -f1)
 }
 
 #------------------------------------------------------------------------------
