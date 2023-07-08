@@ -488,7 +488,7 @@ if [ -z $@ ]; then
 
                     # Remote nvram device doesn't exist in remote endpoint.
                     # Create directory (in case also doesn't exists) and copy source nvram as dest nvram:
-                    ssh $SSH_OPTIONS $remote_server "mkdir -p $(basedir $dest_vm_nvram_path)" && \
+                    ssh $SSH_OPTIONS $remote_server "mkdir -p $(dirname $dest_vm_nvram_path)" && \
                     scp $SSH_OPTIONS $src_vm_nvram_path $remote_server:$dest_vm_nvram_path
                     nvram_copy_status=$?
                 fi
@@ -505,7 +505,7 @@ if [ -z $@ ]; then
                 ;;
 
                 # There were errors copying nvram file:
-                *) "WARNING: Nvram file provisioning failed! You need to source this file manually (and possibly edit $dest_vm config) in order to make it run (status: $nvram_copy_status)"
+                *) echo "WARNING: Nvram file provisioning failed! You need to source this file manually (and possibly edit $dest_vm config) in order to make it run (status: $nvram_copy_status)"
                 ;;
             esac
         fi
