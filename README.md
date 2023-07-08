@@ -170,7 +170,7 @@ Scheduling all found VMs for (compressed) incremental backups on local endpoint 
 ### Generic example of full docker command for local and remote backups:
 
 ```
-    docker run -d --rm --network host --name docker.staffwerke.de/vm-babysitter:latest \
+    docker run -d --rm --network host --device /dev/fuse --cap-add SYS_ADMIN --name docker.staffwerke.de/vm-babysitter:latest \
     -e LOCAL_BACKUP_PATH="/mnt/user/Backups/vm-backups" \
     -e BACKUP_SCHEDULE="* */12 * * *" \
     -e LOCAL_BACKUP_CHAINS_TO_KEEP="0" \
@@ -179,7 +179,7 @@ Scheduling all found VMs for (compressed) incremental backups on local endpoint 
     -e RSYNC_BACKUP_CHAINS_TO_KEEP="3" \
     -e VM_ALLOW_POWERCYCLE="yes" \
     -e RSYNC_ARGS="-aP --bwlimit=1179648" \
-    -e SSH_OPTIONS="-o IdentiyFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10" \
+    -e SSH_OPTIONS="-q -o IdentiyFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10" \
     -e TZ="Europe/Berlin" \
     -e VIRTNBDBACKUP_ARGS="--compress" \
     -v /etc/libvirt/qemu/nvram:/etc/libvirt/qemu/nvram \
@@ -224,15 +224,24 @@ It is very similar in functioning with qemu's 'virt-clone' utility, except by th
 
 Is also able to detect and optionally apply the same modification made by [vm-patch](#vm-patch) directly on the VM to be created (not modifying the source VM if does not have the patch.)
 
-Resulting VMs are 'clones' of the source VM in most of features, exceptin by:
+Resulting VMs are 'clones' of the source VM in most of features, excepting by:
 
 - Virtual machine's UUID
 - MAC address(es)
-- Disk image paths, in most of scenarios.
+- Persistent Nvram files (whenever found)
+- Disk image paths, in most of scenarios
 
 Disk image provisioning is an optional step, and the user still can set custom paths for future images them in new VM definitions. When cloned with this script, all disk images are thin provisioned.
 
-For remote replication, it makes use of SSH (remote commnds), SCP (small file transfers) and SSHFS to clone disk images through qemu-img, building then directly onto the remote endpoint.
+For remote replication, it makes use of SSH for execute remote commnds, SCP for small file transfers and SSHFS to mount remote folders (thus allowing direct disk image(s) replication onto the remote endpoint)
+
+**To correctly replicate disk images remotely, docker parameters `--device /dev/fuse` and `--cap-add SYS_ADMIN` must be added to the command line**
+
+As of current state of development, script is interactive, not accepting arguments. Syntax is:
+
+```
+    vm-replicate
+```
 
 ### vm-restore
 
@@ -244,14 +253,14 @@ More detailed info is available at the same script, by running it with `vm-resto
 
 ## Known Issues/bugs:
 
--  [vm-replicate](#vm-replicate) and [vm-restore](#vm-restore) aren't tested enough to work inside container (work in progress)
+-  [vm-restore](#vm-restore) hasn't been tested enough to work inside container (work in progress)
 
 - Stopping or killing the container while virtnbdbackup is performing a backup operation may lead to persistent failed status during next runs. It is presumed that dead sockets in `/var/tmp`, `/run/libvirt` and `/run/lock` keep last QEMU image(s) being processed, locked after the crash, therefore unable to be accessed by virtnbdbackup. Deleting such dead sockets (or waiting a few hours) has been proved to be helpful, but the best practice is **DO NOT STOP the container while is performing backup tasks!**
 
 ## TO DO:
 
 - Merge with latest Virnbdbackup features (automatic backup mode, remote replication, remote restoration, backup checks, etc)
-- vm-replicate: Add modify RAM menu, detach removable units, and check it works fine inside container
+- vm-replicate: Add modify RAM menu, detach removable units, add menu to keep mac address or set custom one
 - Add/Remove VMs on the fly
 - Archive backup chain when its total size is too big for certain criteria
 - Detect and alert when space in LOCAL_BACKUP_PATH and RSYNC_BACKUP_PATH is low
