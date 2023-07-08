@@ -524,7 +524,7 @@ if [ -z $@ ]; then
             # When remote, transfers $vm_definitions_file to the host, defines it and fetches the state of the operation:
             remote_vm_definitions_file="/tmp/$(basename $vm_definitions_file)"
             scp $SSH_OPTIONS $vm_definitions_file $remote_server:$remote_vm_definitions_file
-            ssh $SSH_OPTIONS $remote_server "&> /dev/null ls $remote_vm_definitions_file"
+            ssh $SSH_OPTIONS $remote_server "&> /dev/null virsh define $remote_vm_definitions_file"
             vm_define_status=$?
 
             # And then deletes the transferred file:
