@@ -161,12 +161,23 @@ domain_macaddr_list()
 }
 
 # -----------------------------------------------------------------------------
-# Returns a string that is the nvram path of a given VM, passed as argument:
+# Returns a string that is the nvram path of either an existing vm or the full path to an xml definition file.
+# Argument type (vm or xml file path) is detected automatically:
 # -----------------------------------------------------------------------------
 domain_nvram_path()
 {
-    local domain=$1
-    echo $(virsh dumpxml --inactive --security-info $domain | grep -e "<nvram>" | cut -d'>' -f2 | cut -d '<' -f1)
+    local message
+
+    if [[ $(domain_exists $1) == yes ]]; then
+
+        message=$(virsh dumpxml --inactive --security-info $1 | grep -e "<nvram>" | cut -d'>' -f2 | cut -d '<' -f1)
+
+    elif [[ -f $1 ]]; then
+
+        message=$(grep -e "<nvram>" $1 | cut -d'>' -f2 | cut -d '<' -f1)
+    fi
+
+    echo $message
 }
 
 #------------------------------------------------------------------------------
