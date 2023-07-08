@@ -425,7 +425,7 @@ if [ -z $@ ]; then
 
                         # And mounts the remote folder and dumps with qemu-img convert directly.
                         # (sshfs is not compatible with option '-q', so must be filtered from SSH_OPTIONS):
-                        sshfs $remote_server:$(dirname $image_path) $working_path/remote ${SSH_OPTIONS/-q/}
+                        sshfs $remote_server:$(dirname $image_path) $working_path/remote ${SSH_OPTIONS/-q /}
 
                         if [[ $? -eq 0 ]]; then
 
