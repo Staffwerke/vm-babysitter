@@ -458,9 +458,10 @@ if [ -z $@ ]; then
             # Source VM requires nvram file to work, therefore it has to be provisioned:
             echo "Persistent Nvram file detected. Attempting provisioning..."
 
-            # Get nvram file path of the VM that will be replicated.
-            # Path might have changed with uuid replacement on new XML definitions file made in previous step:
-            dest_vm_nvram_path=$(domain_nvram_path $dest_vm)
+            # Get nvram file path of the VM that will be replicated (from its xml definition file)
+            # On Unraid, file name will change with uuid replacement on new XML definitions file made in previous step
+            # (Other OSes might behave in similar way, but this has not been tested):
+            dest_vm_nvram_path=$(domain_nvram_path $vm_definitions_file)
 
             if [[ $endpoint == local ]]; then
 
