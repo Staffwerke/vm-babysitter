@@ -419,10 +419,13 @@ if [ -z $@ ]; then
 
                     elif [[ $endpoint == remote ]]; then
 
-                        # Creates remote folder, creates local mountpoint, mounts the remote folder and dumps with qemu-img convert directly:
+                        # Creates remote folder and creates local mountpoint:
                         mkdir -p $working_path/remote
                         ssh $SSH_OPTIONS $remote_server "mkdir -p $(dirname $image_path)"
-                        sshfs $remote_server:$(dirname $image_path) $working_path/remote $SSH_OPTIONS
+
+                        # And mounts the remote folder and dumps with qemu-img convert directly.
+                        # (sshfs is not compatible with option '-q', so must be filtered from SSH_OPTIONS):
+                        sshfs $remote_server:$(dirname $image_path) $working_path/remote ${SSH_OPTIONS/-q/}
 
                         if [[ $? -eq 0 ]]; then
 
@@ -498,7 +501,7 @@ if [ -z $@ ]; then
                 ;;
 
                 # Local or remote copy was successful:
-                0) echo "Nvram file in $src_vm_nvram_path successfully provisioned to $endpoint endpoint as $dest_vm_nvram_path"
+                0) echo "Persistent Nvram file successfully provisioned to $endpoint endpoint as $dest_vm_nvram_path"
                 ;;
 
                 # There were errors copying nvram file:
