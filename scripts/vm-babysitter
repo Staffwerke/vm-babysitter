@@ -748,7 +748,7 @@ VIRTNBDBACKUP_ARGS=${VIRTNBDBACKUP_ARGS:-""}
 VM_ALLOW_POWERCYCLE=${VM_ALLOW_POWERCYCLE:-""}
 VM_AUTOSTART_LIST=${VM_AUTOSTART_LIST:-""}
 VM_IGNORED_LIST=${VM_IGNORED_LIST:-""}
-[[ ! -z $VM_RAM_LIMIT ]] && VM_RAM_LIMIT=$(numfmt --from=iec --to-unit=1Ki $VM_RAM_LIMIT)
+[[ ! -z $VM_RAM_LIMIT ]] && VM_RAM_LIMIT=$(numfmt --from=iec --to-unit=1Ki ${VM_RAM_LIMIT^^})
 VM_WAIT_TIME=${VM_WAIT_TIME:-"60"}
 
 # Internal Variables:
@@ -962,7 +962,6 @@ if [[ -z $RSYNC_BACKUP_PATH ]]; then
     RSYNC_BACKUP_PATH_status="UNUSED"
     echo ""
     echo "Environment variable RSYNC_BACKUP_PATH not set. No remote backup endpoint will be used"
-    echo "No remote backup endpoint set"
 
 elif [[ $RSYNC_BACKUP_PATH == *@*:/* ]]; then
 
@@ -979,39 +978,42 @@ elif [[ $RSYNC_BACKUP_PATH == *@*:/* ]]; then
 
     if [[ $rsync_server_status == 0 ]]; then
 
-        # Attempts to perform similar checks as with $LOCAL_BACKUP_PATH, except it only returns "OK" if there was success:
+        # Attempts to perform similar checks as with $LOCAL_BACKUP_PATH:
         rsync_path_status=$(ssh $SSH_OPTIONS $rsync_server "[[ -d $rsync_path ]] && [[ -r $rsync_path ]] && [[ -w $rsync_path ]] && echo 'OK' || { mkdir -p $rsync_path; [[ -d $rsync_path ]] && echo 'CREATED' || echo 'FAILED'; }")
 
-        echo "$rsync_server: $rsync_path status is $rsync_path_status"
 
         if [[ $rsync_path_status != FAILED ]]; then
 
+            # Notifiy about good status of $rsync_path
+            echo "$rsync_server: $rsync_path exists and status is '$rsync_path_status'"
+
+            # Verify # of backup chains to keep:
             if [[ $RSYNC_BACKUP_CHAINS_TO_KEEP =~ [0-9] ]]; then
 
                 # Is an integer number:
                 echo "Max backup chains per VM to keep remotely: $RSYNC_BACKUP_CHAINS_TO_KEEP"
+
             elif [[ -z $RSYNC_BACKUP_CHAINS_TO_KEEP ]]; then
 
                 # Was not set:
                 echo "All recoverable backup chains will be archived remotely"
             else
 
-                # Unset status variable to prevent keep running:
-                unset rsync_path_status
-                echo "ERROR: Incorrect value for environment variable RSYNC_BACKUP_CHAINS_TO_KEEP: '$RSYNC_BACKUP_CHAINS_TO_KEEP' <- It must be a natural integer"
+                echo "ERROR: Incorrect value for environment variable RSYNC_BACKUP_CHAINS_TO_KEEP: '$RSYNC_BACKUP_CHAINS_TO_KEEP' it must be a positive integer"
+                rsync_path_status="FAILED"
             fi
+
         else
-
-            unset rsync_path_status
-            echo "ERROR: Remote mirror: $rsync_path <- Permission issues (cannot be read or written) or is not a directory"
+            echo "ERROR: remote mirror $rsync_path cannot be read and/or written (or is not a directory)"
         fi
-    else
 
+    else
         echo "ERROR: Connection with $rsync_server failed with status $rsync_server_status"
+        rsync_path_status="FAILED"
     fi
 else
-
-    echo "ERROR: Incorrect syntax for $RSYNC_BACKUP_PATH <- It must be an SSH-like absolute path (e.g. user@host:/absolute/path/to/mirror)"
+    echo "ERROR: Incorrect syntax for RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH' it must be SSH-like absolute path (e.g. user@host:/path-to-mirror)"
+    rsync_path_status="FAILED"
 fi
 
 # 1.4 TO DO: Check other ENV variables, and SSH key:
@@ -1020,7 +1022,7 @@ fi
 # 2. Only when input parameters doesn't require to restart the container, it continues the rest of the checks:
 #------------------------------------------------------------------------------
 
-if [[ $domains_list_status == OK ]] && [[ $local_backup_path_status == OK ]] && [[ ! -z $rsync_path_status ]]; then
+if [[ $domains_list_status == OK ]] && [[ $local_backup_path_status == OK ]] && [[ $rsync_path_status != FAILED ]]; then
 
     # 2.0 Create logrotate config:
     #------------------------------------------------------------------------------
@@ -1334,7 +1336,7 @@ else
     # Initial checks have proven non-recoverable errors:
     failed_initialize_message="Could not initialize due to errors! Check $(basename $LOGFILE_PATH) for detailed info"
 
-    echo "ERROR: $message"
+    echo "ERROR: $failed_initialize_message"
     [[ $(os_is_unraid) == yes ]] && unraid_notify "alert" "VM-Babysitter" "Failed to start container" "$failed_initialize_message"
 
     stop_container
