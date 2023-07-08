@@ -336,7 +336,8 @@ if [ -z $@ ]; then
         # Random UUID to replace the original one:
         dest_uuid=$(uuidgen)
 
-        # Replaces all matches of $src_uuid for $dest_uuid:
+        # Replaces all matches of $src_uuid for $dest_uuid.
+        # On Unraid and possibly other OSes, changes the path of persistent Nvram file, if exists:
         sed -i -e "s|$src_uuid|$dest_uuid|g" $vm_definitions_file
 
         # Replaces MAC addresses for (qemu/kvm) randomized ones:
@@ -345,13 +346,15 @@ if [ -z $@ ]; then
         # Gets the original list of MAC addresses from $src_vm:
         src_macaddr_list=($(domain_macaddr_list $src_vm))
 
+        i=0
         for mac in ${src_macaddr_list[@]}; do
 
             # Creates a random MAC addr for the given $src_vm MAC
             dest_macaddr_list+=($(gen_random_macaddr))
 
             # Replaces matching listed mac for a random one:
-            sed -i -e "s|<mac address='$mac'/>|<mac address='${dest_macaddr_list[${#dest_macaddr_list[@]}]}'/>|" $vm_definitions_file
+            sed -i -e "s|<mac address='$mac'/>|<mac address='${dest_macaddr_list[$i]}'/>|" $vm_definitions_file
+            ((i++))
         done
 
         # When defined by the user, Replaces disk image paths:
@@ -361,6 +364,7 @@ if [ -z $@ ]; then
 
             # Replaces $src_vm paths for a $dest_vm paths:
             sed -i -e "s|<source file='${src_vm_img_paths_list[$i]}'/>|<source file='$path'/>|" $vm_definitions_file
+            ((i++))
         done
 
         # If requested, patches $dest_vm for incremental backups:
@@ -517,7 +521,7 @@ if [ -z $@ ]; then
             # When remote, transfers $vm_definitions_file to the host, defines it and fetches the state of the operation:
             remote_vm_definitions_file="/tmp/$(basename $vm_definitions_file)"
             scp $SSH_OPTIONS $vm_definitions_file $remote_server:$remote_vm_definitions_file
-            ssh $SSH_OPTIONS $remote_server "&> /dev/null virsh define $remote_vm_definitions_file"
+            ssh $SSH_OPTIONS $remote_server "&> /dev/null ls $remote_vm_definitions_file"
             vm_define_status=$?
 
             # And then deletes the transferred file:
