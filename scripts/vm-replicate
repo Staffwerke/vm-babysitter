@@ -453,7 +453,7 @@ if [ -z $@ ]; then
         # Tries to get an nvram file path of the VM that will be replicated:
         src_vm_nvram_path=$(domain_nvram_path $src_vm)
 
-        if [ ! -z $vm_nvram_path ]; then
+        if [ ! -z $src_vm_nvram_path ]; then
 
             # Source VM requires nvram file to work, therefore it has to be provisioned:
             echo "Persistent Nvram file detected. Attempting provisioning..."
