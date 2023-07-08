@@ -42,7 +42,7 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 |`VM_ALLOW_POWERCYCLE`|When enabled performs a controlled powercycle of VMs, checking incremental backup patch and backup chains as needed. (Default is disabled)||
 |`VM_AUTOSTART_LIST`|Case Sensitive space separated list of VMs that will be started along with the container||
 |`VM_IGNORED_LIST`|Case Sensitive space separated list of VMs to ignore, so won't be checked or backed up||
-|`VM_RAM_LIMIT`|How much RAM to assign temporarily to a shut down VM to perform backup tasks. Accepts CAPS multipliers without spaces, e.g. `1048576K`, `2048M`, `4G`, etc. otherwise assumes Bytes (default is not to touch RAM values)||
+|`VM_RAM_LIMIT`|How much RAM to assign temporarily to a shut down VM to perform backup tasks. Accepts multipliers such as k,K,m,M,g,G and similar, e.g. `1048576K`, `2048m`, `4G`, etc. Otherwise assumes Bytes (default is not to touch RAM values)||
 |`VM_WAIT_TIME`|Maximum time in seconds to await for VMs to confirm it has reached on/off states in certain scenarios|`60`|
 
 ## Mount points:
