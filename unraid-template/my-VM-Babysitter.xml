@@ -14,7 +14,7 @@
   <WebUI/>
   <TemplateURL/>
   <Icon/>
-  <ExtraParams/>
+  <ExtraParams>--device /dev/fuse --cap-add SYS_ADMIN</ExtraParams>
   <PostArgs/>
   <CPUset/>
   <DateInstalled/>
