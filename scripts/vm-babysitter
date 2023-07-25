@@ -744,6 +744,7 @@ RSYNC_BACKUP_CHAINS_TO_KEEP=${RSYNC_BACKUP_CHAINS_TO_KEEP:-""}
 RSYNC_BACKUP_PATH=${RSYNC_BACKUP_PATH:-""}
 SSH_OPTIONS=${SSH_OPTIONS:-"-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"}
 [[ -f /usr/share/zoneinfo/$TZ ]] && local_timezone_file="/usr/share/zoneinfo/$TZ"
+UNRAID_NOTIFY_HOST=${UNRAID_NOTIFY_HOST:-"localhost"}
 VIRTNBDBACKUP_ARGS=${VIRTNBDBACKUP_ARGS:-""}
 VM_ALLOW_POWERCYCLE=${VM_ALLOW_POWERCYCLE:-""}
 VM_AUTOSTART_LIST=${VM_AUTOSTART_LIST:-""}
@@ -1068,6 +1069,7 @@ RSYNC_BACKUP_PATH="$RSYNC_BACKUP_PATH"
 RSYNC_ARGS="$RSYNC_ARGS"
 SSH_OPTIONS="$SSH_OPTIONS"
 VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS"
+UNRAID_NOTIFY_HOST="$UNRAID_NOTIFY_HOST"
 
 # Paths for functions and (shared) dynamic variables:
 functions_path="$functions_path"
