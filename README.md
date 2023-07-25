@@ -38,7 +38,7 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 |`RSYNC_BACKUP_PATH`|SSH syntax of remote absolute path, e.g. `user@host:/absolute/path/to/folder` to rsync successful backup chain tasks (requires r/w permissions)||
 |`SSH_OPTIONS`|SSH options for communications with involved hosts, including rsync, and Unraid notifications to localhost|`-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10`|
 |`TZ`|Local timezone. Most likely the same on the server running docker (default is container's time)||
-|`UNRAID_NOTIFY_HOST`|Host or IP to send Unraid notifications. Change it when `'--network=host'` is not possible, or when notifications aren't working. (Applies for Unraid OS only)|`localhost`|
+|`UNRAID_NOTIFY_HOST`|Host or IP to send Unraid notifications. Change it when `--network=host` is not possible, or when notifications aren't working. (Applies for Unraid OS only)|`localhost`|
 |`VIRTNBDBACKUP_ARGS`|Extra arguments passed to virtnbdbackup, in both full and inc backup, e.g. `--compress`||
 |`VM_ALLOW_POWERCYCLE`|When enabled performs a controlled powercycle of VMs, checking incremental backup patch and backup chains as needed. (Default is disabled)||
 |`VM_AUTOSTART_LIST`|Case Sensitive space separated list of VMs that will be started along with the container||
