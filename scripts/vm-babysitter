@@ -283,7 +283,7 @@ check_backups()
 
                         if [[ ${bitmaps_list[@]} != ${checkpoint_list[@]} ]]; then
 
-                            backup_check_failed="yes"
+                            backup_check_failed="true"
                             echo "$domain: Checkpoints and bitmaps lists on disk $image MISMATCH"
 
                             # Nothing else can be done
@@ -295,7 +295,7 @@ check_backups()
                             echo "$domain: Checkpoints and bitmaps lists on disk $image MATCH"
                         else
 
-                            backup_check_failed="yes"
+                            backup_check_failed="true"
                             echo "$domain: ${#checkpoint_list[@]} checkpoints found, and ${#bitmaps_list[@]} bitmaps found on disk $image (backup chain is broken)"
 
                             # Nothing else can be done
@@ -307,7 +307,7 @@ check_backups()
                 # When above check failed or something was wrong from the very beginning, cleanses disk images,
                 # checkpoints metadata (if any), and archives or deletes the existing backup chain, according the case:
                 #------------------------------------------------------------------------------
-                if [[ $backup_check_failed == yes ]] \
+                if [[ $backup_check_failed == true ]] \
                 || [[ $recoverable_backup_chain == false ]] \
                 || [[ $backup_folder_integrity == false ]]; then
 
@@ -435,7 +435,7 @@ check_backups()
                 # Unrecoverable or unexistent backup chain folder. Delete it:
                 rm -rf $LOCAL_BACKUP_PATH/$domain
 
-            elif [[ $recoverable_backup_chain == false ]]; then
+            elif [[ $recoverable_backup_chain == false ]] || [[ $backup_check_failed == true ]]; then
 
                 # Backup chain can't be used anymore, but is total or partially recoverable.
                 # Processes backup for being archived locally:
@@ -459,7 +459,7 @@ check_backups()
                 echo "[\"${new_checkpoint_list// /\", \"}\"]" > $LOCAL_BACKUP_PATH/$domain/$domain.cpt
             fi
 
-            if [[ $recoverable_backup_chain == false ]] || [[ $backup_folder_integrity == false ]]; then
+            if [[ $recoverable_backup_chain == false ]] || [[ $backup_folder_integrity == false ]] || [[ $backup_check_failed == true ]]; then
 
                 # When backups chains are unexistent, or by any reason unusable, and rsync endpoint is set; process remote backup copy to be archived:
                 [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain $RSYNC_BACKUP_CHAINS_TO_KEEP
