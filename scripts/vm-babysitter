@@ -145,13 +145,14 @@ check_backups()
 {
     # Local variables used for flow control:
     local backup_check_failed
+    local backup_chain_full
     local backup_folder_integrity
     local bitmaps_list
     local checkpoint_list
     local recoverable_backup_chain
 
     # Lists to add VMs (and summarize at the end):
-    local broken_backup_chain
+    local broken_or_full_backup_chain
     local domain_shutdown_failed
     local domain_shutdown_success
     local preserved_backup_chain
@@ -164,6 +165,7 @@ check_backups()
     for domain in ${CHECK_BACKUPS_LIST[@]}; do
 
         backup_check_failed=""
+        backup_chain_full=""
         backup_folder_integrity=""
         checkpoint_list=()
         recoverable_backup_chain=""
@@ -207,6 +209,14 @@ check_backups()
                         recoverable_backup_chain="true"
                         echo "$domain: An incremental backup operation was previously cancelled. It will attempt to fix the current backup chain by deleting the (now useless) data that was being saved right before the cancellation, and deleting the checkpoint from this VM (a full Power Cycle will be performed after repair to apply all the changes)"
                     fi
+
+                elif [[ ! -z $MAX_BACKUPS_PER_CHAIN ]] \
+                  && [[ $(find $LOCAL_BACKUP_PATH/$domain/checkpoints -name virtnbdbackup.*.xml | wc -w) -gt $($MAX_BACKUPS_PER_CHAIN) ]]; then
+
+                    backup_chain_full="true"
+                    broken_or_full_backup_chain[$i]=$domain
+
+                    echo "$domain: Backup chain has reached the limit of $MAX_BACKUPS_PER_CHAIN backups. Nothing will be checked, and a new backup chain will be created"
 
                 else
 
@@ -330,7 +340,7 @@ check_backups()
                     done
 
                 # Mark the backup chain status as broken:
-                broken_backup_chain[$i]=$domain
+                broken_or_full_backup_chain[$i]=$domain
 
                 # If backup check was successful:
                 #------------------------------------------------------------------------------
@@ -411,7 +421,7 @@ check_backups()
                         echo "$domain: QEMU and Backup's checkpoint lists MISMATCH"
 
                         # Mark the backup chain status as broken:
-                        broken_backup_chain[$i]=$domain
+                        broken_or_full_backup_chain[$i]=$domain
 
                         # Additionally, mark it as non recoverable (to be archived):
                         recoverable_backup_chain="false"
@@ -423,7 +433,7 @@ check_backups()
                 else
 
                     # Mark the backup chain status as broken:
-                    broken_backup_chain[$i]=$domain
+                    broken_or_full_backup_chain[$i]=$domain
                 fi
             fi
 
@@ -435,7 +445,7 @@ check_backups()
                 # Unrecoverable or unexistent backup chain folder. Delete it:
                 rm -rf $LOCAL_BACKUP_PATH/$domain
 
-            elif [[ $recoverable_backup_chain == false ]] || [[ $backup_check_failed == true ]]; then
+            elif [[ $recoverable_backup_chain == false ]] || [[ $backup_check_failed == true ]] || [[ $backup_chain_full == true ]]; then
 
                 # Backup chain can't be used anymore, but is total or partially recoverable.
                 # Processes backup for being archived locally:
@@ -459,7 +469,8 @@ check_backups()
                 echo "[\"${new_checkpoint_list// /\", \"}\"]" > $LOCAL_BACKUP_PATH/$domain/$domain.cpt
             fi
 
-            if [[ $recoverable_backup_chain == false ]] || [[ $backup_folder_integrity == false ]] || [[ $backup_check_failed == true ]]; then
+            if [[ $recoverable_backup_chain == false ]] || [[ $backup_folder_integrity == false ]] \
+            || [[ $backup_check_failed == true ]] || [[ $backup_chain_full == true ]]; then
 
                 # When backups chains are unexistent, or by any reason unusable, and rsync endpoint is set; process remote backup copy to be archived:
                 [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain $RSYNC_BACKUP_CHAINS_TO_KEEP
@@ -494,7 +505,7 @@ check_backups()
     SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)
 
     # Appends sub-list to global list of VMs in need of a new backup chain:
-    CREATE_BACKUP_CHAIN_LIST+=(${broken_backup_chain[@]})
+    CREATE_BACKUP_CHAIN_LIST+=(${broken_or_full_backup_chain[@]})
 
     # Appends sub-list to the global list of powered OFF VMs:
     POWEREDOFF_VMS_LIST+=(${domain_shutdown_success[@]})
@@ -506,7 +517,7 @@ check_backups()
     echo "Backup Chain Integrity Summary:"
     echo ""
     echo "Added to Scheduled Backups:   ${preserved_backup_chain[@]:-"None"}"
-    echo "In need of new backup chain:  ${broken_backup_chain[@]:-"None"}"
+    echo "In need of new backup chain:  ${broken_or_full_backup_chain[@]:-"None"}"
     [[ ! -z $VM_ALLOW_POWERCYCLE ]] && \
     echo "Into automatic power cycle:   ${domain_shutdown_success[@]:-"None"}" || \
     echo "Manual shut down is required: ${domain_shutdown_failed[@]:-"None"}"
@@ -739,6 +750,7 @@ LOGFILE_PATH=${LOGFILE_PATH:-"/logs/vm-babysitter.log"}
 LOGROTATE_CONFIG_PATH=${LOGROTATE_CONFIG_PATH:-"/tmp/logrotate.d/vm-babysitter"}
 LOGROTATE_SCHEDULE=${LOGROTATE_SCHEDULE:-"@daily"}
 LOGROTATE_SETTINGS=${LOGROTATE_SETTINGS:-"compress\ncopytruncate\ndateext\ndateformat -%Y%m%d-%s\nmissingok\nrotate 30"}
+MAX_BACKUPS_PER_CHAIN=${MAX_BACKUPS_PER_CHAIN:-"30"}
 RSYNC_ARGS=${RSYNC_ARGS:-"-a"}
 RSYNC_BACKUP_CHAINS_TO_KEEP=${RSYNC_BACKUP_CHAINS_TO_KEEP:-""}
 RSYNC_BACKUP_PATH=${RSYNC_BACKUP_PATH:-""}
@@ -916,7 +928,28 @@ else
     echo "ERROR: No persistent Virtual machines were found!"
 fi
 
-# 1.2 Check LOCAL_BACKUP_PATH
+# 1.2 Check MAX_BACKUPS_PER_CHAIN
+#------------------------------------------------------------------------------
+# Check for LOCAL_BACKUP_CHAINS_TO_KEEP:
+if [[ $MAX_BACKUPS_PER_CHAIN =~ [0-9] ]]; then
+
+    # Is an integer number:
+    max_backups_per_chain_status="OK"
+    echo "Max backups to save per chain: $MAX_BACKUPS_PER_CHAIN"
+
+elif [[ -z $MAX_BACKUPS_PER_CHAIN ]]; then
+
+    # Was not set, warn the user about the potential issue:
+    max_backups_per_chain_status="UNUSED"
+    echo "WARNING: Environment variable MAX_BACKUPS_PER_CHAIN is not set. You should set a reasonable limit for the number of backups, or use the default value. Otherwise the backup chain will grow without any control, filling up your storage!"
+
+else
+    # Invalid value:
+    max_backups_per_chain_status="FAILED"
+    echo "ERROR: Incorrect value for environment variable MAX_BACKUPS_PER_CHAIN: '$MAX_BACKUPS_PER_CHAIN' <- It must be a natural integer"
+fi
+
+# 1.3 Check LOCAL_BACKUP_PATH
 #------------------------------------------------------------------------------
 
 echo ""
@@ -955,12 +988,12 @@ else
     echo "ERROR: Backups main path: $LOCAL_BACKUP_PATH  <- Not found inside the container. Ensure you mount this correctly (e.g. '-v /path/to/backups-main-path:/$LOCAL_BACKUP_PATH')"
 fi
 
-# 1.3 Check RSYNC_BACKUP_PATH
+# 1.4 Check RSYNC_BACKUP_PATH
 #------------------------------------------------------------------------------
 
 if [[ -z $RSYNC_BACKUP_PATH ]]; then
 
-    RSYNC_BACKUP_PATH_status="UNUSED"
+    rsync_backup_path_status="UNUSED"
     echo ""
     echo "Environment variable RSYNC_BACKUP_PATH not set. No remote backup endpoint will be used"
 
@@ -1017,13 +1050,14 @@ else
     rsync_path_status="FAILED"
 fi
 
-# 1.4 TO DO: Check other ENV variables, and SSH key:
+
+# 1.5 TO DO: Check other ENV variables, and SSH key:
 #------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 # 2. Only when input parameters doesn't require to restart the container, it continues the rest of the checks:
 #------------------------------------------------------------------------------
 
-if [[ $domains_list_status == OK ]] && [[ $local_backup_path_status == OK ]] && [[ $rsync_path_status != FAILED ]]; then
+if [[ $domains_list_status == OK ]] && [[ max_backups_per_chain_status != FAILED ]] && [[ $local_backup_path_status == OK ]] && [[ $rsync_path_status != FAILED ]]; then
 
     # 2.0 Create logrotate config:
     #------------------------------------------------------------------------------
