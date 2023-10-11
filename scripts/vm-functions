@@ -614,14 +614,17 @@ archive_remote_backup()
 }
 
 # -----------------------------------------------------------------------------
-# Retrieves checkpoints listed in .cpt file at a given backup path:
+# Retrieves checkpoints listed in .cpt file at a given backup path as first argument.
+# when second argument is '--num', retrieves the number of checkpoints instead of a list:
 # -----------------------------------------------------------------------------
 backup_checkpoint_list()
 {
     local main_path=$1
     local cpt_file="$(basename $main_path).cpt"
-    echo "$(cat $main_path/$cpt_file | sed -e 's/\[//g' -e 's/\"//g' -e 's/,//g' -e 's/\]//g')"
+    local checkpoint_list="$(cat $main_path/$cpt_file | sed -e 's/\[//g' -e 's/\"//g' -e 's/,//g' -e 's/\]//g')"
+    [[ $2 == --num ]] && echo "$(echo "$checkpoint_list" | wc -w)" || echo "$checkpoint_list"
 }
+
 
 
 # -----------------------------------------------------------------------------
