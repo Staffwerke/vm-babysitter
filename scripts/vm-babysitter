@@ -236,7 +236,7 @@ check_backups()
                         backup_folder_integrity="true"
 
                         # Display checkpoints limits, if set:
-                        [[ -z $MAX_BACKUPS_PER_CHAIN ]] local display_checkpoint_limit=" out of $MAX_BACKUPS_PER_CHAIN"
+                        [[ -z $MAX_BACKUPS_PER_CHAIN ]] && local display_checkpoint_limit=" out of $MAX_BACKUPS_PER_CHAIN"
 
                         echo "$domain: Detected $num_of_backup_checkpoints$display_checkpoint_limit checkpoints"
                     fi
