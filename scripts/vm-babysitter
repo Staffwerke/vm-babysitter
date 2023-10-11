@@ -218,7 +218,8 @@ check_backups()
 
                     # Backup folder integrity looks OK, check for 1sr part of retention policy:
                     # Retireve the number of checkpoints in the backup chain:
-                    local num_of_backup_checkpoints=$(find $LOCAL_BACKUP_PATH/$domain/checkpoints -name virtnbdbackup.*.xml | wc -w)
+                    #local num_of_backup_checkpoints=$(find $LOCAL_BACKUP_PATH/$domain/checkpoints -name virtnbdbackup.*.xml | wc -w)
+                    local num_of_backup_checkpoints=$(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num)
 
                     if [[ ! -z $MAX_BACKUPS_PER_CHAIN ]] && [[ $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
 
