@@ -220,7 +220,7 @@ check_backups()
                     # Retireve the number of checkpoints in the backup chain:
                     local num_of_backup_checkpoints=$(find $LOCAL_BACKUP_PATH/$domain/checkpoints -name virtnbdbackup.*.xml | wc -w)
 
-                    if [[ ! -z $MAX_BACKUPS_PER_CHAIN ]] && [[ $num_of_backup_checkpoints -ge $($MAX_BACKUPS_PER_CHAIN) ]]; then
+                    if [[ ! -z $MAX_BACKUPS_PER_CHAIN ]] && [[ $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
 
                         # Backup chain is full, a new one will be created:
                         backup_chain_full="true"
