@@ -1,7 +1,6 @@
 #!/bin/bash
 #------------------------------------------------------------------------------
 # Updates backup chains for VMs in SCHEDULED_BACKUPS_LIST,
-# managing temporal RAM limits (when set) and powering on/off as necessary:
 #------------------------------------------------------------------------------
 
 # NOTE:
