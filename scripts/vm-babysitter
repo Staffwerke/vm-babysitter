@@ -176,7 +176,7 @@ check_backups()
 
             # Checks once for non existing, corrupted or dummy backup folders and partial checkpoints:
             #------------------------------------------------------------------------------
-            if [[ -z $backup_folder_integrity ]] || [[ -z $recoverable_backup_chain ]]; then
+            if [[ -z $backup_folder_integrity ]] || [[ -z $recoverable_backup_chain ]] || [[ -z $backup_chain_full ]]; then
 
                 if [[ ! -d $LOCAL_BACKUP_PATH/$domain ]] \
                 || [[ ! -f $LOCAL_BACKUP_PATH/$domain/$domain.cpt ]] \
@@ -191,37 +191,55 @@ check_backups()
 
                     if [[ ${#damaged_backup_checkpoint_list[@]} -eq 1 ]]; then
 
+                        # Backup chain is useless:
                         backup_folder_integrity="false"
                         echo "$domain: A full backup operation was previously cancelled. This backup chain is unrecoverable, therefore will be removed"
 
                     elif [[ $RESTARTED_SERVER == true ]]; then
 
+                        # Backup chain may be recoverable, but can't proceed since checkpoint metadata doesn't exist under this Unraid scenario:
                         recoverable_backup_chain="false"
                         echo "$domain: An incremental backup operation was previously cancelled and RESTARTED_SERVER mode is active, not leaving chances to repair it. A new backup chain will be created"
 
                     elif [[ -z $VM_ALLOW_POWERCYCLE ]]; then
 
+                        # Backup chain may be recoverable, but can't proceed since it can't shut down the VM:
                         recoverable_backup_chain="false"
                         echo "$domain: An incremental backup operation was previously cancelled and environment variable VM_ALLOW_POWERCYCLE is not set (cannot attempt to repair). A new backup chain will be created"
 
                     else
 
+                        # Backup chain may be recoverable, and will attempt to repair it:
                         recoverable_backup_chain="true"
                         echo "$domain: An incremental backup operation was previously cancelled. It will attempt to fix the current backup chain by deleting the (now useless) data that was being saved right before the cancellation, and deleting the checkpoint from this VM (a full Power Cycle will be performed after repair to apply all the changes)"
                     fi
 
-                elif [[ ! -z $MAX_BACKUPS_PER_CHAIN ]] \
-                  && [[ $(find $LOCAL_BACKUP_PATH/$domain/checkpoints -name virtnbdbackup.*.xml | wc -w) -gt $($MAX_BACKUPS_PER_CHAIN) ]]; then
-
-                    backup_chain_full="true"
-                    broken_or_full_backup_chain[$i]=$domain
-
-                    echo "$domain: Backup chain has reached the limit of $MAX_BACKUPS_PER_CHAIN backups. Nothing will be checked, and a new backup chain will be created"
-
                 else
 
-                    # Everything looks OK:
-                    backup_folder_integrity="true"
+                    # Backup folder integrity looks OK, check for 1sr part of retention policy:
+                    # Retireve the number of checkpoints in the backup chain:
+                    local num_of_backup_checkpoints=$(find $LOCAL_BACKUP_PATH/$domain/checkpoints -name virtnbdbackup.*.xml | wc -w)
+
+                    if [[ ! -z $MAX_BACKUPS_PER_CHAIN ]] && [[ $num_of_backup_checkpoints -ge $($MAX_BACKUPS_PER_CHAIN) ]]; then
+
+                        # Backup chain is full, a new one will be created:
+                        backup_chain_full="true"
+
+                        # Mark backup chain status as full:
+                        broken_or_full_backup_chain[$i]=$domain
+
+                        echo "$domain: Backup chain contains $num_of_backup_checkpoints checkpoints, and the limit set in environment variable MAX_BACKUPS_PER_CHAIN is $MAX_BACKUPS_PER_CHAIN. A new backup chain will be created"
+
+                    else
+
+                        # Everything looks good to go:
+                        backup_folder_integrity="true"
+
+                        # Display checkpoints limits, if set:
+                        [[ -z $MAX_BACKUPS_PER_CHAIN ]] local display_checkpoint_limit=" out of $MAX_BACKUPS_PER_CHAIN"
+
+                        echo "$domain: Detected $num_of_backup_checkpoints$display_checkpoint_limit checkpoints"
+                    fi
                 fi
             fi
 
@@ -448,7 +466,7 @@ check_backups()
             elif [[ $recoverable_backup_chain == false ]] || [[ $backup_check_failed == true ]] || [[ $backup_chain_full == true ]]; then
 
                 # Backup chain can't be used anymore, but is total or partially recoverable.
-                # Processes backup for being archived locally:
+                # Processes backup for being archived locally, and apply 2nd part of retention policy:
                 archive_backup $LOCAL_BACKUP_PATH/$domain $LOCAL_BACKUP_CHAINS_TO_KEEP
 
             elif [[ $recoverable_backup_chain == true ]]; then
@@ -472,7 +490,8 @@ check_backups()
             if [[ $recoverable_backup_chain == false ]] || [[ $backup_folder_integrity == false ]] \
             || [[ $backup_check_failed == true ]] || [[ $backup_chain_full == true ]]; then
 
-                # When backups chains are unexistent, or by any reason unusable, and rsync endpoint is set; process remote backup copy to be archived:
+                # When backups chains are unexistent, or by any reason unusable, and rsync endpoint is set;
+                # process remote backup copy to be archived, applying 3rd part of retention policy:
                 [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain $RSYNC_BACKUP_CHAINS_TO_KEEP
             fi
 
@@ -480,9 +499,6 @@ check_backups()
             break
 
         done
-
-        # VM is unlisted from CHECK_BACKUPS_LIST:
-        #unset CHECK_BACKUPS_LIST[$i]
 
         # Increases the index to check the next VM:
         ((i++))
@@ -1013,13 +1029,13 @@ elif [[ $RSYNC_BACKUP_PATH == *@*:/* ]]; then
     if [[ $rsync_server_status == 0 ]]; then
 
         # Attempts to perform similar checks as with $LOCAL_BACKUP_PATH:
-        rsync_path_status=$(ssh $SSH_OPTIONS $rsync_server "[[ -d $rsync_path ]] && [[ -r $rsync_path ]] && [[ -w $rsync_path ]] && echo 'OK' || { mkdir -p $rsync_path; [[ -d $rsync_path ]] && echo 'CREATED' || echo 'FAILED'; }")
+        rsync_backup_path_status=$(ssh $SSH_OPTIONS $rsync_server "[[ -d $rsync_path ]] && [[ -r $rsync_path ]] && [[ -w $rsync_path ]] && echo 'OK' || { mkdir -p $rsync_path; [[ -d $rsync_path ]] && echo 'CREATED' || echo 'FAILED'; }")
 
 
-        if [[ $rsync_path_status != FAILED ]]; then
+        if [[ $rsync_backup_path_status != FAILED ]]; then
 
             # Notifiy about good status of $rsync_path
-            echo "$rsync_server: $rsync_path exists and status is '$rsync_path_status'"
+            echo "$rsync_server: $rsync_path exists and status is '$rsync_backup_path_status'"
 
             # Verify # of backup chains to keep:
             if [[ $RSYNC_BACKUP_CHAINS_TO_KEEP =~ [0-9] ]]; then
@@ -1034,7 +1050,7 @@ elif [[ $RSYNC_BACKUP_PATH == *@*:/* ]]; then
             else
 
                 echo "ERROR: Incorrect value for environment variable RSYNC_BACKUP_CHAINS_TO_KEEP: '$RSYNC_BACKUP_CHAINS_TO_KEEP' it must be a positive integer"
-                rsync_path_status="FAILED"
+                rsync_backup_path_status="FAILED"
             fi
 
         else
@@ -1043,11 +1059,11 @@ elif [[ $RSYNC_BACKUP_PATH == *@*:/* ]]; then
 
     else
         echo "ERROR: Connection with $rsync_server failed with status $rsync_server_status"
-        rsync_path_status="FAILED"
+        rsync_backup_path_status="FAILED"
     fi
 else
     echo "ERROR: Incorrect syntax for RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH' it must be SSH-like absolute path (e.g. user@host:/path-to-mirror)"
-    rsync_path_status="FAILED"
+    rsync_backup_path_status="FAILED"
 fi
 
 
@@ -1057,7 +1073,7 @@ fi
 # 2. Only when input parameters doesn't require to restart the container, it continues the rest of the checks:
 #------------------------------------------------------------------------------
 
-if [[ $domains_list_status == OK ]] && [[ max_backups_per_chain_status != FAILED ]] && [[ $local_backup_path_status == OK ]] && [[ $rsync_path_status != FAILED ]]; then
+if [[ $domains_list_status == OK ]] && [[ max_backups_per_chain_status != FAILED ]] && [[ $local_backup_path_status == OK ]] && [[ $rsync_backup_path_status != FAILED ]]; then
 
     # 2.0 Create logrotate config:
     #------------------------------------------------------------------------------
@@ -1098,7 +1114,6 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Environment variables passed through Docker:
 LOCAL_BACKUP_PATH="$LOCAL_BACKUP_PATH"
-#VM_RAM_LIMIT="$VM_RAM_LIMIT"
 RSYNC_BACKUP_PATH="$RSYNC_BACKUP_PATH"
 RSYNC_ARGS="$RSYNC_ARGS"
 SSH_OPTIONS="$SSH_OPTIONS"
