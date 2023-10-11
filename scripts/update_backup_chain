@@ -15,9 +15,6 @@ source $functions_path
 source $external_vars
 #------------------------------------------------------------------------------
 
-# Copies stdout and stderr to $MAIN_LOGPATH:
-#exec > >(tee -a $MAIN_LOGPATH) 2> >(tee -a $MAIN_LOGPATH >&2)
-
 if [[ $ONGOING_BACKUP == false ]]; then
 
     # Only starts running the script if no other incremental backup task has been started:
@@ -54,9 +51,6 @@ if [[ $ONGOING_BACKUP == false ]]; then
 
         i=0
         for domain in ${SCHEDULED_BACKUPS_LIST[@]}; do
-
-#            original_ram_size=""
-#            memlimit_active="no"
 
             echo "____________________________________________________________________________________________________________"
 
@@ -104,129 +98,15 @@ if [[ $ONGOING_BACKUP == false ]]; then
                 fi
             fi
 
-: << 'disabled_code'
-            while true; do
-
-                if [[ $(domain_state $domain) == running ]]; then
-
-                    # Only when VM is running, attempts to perform an incremental backup:
-                    do_backup_chain $domain "inc" $LOCAL_BACKUP_PATH $VIRTNBDBACKUP_ARGS
-
-                    if [[ $? -eq 0 ]]; then
-
-                        # Backup chain creation was successful!
-                        backup_chain_success[$i]=$domain
-
-                    else
-
-                        # Get last state for virtnbdbackup:
-                        virtnbdbackup_failed_status=$?
-
-                        # Failed to create a new backup chain:
-                        backup_chain_failed[$i]=$domain
-
-                    fi
-
-                    if [[ ${domain_poweron_success[$i]} == $domain ]]; then
-
-                        # VM was previously shut off, revert to its previous state:
-                        domain_shutdown $domain --nowait
-
-                        if [[ $memlimit_active == yes ]]; then
-
-                            # RAM was previously throttled. Reverting to its original values:
-                            domain_setmem "$domain" "$original_ram_size"
-
-                            [[ $? -eq 0 ]] \
-                                && echo "$domain: Reverted RAM size to its original setting of ${original_ram_size// / \/ } KiB" \
-                                || echo "WARNING: Failed to revert $domain RAM size to its original setting!"
-                        fi
-                    fi
-
-                    if [[ ${backup_chain_success[$i]} == $domain ]] && [[ ! -z $RSYNC_BACKUP_PATH ]]; then
-
-                        # Incremental backup was successful and remote endpoint is (correctly) set,
-                        # attempts to transfer changes via rsync:
-
-                        echo "$domain: Syncing changes to remote endpoint..."
-
-                        # Transfer backup using SSH_OPTIONS and RSYNC_ARGS:
-                        rsync $RSYNC_ARGS -e "ssh $SSH_OPTIONS" $LOCAL_BACKUP_PATH/$domain/ $RSYNC_BACKUP_PATH/$domain/
-
-                        # Depending on success with rsync, will add the VM to $remote_success or $remote_fail
-                        if [[ $? -eq 0 ]]; then
-
-                            # When rsync exited normally, adds the VM to $remote_sync_success:
-                            remote_sync_success[$i]+=$domain
-                            echo "$domain: Incremental backup was successfully synced onto remote endpoint"
-                        else
-
-                            # Get last state for virtnbdbackup:
-                            rsync_failed_status=$?
-
-                            # Otherwise, adds the VM to $remote_sync_failed list:
-                            remote_sync_failed[$i]+=$domain
-                            echo "$domain: Failed to sync incremental backup onto remote endpoint with status $rsync_status"
-                        fi
-                    fi
-
-                    # Exits the loop:
-                    break
-
-                else
-                    # VM is presumably shut off. Will attempts to start it:
-                    if [[ ! -z $VM_RAM_LIMIT ]]; then
-
-                        # And needs to check how much memory uses by default, throttling it if limits are established:
-                        if [[ $(domain_getmem $domain --max) -gt $VM_RAM_LIMIT ]]; then
-
-                            # If max value is greater than the established limit, sets the VM RAM temporarily to such limit:
-                            memlimit_active="yes"
-
-                            # Saves apart original RAM sizes:
-                            original_ram_size=$(domain_getmem $domain)
-
-                            # Applies temporal values (according user input, but values are grabbed from virsh in KiB):
-                            domain_setmem "$domain" "$VM_RAM_LIMIT"
-
-                            [[ $? -eq 0 ]] \
-                                && echo "$domain: RAM size temporarily throttled from ${original_ram_size// / \/ } to $VM_RAM_LIMIT KiB for this task" \
-                                || echo "WARNING: Failed to set $domain RAM size to user defined limit of $VM_RAM_LIMIT KiB"
-                        fi
-                    fi
-
-                    # Attempts to start the VM (awaits for VM's QEMU agent):
-                    domain_start $domain
-                    if [[ $? -eq 0 ]]; then
-
-                        domain_poweron_success[$i]=$domain
-
-                        # Restarts the loop to chech VM under changed conditions:
-                        continue
-                    else
-
-                        # VM failed to power on. This is an abnormal situation:
-
-                        # Get last state for virsh:
-                        virsh_failed_status=$?
-
-                        echo "$domain: Failed to start with virsh status: $virsh_failed_status (backup chain update could not be performed)"
-                        domain_poweron_failed[$i]=$domain
-
-                        # Breaks the loop:
-                        break
-                    fi
-                fi
-            done
-disabled_code
             # Increases the index to check the next VM:
             ((i++))
         done
 
         # Appends updated values
-#        FAILED_VMS_LIST+=(${domain_poweron_failed[@]})
         FAILED_VMS_LIST+=(${backup_chain_failed[@]})
 
+        # Writes updated FAILED_VMS_LIST value as a string,
+        # since sed can't expand arrays correctly:
         FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
 
         ONGOING_BACKUP="false"
@@ -254,7 +134,6 @@ disabled_code
         echo ""
         echo "Successful Backups: ${backup_chain_success[@]:-"None"}"
         echo "Failed Backups:     ${backup_chain_failed[@]:-"None"}"
-#        echo "Misbehaving VMs:    ${domain_poweron_failed[@]:-"None"}"
 
         if [[ ! -z $RSYNC_BACKUP_PATH ]]; then
 
@@ -272,8 +151,6 @@ disabled_code
             [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "Backup chain update" "Success"
 
         elif [[ $(os_is_unraid) == yes ]]; then
-
-#            [[ ! -z ${domain_poweron_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virsh failed (last status: $virsh_failed_status)" "Could not power on: ${domain_poweron_failed[@]}"
 
             [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_failed_status)" "Could not update backup chain(s) for: ${backup_chain_failed[@]}"
 
