@@ -40,7 +40,7 @@ check_patch()
 
         while true; do
 
-            if [[ -z ${domain_shutdown_failed[$i]} ]] && [[ -z ${vm_patch_failed[$i]} ]]; then
+            if [[ -z ${domain_shutdown_failed[$i]} && -z ${vm_patch_failed[$i]} ]]; then
 
                 if [[ $(domain_is_patched $domain ) == yes ]]; then
 
@@ -105,11 +105,6 @@ check_patch()
     # Flush CHECK_PATCH_LIST:
     unset CHECK_PATCH_LIST
 
-    # Updates its (null) value externally:
-    sed -i \
-    -e "s/CHECK_PATCH_LIST=.*/CHECK_PATCH_LIST=()/" \
-    $external_vars
-
     # Appends sub-list of (successfully) patched VMs to global CHECK_BACKUPS_LIST:
     CHECK_BACKUPS_LIST+=(${vm_patch_success[@]})
 
@@ -131,7 +126,7 @@ check_patch()
     echo "Manual shut down is required: ${domain_shutdown_failed[@]:-"None"}"
     echo "Could not apply patch:        ${vm_patch_failed[@]:-"None"}"
 
-    if [[ -z ${domain_shutdown_failed[@]} ]] && [[ -z ${vm_patch_failed[@]} ]]; then
+    if [[ -z ${domain_shutdown_failed[@]} && -z ${vm_patch_failed[@]} ]]; then
 
         echo ""
         echo "All VMs patched successfuly!"
@@ -176,11 +171,11 @@ check_backups()
 
             # Checks once for non existing, corrupted or dummy backup folders and partial checkpoints:
             #------------------------------------------------------------------------------
-            if [[ -z $backup_folder_integrity ]] || [[ -z $recoverable_backup_chain ]] || [[ -z $backup_chain_full ]]; then
+            if [[ -z $backup_folder_integrity || -z $recoverable_backup_chain || -z $backup_chain_full ]]; then
 
-                if [[ ! -d $LOCAL_BACKUP_PATH/$domain ]] \
-                || [[ ! -f $LOCAL_BACKUP_PATH/$domain/$domain.cpt ]] \
-                || [[ ! -d $LOCAL_BACKUP_PATH/$domain/checkpoints ]]; then
+                if [[ ! -d $LOCAL_BACKUP_PATH/$domain \
+                    || ! -f $LOCAL_BACKUP_PATH/$domain/$domain.cpt \
+                    || ! -d $LOCAL_BACKUP_PATH/$domain/checkpoints ]]; then
 
                     backup_folder_integrity="false"
                     echo "$domain: No backup chain folder detected, or internal structure is inconsistent"
@@ -216,12 +211,11 @@ check_backups()
 
                 else
 
-                    # Backup folder integrity looks OK, check for 1sr part of retention policy:
+                    # Backup folder integrity looks OK, check for 1sr part of retention policy.
                     # Retireve the number of checkpoints in the backup chain:
-                    #local num_of_backup_checkpoints=$(find $LOCAL_BACKUP_PATH/$domain/checkpoints -name virtnbdbackup.*.xml | wc -w)
                     local num_of_backup_checkpoints=$(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num)
 
-                    if [[ ! -z $MAX_BACKUPS_PER_CHAIN ]] && [[ $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
+                    if [[ ! -z $MAX_BACKUPS_PER_CHAIN && $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
 
                         # Backup chain is full, a new one will be created:
                         backup_chain_full="true"
@@ -247,7 +241,7 @@ check_backups()
             # Checks once if RESTARTED_SERVER is true, VM is running and VM_ALLOW_POWERCYCLE is set
             # (Will fail if can't shut down the VM):
             #------------------------------------------------------------------------------
-            if [[ $RESTARTED_SERVER == true ]] && [[ $(domain_state $domain) == running ]]; then
+            if [[ $RESTARTED_SERVER == true && $(domain_state $domain) == running ]]; then
 
                 if [[ ! -z $VM_ALLOW_POWERCYCLE ]]; then
 
@@ -289,7 +283,7 @@ check_backups()
 
                 # Backup chain is worth of being checked:
                 #------------------------------------------------------------------------------
-                if [[ $backup_folder_integrity == true ]] || [[ $recoverable_backup_chain == true ]]; then
+                if [[ $backup_folder_integrity == true || $recoverable_backup_chain == true ]]; then
 
                 echo "$domain: Is shut down, performing a full check into its backup chain..."
 
@@ -336,9 +330,9 @@ check_backups()
                 # When above check failed or something was wrong from the very beginning, cleanses disk images,
                 # checkpoints metadata (if any), and archives or deletes the existing backup chain, according the case:
                 #------------------------------------------------------------------------------
-                if [[ $backup_check_failed == true ]] \
-                || [[ $recoverable_backup_chain == false ]] \
-                || [[ $backup_folder_integrity == false ]]; then
+                if [[ $backup_check_failed == true \
+                    || $recoverable_backup_chain == false \
+                    || $backup_folder_integrity == false ]]; then
 
                     if [[ $RESTARTED_SERVER != true ]]; then
 
@@ -371,7 +365,7 @@ check_backups()
 
                         # Checks used RAM
                         local memlimit_active=""
-                        if [[ ! -z $VM_RAM_LIMIT ]] && [[ $(domain_getmem $domain --max) -gt $VM_RAM_LIMIT ]]; then
+                        if [[ ! -z $VM_RAM_LIMIT && $(domain_getmem $domain --max) -gt $VM_RAM_LIMIT ]]; then
 
                             local original_ram_size=$(domain_getmem $domain)
 
@@ -410,7 +404,7 @@ check_backups()
             #------------------------------------------------------------------------------
             else
 
-                if [[ $backup_folder_integrity == true ]] || [[ $recoverable_backup_chain == true ]]; then
+                if [[ $backup_folder_integrity == true || $recoverable_backup_chain == true ]]; then
 
                     echo "$domain: VM appears to be running, comparing QEMU and Backup's checkpoint lists..."
 
@@ -464,7 +458,7 @@ check_backups()
                 # Unrecoverable or unexistent backup chain folder. Delete it:
                 rm -rf $LOCAL_BACKUP_PATH/$domain
 
-            elif [[ $recoverable_backup_chain == false ]] || [[ $backup_check_failed == true ]] || [[ $backup_chain_full == true ]]; then
+            elif [[ $recoverable_backup_chain == false || $backup_check_failed == true || $backup_chain_full == true ]]; then
 
                 # Backup chain can't be used anymore, but is total or partially recoverable.
                 # Processes backup for being archived locally, and apply 2nd part of retention policy:
@@ -488,8 +482,10 @@ check_backups()
                 echo "[\"${new_checkpoint_list// /\", \"}\"]" > $LOCAL_BACKUP_PATH/$domain/$domain.cpt
             fi
 
-            if [[ $recoverable_backup_chain == false ]] || [[ $backup_folder_integrity == false ]] \
-            || [[ $backup_check_failed == true ]] || [[ $backup_chain_full == true ]]; then
+            if [[ $recoverable_backup_chain == false \
+                || $backup_folder_integrity == false \
+                || $backup_check_failed == true \
+                || $backup_chain_full == true ]]; then
 
                 # When backups chains are unexistent, or by any reason unusable, and rsync endpoint is set;
                 # process remote backup copy to be archived, applying 3rd part of retention policy:
@@ -513,8 +509,9 @@ check_backups()
     SCHEDULED_BACKUPS_LIST+=(${preserved_backup_chain[@]})
     SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
 
-    # And updates it externally:
+    # And updates values externally:
     sed -i \
+    -e "s/CHECK_BACKUPS_LIST=.*/CHECK_BACKUPS_LIST=()/" \
     -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
     $external_vars
 
@@ -619,7 +616,7 @@ create_backup_chain()
                     fi
                 fi
 
-                if [[ ${backup_chain_success[$i]} == $domain ]] && [[ ! -z $RSYNC_BACKUP_PATH ]]; then
+                if [[ ${backup_chain_success[$i]} == $domain && ! -z $RSYNC_BACKUP_PATH ]]; then
 
                     # Backup chain creation was successful and remote endpoint is (correctly) set,
                     # attempts to transfer changes via rsync:
@@ -738,7 +735,7 @@ create_backup_chain()
         echo "Could not copy to remote mirror:  ${remote_sync_failed[@]:-"None"}"
     fi
 
-    if [[ -z ${backup_chain_failed[@]} ]] && [[ -z ${domain_poweron_failed[@]} ]] && [[ -z ${remote_sync_failed[@]} ]]; then
+    if [[ -z ${backup_chain_failed[@]} && -z ${domain_poweron_failed[@]} && -z ${remote_sync_failed[@]} ]]; then
 
         echo ""
         echo "All Backup Chains Created!"
@@ -904,7 +901,7 @@ if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
 
                     echo "ERROR: $domain's disk image: $image not found. Ensure you mount -and mirror- this correctly inside the container (e.g. '-v /common/path/to/vms/disks:/common/path/to/vms/disks')"
 
-                elif [[ ! -r $image ]] && [[ ! -w $image ]]; then
+                elif [[ ! -r $image && ! -w $image ]]; then
 
                     FAILED_VMS_LIST+=($domain)
 
@@ -974,7 +971,7 @@ echo ""
 if  [[ -d $LOCAL_BACKUP_PATH ]]; then
 
     # $LOCAL_BACKUP_PATH found
-    if  [[ -r $LOCAL_BACKUP_PATH ]] && [[ -w $LOCAL_BACKUP_PATH ]]; then
+    if  [[ -r $LOCAL_BACKUP_PATH && -w $LOCAL_BACKUP_PATH ]]; then
 
         # $LOCAL_BACKUP_PATH has read/write permissions.
         local_backup_path_status="OK"
@@ -1030,7 +1027,7 @@ elif [[ $RSYNC_BACKUP_PATH == *@*:/* ]]; then
     if [[ $rsync_server_status == 0 ]]; then
 
         # Attempts to perform similar checks as with $LOCAL_BACKUP_PATH:
-        rsync_backup_path_status=$(ssh $SSH_OPTIONS $rsync_server "[[ -d $rsync_path ]] && [[ -r $rsync_path ]] && [[ -w $rsync_path ]] && echo 'OK' || { mkdir -p $rsync_path; [[ -d $rsync_path ]] && echo 'CREATED' || echo 'FAILED'; }")
+        rsync_backup_path_status=$(ssh $SSH_OPTIONS $rsync_server "[[ -d $rsync_path && -r $rsync_path && -w $rsync_path ]] && echo 'OK' || { mkdir -p $rsync_path; [[ -d $rsync_path ]] && echo 'CREATED' || echo 'FAILED'; }")
 
 
         if [[ $rsync_backup_path_status != FAILED ]]; then
@@ -1074,7 +1071,7 @@ fi
 # 2. Only when input parameters doesn't require to restart the container, it continues the rest of the checks:
 #------------------------------------------------------------------------------
 
-if [[ $domains_list_status == OK ]] && [[ $max_backups_per_chain_status != FAILED ]] && [[ $local_backup_path_status == OK ]] && [[ $rsync_backup_path_status != FAILED ]]; then
+if [[ $domains_list_status == OK && $max_backups_per_chain_status != FAILED && $local_backup_path_status == OK && $rsync_backup_path_status != FAILED ]]; then
 
     # 2.0 Create logrotate config:
     #------------------------------------------------------------------------------
@@ -1248,7 +1245,7 @@ end_of_external_variables
         # because it could ignore SIGTERM from Docker, thus being killed with SIGKILL:
         sleep 1
 
-        # 3.1 (Re)reads all external variables:
+        # 3.1 (Re)reads all external variables (presumably modified by $scheduled_backup_script):
         #------------------------------------------------------------------------------
         source $external_vars
 
@@ -1256,7 +1253,7 @@ end_of_external_variables
 
             if [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
 
-                # 3.2 Check for VMs which are in need of shutdown first.
+                # 3.2 Check first for VMs which are in need of shutdown.
                 # (This normally happens when the user took the action, or when a VM took long time to shutdown):
                 #------------------------------------------------------------------------------
                 i=0
@@ -1276,111 +1273,110 @@ end_of_external_variables
                 done
             fi
 
-            if [[ ! -z ${CHECK_PATCH_LIST[@]} ]]; then
+            if [[ ! -z ${CHECK_PATCH_LIST[@]} || ! -z ${CHECK_BACKUPS_LIST[@]} || ! -z ${CREATE_BACKUP_CHAIN_LIST[@]} ]]; then
 
-                # 3.3 Status of at least on VM has changed, and sent to one queue:
+                # 3.3 Fresh start, or status of at least on VM has changed, and sent to one of the queues. Marks an ongoing check starting:
                 #------------------------------------------------------------------------------
-
-                # Marks an ongoing check starting:
                 ONGOING_CHECK="true"
                 sed -i \
                 -e "s/ONGOING_CHECK=.*/ONGOING_CHECK=\"$ONGOING_CHECK\"/" $external_vars
 
                 echo ""
                 echo "____________________________________________________________________________________________________________"
-                #echo "Status change detected at $(date "+%Y-%m-%d %H:%M:%S")"
-                echo "Automatic check for VM(s) ${CHECK_PATCH_LIST[@]} in progress..."
+                echo "Automatic check for VM(s) ${CHECK_PATCH_LIST[@]} ${CHECK_BACKUPS_LIST[@]} ${CREATE_BACKUP_CHAIN_LIST[@]} in progress..."
 
-                check_patch
-            fi
+                # 3.3.1 Check for incremental backups patch on all VMs:
+                #------------------------------------------------------------------------------
+                [[ ! -z ${CHECK_PATCH_LIST[@]} ]] && check_patch
 
-            # 3.4 Backups of VMs that passed check_patch successfuly will be checked for integrity (and fixed, when possible):
-            #------------------------------------------------------------------------------
-            [[ ! -z ${CHECK_BACKUPS_LIST[@]} ]] && check_backups
+                # 3.3.2 Check for backup state (and apply retention policy) on all VMs:
+                #------------------------------------------------------------------------------
+                [[ ! -z ${CHECK_BACKUPS_LIST[@]} ]] && check_backups
 
-            if [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]]; then
+                # Both sub-routines invoked above require to shut down VMs in order to proceed
+                # They do this automatically if env variable VM_ALLOW_POWERCYCLE is set.
+                # After they finish, VMs are started if in the global list below:
+                if [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]]; then
 
-                # 3.5 Turns on all VMs that was previously shutdown for checks:
+                    # 3.3.3 Turns on all VMs that was previously shutdown for checks:
+                    #------------------------------------------------------------------------------
+                    echo ""
+                    i=0
+                    for domain in ${POWEREDOFF_VMS_LIST[@]}; do
+
+                        if [[ $(domain_state $domain) != running ]]; then
+
+                            # Turn on the VM. Do not wait for Guest's QEMU agent:
+                            domain_start $domain --nowait
+                        fi
+
+                        # Remove the VM from the list is being read:
+                        unset POWEREDOFF_VMS_LIST[$i]
+
+                        # Rebuild indexes into the array:
+                        POWEREDOFF_VMS_LIST=(${POWEREDOFF_VMS_LIST[@]})
+
+                        # Increases the counter:
+                        ((i++))
+                    done
+                fi
+
+               # 3.3.4 Create new backup chains for VMs that require it:
+               #------------------------------------------------------------------------------
+               [[ ! -z ${CREATE_BACKUP_CHAIN_LIST[@]} ]] && create_backup_chain
+
+                # 3.4 Show status report and notify about user actions, if required:
                 #------------------------------------------------------------------------------
                 echo ""
-                i=0
-                for domain in ${POWEREDOFF_VMS_LIST[@]}; do
+                echo "############################################################################################################"
+                echo "All VMs with status changed finished to be processed at $(date "+%Y-%m-%d %H:%M:%S")"
+                echo ""
+                echo "VM-Babysitter Global Summary:"
+                echo ""
+                echo "Current Scheduled Backups:    ${SCHEDULED_BACKUPS_LIST[@]:-"None"}"
+                echo "Manual Shut Down Required:    ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
+                echo "Misbehaving Virtual Machines: ${FAILED_VMS_LIST[@]:-"None"}"
 
-                    if [[ $(domain_state $domain) != running ]]; then
+                if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]] && \
+                [[ -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] && \
+                [[ -z ${FAILED_VMS_LIST[@]} ]]; then
 
-                        # Turn on the VM. Do not wait for Guest's QEMU agent:
-                        domain_start $domain --nowait
+                    echo ""
+                    echo "All Virtual Machines Running Under Incremental Backups!"
+
+                elif [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} || ! -z ${FAILED_VMS_LIST[@]} ]]; then
+
+                    user_action_message="USER ACTION IS REQUIRED!"
+
+                    echo ""
+                    echo $user_action_message
+
+                    if [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
+
+                        shutdown_required_message="Perform a manual SHUT DOWN of: ${SHUTDOWN_REQUIRED_VMS_LIST[@]} as SOON as POSSIBLE! This is needed to allow being checked automatically (can't perform checks/backups until action has been taken)"
+
+                        echo "WARNING: $shutdown_required_message"
+                        [[ $(os_is_unraid) == yes ]] && unraid_notify "warning" "VM-Babysitter" "$user_action_message" "$shutdown_required_message"
                     fi
 
-                    # Remove the VM from the list is being read:
-                    unset POWEREDOFF_VMS_LIST[$i]
+                    if [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
 
-                     # Rebuild indexes into the array:
-                     POWEREDOFF_VMS_LIST=(${POWEREDOFF_VMS_LIST[@]})
+                        failed_vms_message="Perform a FULL MANUAL CHECK of: ${FAILED_VMS_LIST[@]} as SOON as POSSIBLE! Some check, backup or another operation failed unexpectedly. Check $(basename $LOGFILE_PATH) for detailed info"
 
-                    # Increases the counter:
-                    ((i++))
-                done
-            fi
-
-            # 3.6 Those VMs in need of a full backup chain, will run this process:
-            #------------------------------------------------------------------------------
-            [[ ! -z ${CREATE_BACKUP_CHAIN_LIST[@]} ]] && create_backup_chain
-
-            if [[ $ONGOING_CHECK == true ]]; then
-
-                # Only checked when status changes were initially detected:
-                if [[ -z ${CHECK_PATCH_LIST[@]} ]]; then
-
-                    # No VMs in CHECK_PATCH_LIST (string or array, as comes up)
-                    # It means that all checks finished successfully, entering in 'silent' mode:
-                    ONGOING_CHECK="false"
-                    sed -i \
-                    -e "s/ONGOING_CHECK=.*/ONGOING_CHECK=\"$ONGOING_CHECK\"/" $external_vars
-
-                    echo ""
-                    echo "############################################################################################################"
-                    echo "All VMs with status changed finished to be processed at $(date "+%Y-%m-%d %H:%M:%S")"
-                    echo ""
-                    echo "VM-Babysitter Global Summary:"
-                    echo ""
-                    echo "Current Scheduled Backups:    ${SCHEDULED_BACKUPS_LIST[@]:-"None"}"
-                    echo "Manual Shut Down Required:    ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
-                    echo "Misbehaving Virtual Machines: ${FAILED_VMS_LIST[@]:-"None"}"
-
-                    if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]] && \
-                    [[ -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] && \
-                    [[ -z ${FAILED_VMS_LIST[@]} ]]; then
-
-                        echo ""
-                        echo "All Virtual Machines Running Under Incremental Backups!"
-
-                    elif [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] || [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
-
-                        user_action_message="USER ACTION IS REQUIRED!"
-
-                        echo ""
-                        echo $user_action_message
-
-                        if [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
-
-                            shutdown_required_message="Perform a manual SHUT DOWN of: ${SHUTDOWN_REQUIRED_VMS_LIST[@]} as SOON as POSSIBLE! This is needed to allow being checked automatically (can't perform checks/backups until action has been taken)"
-
-                            echo "WARNING: $shutdown_required_message"
-                            [[ $(os_is_unraid) == yes ]] && unraid_notify "warning" "VM-Babysitter" "$user_action_message" "$shutdown_required_message"
-                        fi
-
-                        if [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
-
-                            failed_vms_message="Perform a FULL MANUAL CHECK of: ${FAILED_VMS_LIST[@]} as SOON as POSSIBLE! Some check, backup or another operation failed unexpectedly. Check $(basename $LOGFILE_PATH) for detailed info"
-
-                            echo  "ERROR: $failed_vms_message"
-                            [[ $(os_is_unraid) == yes ]] && unraid_notify "alert" "VM-Babysitter" "$user_action_message" "$failed_vms_message"
-                        fi
+                        echo  "ERROR: $failed_vms_message"
+                        [[ $(os_is_unraid) == yes ]] && unraid_notify "alert" "VM-Babysitter" "$user_action_message" "$failed_vms_message"
                     fi
                 fi
+
+                # 3.5 Marks ongoing check as finished (entering in 'silent' mode):
+                #------------------------------------------------------------------------------
+                ONGOING_CHECK="false"
+                sed -i \
+                -e "s/ONGOING_CHECK=.*/ONGOING_CHECK=\"$ONGOING_CHECK\"/" $external_vars
             fi
+
         fi
+
         # 3.7 Restarts the loop from 3.1, until receives SIGTERM or SIGKILL from Docker
         #------------------------------------------------------------------------------
     done
