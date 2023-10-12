@@ -1074,7 +1074,7 @@ fi
 # 2. Only when input parameters doesn't require to restart the container, it continues the rest of the checks:
 #------------------------------------------------------------------------------
 
-if [[ $domains_list_status == OK ]] && [[ max_backups_per_chain_status != FAILED ]] && [[ $local_backup_path_status == OK ]] && [[ $rsync_backup_path_status != FAILED ]]; then
+if [[ $domains_list_status == OK ]] && [[ $max_backups_per_chain_status != FAILED ]] && [[ $local_backup_path_status == OK ]] && [[ $rsync_backup_path_status != FAILED ]]; then
 
     # 2.0 Create logrotate config:
     #------------------------------------------------------------------------------
