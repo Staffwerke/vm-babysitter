@@ -530,7 +530,7 @@ archive_backup()
 
             # Deletes all folders in the above generated list:
             echo "$domain: Deleting ${#old_backups_list[@]} old backup chain(s)..."
-            rm -rfv ${old_backups_list[@]}
+            rm -rf ${old_backups_list[@]}
         else
             echo "$domain: No old backup chains to delete by now"
         fi
@@ -597,8 +597,8 @@ archive_remote_backup()
             if [[ ! -z ${remote_old_backups_list[@]} ]]; then
 
                 # Deletes all folders in the above generated list:
-                ssh $SSH_OPTIONS $remote_server "rm -rfv ${remote_old_backups_list[@]}"
                 echo "$domain: Deleting ${#remote_old_backups_list[@]} old backup chain(s)..."
+                ssh $SSH_OPTIONS $remote_server "rm -rf ${remote_old_backups_list[@]}"
 
             else
                 echo "$domain: No old backup chains to delete by now"
