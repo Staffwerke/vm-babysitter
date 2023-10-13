@@ -452,19 +452,7 @@ check_backups()
 
             # Final step is to process backup chain files according the results:
             #------------------------------------------------------------------------------
-
-            if [[ $backup_folder_integrity == false ]]; then
-
-                # Unrecoverable or unexistent backup chain folder. Delete it:
-                rm -rf $LOCAL_BACKUP_PATH/$domain
-
-            elif [[ $recoverable_backup_chain == false || $backup_check_failed == true || $backup_chain_full == true ]]; then
-
-                # Backup chain can't be used anymore, but is total or partially recoverable.
-                # Processes backup for being archived locally, and apply 2nd part of retention policy:
-                archive_backup $LOCAL_BACKUP_PATH/$domain $LOCAL_BACKUP_CHAINS_TO_KEEP
-
-            elif [[ $recoverable_backup_chain == true ]]; then
+            if [[ $recoverable_backup_chain == true ]]; then
 
                 # Recoverable backup chain passed the test. Delete the demaged checkppoint and keep the backup chain:
                 echo "$domain: Fixing backup chain data in $LOCAL_BACKUP_PATH/$domain ..."
@@ -480,16 +468,21 @@ check_backups()
 
                 # Rebuilds the cpt file with the parsed new list of checkpoints:
                 echo "[\"${new_checkpoint_list// /\", \"}\"]" > $LOCAL_BACKUP_PATH/$domain/$domain.cpt
-            fi
 
-            if [[ $recoverable_backup_chain == false \
-                || $backup_folder_integrity == false \
-                || $backup_check_failed == true \
-                || $backup_chain_full == true ]]; then
+            elif [[ $recoverable_backup_chain == false || $backup_check_failed == true || $backup_chain_full == true ]]; then
 
-                # When backups chains are unexistent, or by any reason unusable, and rsync endpoint is set;
-                # process remote backup copy to be archived, applying 3rd part of retention policy:
+                # Backup chain can't be used anymore, but it's total or partially recoverable.
+                # Processes backup for being archived locally (and remotely, if set) applying 2nd part of retention policy:
+                archive_backup $LOCAL_BACKUP_PATH/$domain $LOCAL_BACKUP_CHAINS_TO_KEEP
                 [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain $RSYNC_BACKUP_CHAINS_TO_KEEP
+
+            elif [[ $backup_folder_integrity == false ]]; then
+
+                # Unrecoverable or unexistent backup chain folder. Delete it:
+                rm -rf $LOCAL_BACKUP_PATH/$domain
+
+                # But keep existing remote ones, if remote path is set, without apply retention policy:
+                [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain
             fi
 
             # Exits the loop:
@@ -1020,7 +1013,6 @@ elif [[ $RSYNC_BACKUP_PATH == *@*:/* ]]; then
     rsync_path=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f2)
 
     # Attempts to comunicate with the remote host:
-    #ssh_command $rsync_server "exit 0"
     ssh $SSH_OPTIONS $rsync_server "exit 0"
     rsync_server_status=$?
 
