@@ -212,8 +212,9 @@ check_backups()
                 else
 
                     # Backup folder integrity looks OK, check for 1sr part of retention policy.
-                    # Retireve the number of checkpoints in the backup chain:
-                    local num_of_backup_checkpoints=$(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num)
+
+                    # Retireve the number of additional checkpoints in the backup chain:
+                    local num_of_backup_checkpoints=$(($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num) - 1))
 
                     if [[ ! -z $MAX_BACKUPS_PER_CHAIN && $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
 
@@ -223,7 +224,7 @@ check_backups()
                         # Mark backup chain status as full:
                         broken_or_full_backup_chain[$i]=$domain
 
-                        echo "$domain: Backup chain contains $num_of_backup_checkpoints checkpoints, and the limit set in environment variable MAX_BACKUPS_PER_CHAIN is $MAX_BACKUPS_PER_CHAIN. A new backup chain will be created"
+                        echo "$domain: Backup chain contains $num_of_backup_checkpoints checkpoint(s), and the limit set in environment variable MAX_BACKUPS_PER_CHAIN is $MAX_BACKUPS_PER_CHAIN. A new backup chain will be created"
 
                     else
 

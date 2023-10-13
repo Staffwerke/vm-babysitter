@@ -56,7 +56,8 @@ if [[ $ONGOING_BACKUP == false ]]; then
 
             echo "____________________________________________________________________________________________________________"
 
-            num_of_backup_checkpoints=$(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num)
+            # Retireve the number of additional checkpoints in the backup chain:
+            num_of_backup_checkpoints=$(($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num) - 1))
 
             if [[ ! -z $MAX_BACKUPS_PER_CHAIN && $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
 
