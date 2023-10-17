@@ -68,6 +68,9 @@ if [[ $ONGOING_BACKUP == false ]]; then
                 # Remove it from SCHEDULED_BACKUPS_LIST:
                 unset SCHEDULED_BACKUPS_LIST[$i]
 
+                # Rebuild indexes into the array:
+                SCHEDULED_BACKUPS_LIST=(${SCHEDULED_BACKUPS_LIST[@]})
+
                 echo "$domain: Backup chain is full and cannot be updated. A new one will created after the current scheduled operation had finished"
 
             else
@@ -178,7 +181,7 @@ if [[ $ONGOING_BACKUP == false ]]; then
 
         elif [[ $(os_is_unraid) == yes ]]; then
 
-            [[ ! -z ${backup_chain_full[@]} ]] && unraid_notify "normal" "VM-Babysitter" "Backup chain full" "Could not update backup chain(s) for: ${backup_chain_full[@]} (New one(s) will be created instead)"
+            [[ ! -z ${backup_chain_full[@]} ]] && unraid_notify "normal" "VM-Babysitter" "Backup chain full" "Could not update backup chain(s) for: ${backup_chain_full[@]} (Will be re-created right after this schedule)"
 
             [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_failed_status)" "Could not update backup chain(s) for: ${backup_chain_failed[@]} (Will be re-attempted on next schedule)"
 
