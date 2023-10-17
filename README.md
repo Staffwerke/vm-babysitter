@@ -31,7 +31,7 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 |`LOCAL_BACKUP_PATH`|Container path where vm-babysitter will search for, and save backup chains of all VMs. The container will fail if does not exist, or r/w permission issues are found|`/backups`|
 |`LOGROTATE_CONFIG_PATH`|Container path to place and read log rotation config|`/tmp/logrotate.d/vm-babysitter`|
 |`LOGROTATE_SCHEDULE`|Same functioning as `BACKUP_SCHEDULE` but for trigger log rotation (ideally, both variables should run on different schedules)|`@daily`|
-|`LOGROTATE_SETTINGS`|Parsed string with *escaped* logrotate config, written in `LOGROTATE_CONFIG_PATH` on startup|`compress\ncopytruncate\ndateext\ndateformat -%Y%m%d-%s\nmissingok\nrotate 30`|
+|`LOGROTATE_SETTINGS`|Parsed string with *escaped* logrotate config, written in `LOGROTATE_CONFIG_PATH` on startup|`  compress\n  copytruncate\n  daily\n  dateext\n  dateformat .%Y-%m-%d.%H:%M:%S\n  missingok\n  notifempty\n  rotate 30`|
 |`LOGFILE_PATH`|Container path for the main log file|`/logs/vm-babysitter.log`|
 |`MAX_BACKUPS_PER_CHAIN`|Number of backups to save within a single backup chain. A null value `""` unleashes the limit and the backup chain will grow permanently (not recommended)|`30`
 |`RSYNC_ARGS`|Extra arguments for rsync when sends successful backups to `RSYNC_BACKUP_PATH`, e.g. `-aP --bwlimit=1179648`|`-a`|
