@@ -162,6 +162,7 @@ if [[ $ONGOING_BACKUP == false ]]; then
         echo "Scheduled Incremental Backup Summary:"
         echo ""
         echo "Successful Backups: ${backup_chain_success[@]:-"None"}"
+        echo "Skipped Backups:    ${backup_chain_full[@]:-"None"}"
         echo "Failed Backups:     ${backup_chain_failed[@]:-"None"}"
 
         if [[ ! -z $RSYNC_BACKUP_PATH ]]; then
