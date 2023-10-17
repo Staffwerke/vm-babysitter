@@ -1330,9 +1330,7 @@ end_of_external_variables
                 echo "Manual Shut Down Required:    ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
                 echo "Misbehaving Virtual Machines: ${FAILED_VMS_LIST[@]:-"None"}"
 
-                if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]] && \
-                [[ -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] && \
-                [[ -z ${FAILED_VMS_LIST[@]} ]]; then
+                if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} && -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} && -z ${FAILED_VMS_LIST[@]} ]]; then
 
                     echo ""
                     echo "All Virtual Machines Running Under Incremental Backups!"
