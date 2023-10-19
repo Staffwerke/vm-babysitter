@@ -6,7 +6,7 @@ Checks existing Virtual machines running on the local server, and performs the f
 - Sets and internal cron task for scheduled backups
 - Verifies/applies QEMU patch for incremental backups
 - Checks backup chain consistency for each VM, being able to detect some issues and solve them
-- Creates new full backup chains when necessary
+- Creates new full backup chains when necessary (e.g. retention policy)
 - Updates the backup chain regularly, via internal cron task
 - Rebuilds/recovers backup chains automaticaly from many disaster scenarios, including a server crash
 - When backup chain gets broken, it can archive it for further restoration, or deletes it when becomes unusable
@@ -33,7 +33,7 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 |`LOGROTATE_SCHEDULE`|Same functioning as `BACKUP_SCHEDULE` but for trigger log rotation (ideally, both variables should run on different schedules)|`@daily`|
 |`LOGROTATE_SETTINGS`|Parsed string with *escaped* logrotate config, written in `LOGROTATE_CONFIG_PATH` on startup|`  compress\n  copytruncate\n  daily\n  dateext\n  dateformat .%Y-%m-%d.%H:%M:%S\n  missingok\n  notifempty\n  rotate 30`|
 |`LOGFILE_PATH`|Container path for the main log file|`/logs/vm-babysitter.log`|
-|`MAX_BACKUPS_PER_CHAIN`|Number of backups to save within a single backup chain. A null value `""` unleashes the limit and the backup chain will grow permanently (not recommended)|`30`
+|`MAX_BACKUPS_PER_CHAIN`|Number of backups to save within a single backup chain. `0` disables incremental checkpoints and a null value `""` unleashes the limit and the backup chain will grow permanently (not recommended)|`30`
 |`RSYNC_ARGS`|Extra arguments for rsync when sends successful backups to `RSYNC_BACKUP_PATH`, e.g. `-aP --bwlimit=1179648`|`-a`|
 |`RSYNC_BACKUP_CHAINS_TO_KEEP`|Same functioning as `LOCAL_BACKUP_CHAINS_TO_KEEP` (default is no limit)||
 |`RSYNC_BACKUP_PATH`|SSH syntax of remote absolute path, e.g. `user@host:/absolute/path/to/folder` to rsync successful backup chain tasks (requires r/w permissions)||
@@ -83,18 +83,20 @@ Required for Virtnbdbackup (all operating systems):
 
 Required to access host libvirt's socket:
 
-- On most operating systems (Debian, RedHat, Archlinux and its derivatives):
+- On most modern operating systems:
 
 ```
     -v /run/libvirt:/run/libvirt
     -v /run/lock:/run/lock
 ```
 
-- On Unraid:
+- On (generally) older operating systems and Unraid <= 6.9.x, you might try:
 ```
     -v var/run/libvirt:/run/libvirt
     -v /var/run/lock:/run/lock
 ```
+
+A thumb rule it's to find out where your Libvirt implementation puts both sockets and lock files.
 
 ### Nvram bind mounts:
 
@@ -105,7 +107,7 @@ For mounting VM specific nvram files, add:
     -v /etc/libvirt/qemu/nvram:/etc/libvirt/qemu/nvram
 ```
 
-Recent versions of Virtnbdbackup will also may fail when not finding global OVMF binary templates. The path varies between Libvirt implementations. The only tested case is for Unraid:
+Recent versions of Virtnbdbackup will also may fail when not finding global OVMF binary templates. The path varies between Libvirt implementations. The only tested case is for Unraid, and may vary on other operating systems:
 ```
     -v /usr/share/qemu/ovmf-x64:/usr/share/qemu/ovmf-x64
 ```
@@ -143,7 +145,7 @@ Finally, to have persistent logs of what is happening with VM-Babysitter and sch
 
 - To see Unraid notifications: 1) edit docker options and switch to advanced view, setting Network type to 'host' 2) Add the pulic SSH key counterpart you're using for remote backups into your local authorized_keys file (normally located at ~/.ssh/ folder)
 
-- **Disable VM autostart of the hosts you want to babysit**: Due the Unraid's quirky QEMU implementation, when a server is restarted, local checkpoints are lost. While VM-Babysitter can deal with this (thanks to Virtnbdbackup's resilience restoring lost checkpoints) it will refuse to check backups of VMs if these are running. Add the VMs you want to start automatically to `VM_AUTOSTART_LIST` option.
+- **Disable VM autostart of the hosts you want to babysit**: When a server is booted, local checkpoints are lost because they are stored in `/var/lib/libvirt/qemu/checkpoint`. While VM-Babysitter can deal with this (thanks to Virtnbdbackup's resilience restoring lost checkpoints from backups) it will refuse to check backups of VMs if these are running. In order to start VMs automatically, pass it selectively via `VM_AUTOSTART_LIST` option; so they will start right after initial checks has been performed.
 
 ### Generic example of full docker command for local backups:
 
@@ -197,6 +199,72 @@ Scheduling all found VMs for (compressed) incremental backups on local endpoint 
 ```
 
 Scheduling all found VMs for (compressed) incremental backups on both local and remote endpoint (at a max of 1179648 Kbps or 1 Gbps) every 12 hours (Berlin time) and will save up to 3 backup chains per VM remotely, in case one needs to be rebuilt but not saving any backup chain on local endpoint at all; throttling RAM's VMs to 8 GiB when its original setting is above this value.
+
+In both examples above, rotation is performed each 30 backups, the default value for `MAX_BACKUPS_PER_CHAIN`.
+
+### Backups Rotation and Retention Policy:
+
+This is managed via `MAX_BACKUPS_PER_CHAIN`, `LOCAL_BACKUP_CHAINS_TO_KEEP` and optionally `RSYNC_BACKUP_CHAINS_TO_KEEP`, allowing a great margin of flexibility at the time to keep as many checkpoints in different backups (local and remotely) without bloating storage or having long delays restoring a specific checkpoint from certain backup.
+
+**Rotation / retention policy is checked and applied at 2 precise moments:**
+
+*On normal circumstances:*
+- When container (re)starts, during backup checking
+- At the moment when a scheduled backup begins
+
+*On failure scenario, at container (re)start only:*
+- When checkpoints in backup chain and virtual disk differ (e.g. after restore a VM from backup)
+- After a server crashes while VMs were running and variable `VM_ALLOW_POWERCYCLE` was not set
+
+Rotation: It counts how many checkpoints has been made after the creation of the backup. If detects same, or more additional checkpoints than `MAX_BACKUPS_PER_CHAIN`, it forces the creation of a new one, by appending both local (and remote, if set) backup folder names with current docker timestamp.
+
+Retention Policy: After rotation, it searches for folders with same format mentioned above and deletes old backups, excepting the most recent ones set in `LOCAL_BACKUP_CHAINS_TO_KEEP`. If `RSYNC_BACKUP_PATH` is set, it will do the same on the configured endpoint, using `RSYNC_BACKUP_CHAINS_TO_KEEP` as the most recent number of old backups to keep.
+
+*Special failure case:*
+When a new backup chain operation is interrupted (crash or container stop), the partially saved backup is deleted locally; and remote backups are rotated if set; however no retention policy is applied either local or remotely.
+
+Under other scenarios, both vm-babysitter and virtnbdbackup will try to handle the situation in order keep using the current backup chain if possible.
+
+**Saving historical/important backups permanently within Backups Path(s):**
+
+As alternative to move them outside of the path(s) set in `<LOCAL-RSYNC>_BACKUP_PATH` you can append some custom tag after the current folder name, because Vm-Babysitter processes only EXACT matches of the name syntax `<sensitive-case-name-of-vm>.<yyyy-mm-dd.hh:mm:ss>` therefore other naming structure won't be taken in count for retention policy.
+
+
+**Management of parameters:**
+
+Is important to notice that **values are counted from zero (`0`) instead from one (`1`).** There are a couple fo reasons behind this:
+
+- `MAX_BACKUPS_PER_CHAIN` set to "0": Will always force the creation of a new backup chain if previously existed, no matter how many checkpoints has
+- `<LOCAL/RSYNC>_BACKUP_CHAINS_TO_KEEP` set to "0":  When a new backup chain is created, it will rotate the current one, but will delete it along with all backup chains existing.
+
+In many production scenarios, it may be needed to disable retention policy on local storage because space scarcity, keeping all historical backups onto a remote endpoint with a different retention policy.
+
+The ability to disable incremental backups is allowed mostly for testing/debug purposes. *Is not useful for production*
+
+**Setting the three values to zero may cause DATA LOSS, since it will try to delete ALL backup chains, local and remotely!**
+
+#### Examples of Backup Rotation and Retention Policy:
+
+*Notice that values are counted from zero (`0`)*
+
+The simplest could be to save a backup once a day at 0:00, rotating every week, and keeping as much as 3 weeks of old backups locally; Summarizing 4 weeks based retention policy:
+```
+...
+    -e BACKUP_SCHEDULE="@daily"
+    -e MAX_BACKUPS_PER_CHAIN="6"
+    -e LOCAL_BACKUP_CHAINS_TO_KEEP="3"
+...
+```
+
+A more complex example could be to save 2 backups per day (08:00 and 18:00), rotating every week and keeping 7 weeks of old backups onto a a remote endpoint; summarizing 8 weeks based retention policy where last week backups is at both endpoints, and all the older ones at remote only:
+```
+...
+    -e BACKUP_SCHEDULE="0 8,18 * * *"
+    -e MAX_BACKUPS_PER_CHAIN="13"
+    -e LOCAL_BACKUP_CHAINS_TO_KEEP="0"
+    -e RSYNC_BACKUP_CHAINS_TO_KEEP="7"
+...
+```
 
 ## Additional tools:
 
@@ -264,7 +332,6 @@ More detailed info is available at the same script, by running it with `vm-resto
 - Merge with latest Virnbdbackup features (automatic backup mode, remote replication, remote restoration, backup checks, etc)
 - vm-replicate: Add modify RAM menu, detach removable units, add menu to keep mac address or set custom one
 - Add/Remove VMs on the fly
-- Archive backup chain when its total size is too big for certain criteria
 - Detect and alert when space in LOCAL_BACKUP_PATH and RSYNC_BACKUP_PATH is low
 
 #### Author: Adrián Parilli <a.parilli@staffwerke.de>
