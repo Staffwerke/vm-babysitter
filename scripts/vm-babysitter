@@ -1254,6 +1254,9 @@ end_of_external_variables
 
                     if [[ $(domain_state $domain) == "shut off" ]]; then
 
+                        # Add VM to the same list of VMs to be powered on when monitor starts:
+                        POWEREDOFF_VMS_LIST+=($domain)
+
                         # Move to main queue for check:
                         CHECK_PATCH_LIST+=($domain)
                         unset SHUTDOWN_REQUIRED_VMS_LIST[$i]
