@@ -498,27 +498,16 @@ check_backups()
     # Cleanse CHECK_BACKUPS_LIST, since all VMs were processed, and copied into correspondent lists:
     unset CHECK_BACKUPS_LIST
 
-    # Writes updated SCHEDULED_BACKUPS_LIST value:
-    # as a string, since sed can't expand arrays correctly:
+    # Appends preserved backup chains to scheduled backups directly:
     SCHEDULED_BACKUPS_LIST+=(${preserved_backup_chain[@]})
-    SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
 
-    # And updates values externally:
-    sed -i \
-    -e "s/CHECK_BACKUPS_LIST=.*/CHECK_BACKUPS_LIST=()/" \
-    -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
-    $external_vars
-
-    # Turn again stringified variables back into lists:
-    SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)
-
-    # Appends sub-list to global list of VMs in need of a new backup chain:
+    # Appends broken and/or full backup chains for new backup chain creation:
     CREATE_BACKUP_CHAIN_LIST+=(${broken_or_full_backup_chain[@]})
 
-    # Appends sub-list to the global list of powered OFF VMs:
+    # Appends successfully shut down VMs for further start:
     POWEREDOFF_VMS_LIST+=(${domain_shutdown_success[@]})
 
-    # Appends sub-list of failed to shutdown VMs to global list of VMs with issues
+    # Appends VMs failed to shutdown (by user's setting or by fail) to request user action:
     SHUTDOWN_REQUIRED_VMS_LIST+=(${domain_shutdown_failed[@]})
 
     echo ""
@@ -693,24 +682,12 @@ create_backup_chain()
     # Cleanse CREATE_BACKUP_CHAIN_LIST, since all VMs were processed, and copied into correspondent lists:
     unset CREATE_BACKUP_CHAIN_LIST
 
-    # Appends updated values:
+    # Appends successfuly created backup chains to scheduled backups:
     SCHEDULED_BACKUPS_LIST+=(${backup_chain_success[@]})
 
+    # Appends failed backup chains to request manual check by the user:
     FAILED_VMS_LIST+=(${domain_poweron_failed[@]})
     FAILED_VMS_LIST+=(${backup_chain_failed[@]})
-
-    # And updates them all at once:
-    SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
-    FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
-
-    sed -i \
-    -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
-    -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
-    $external_vars
-
-    # Turn again stringified variables back into lists:
-    SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)
-    FAILED_VMS_LIST=($FAILED_VMS_LIST)
 
     # And shows the summary at the very end:
 
@@ -1362,13 +1339,24 @@ end_of_external_variables
                     fi
                 fi
 
-                # 3.5 Marks ongoing check as finished (entering in 'silent' mode):
+                # 3.5 Marks ongoing check as finished and exports variables to be used on scheduled backups (entering in 'silent' mode):
                 #------------------------------------------------------------------------------
-                ONGOING_CHECK="false"
-                sed -i \
-                -e "s/ONGOING_CHECK=.*/ONGOING_CHECK=\"$ONGOING_CHECK\"/" $external_vars
-            fi
 
+                ONGOING_CHECK="false"
+
+               # Sed can't expand arrays correctly. Convert variables to be exported into strings.
+               # This will be reverted at next block iteration, by sourcing such external variables as arrays:
+                SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
+                FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
+
+                # Export the variables (CHECK_BACKUPS_LIST was unset at the end of its run)
+                sed -i \
+                -e "s/CHECK_BACKUPS_LIST=.*/CHECK_BACKUPS_LIST=()/" \
+                -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
+                -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
+                -e "s/ONGOING_CHECK=.*/ONGOING_CHECK=\"$ONGOING_CHECK\"/"
+                $external_vars
+            fi
         fi
 
         # 3.7 Restarts the loop from 3.1, until receives SIGTERM or SIGKILL from Docker

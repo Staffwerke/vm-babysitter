@@ -134,26 +134,6 @@ if [[ $ONGOING_BACKUP == false ]]; then
         CHECK_BACKUPS_LIST=(${backup_chain_full[@]})
         FAILED_VMS_LIST+=(${backup_chain_failed[@]})
 
-        # Turn arrays into strings (sed can't expand arrays correctly):
-        CHECK_BACKUPS_LIST="${CHECK_BACKUPS_LIST[@]}"
-        FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
-        SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
-
-        # Revert RESTARTED_SERVER mode if it was enabled and there were successful incremental backups:
-        if [[ $RESTARTED_SERVER == true && ! -z ${backup_chain_success[@]} ]]; then
-
-            RESTARTED_SERVER="false"
-            echo "RESTARTED_SERVER mode successfully disabled"
-        fi
-
-        # Export all variables, at the very end of the process:
-        sed -i \
-        -e "s/CHECK_BACKUPS_LIST=.*/CHECK_BACKUPS_LIST=($CHECK_BACKUPS_LIST)/" \
-        -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
-        -e "s/RESTARTED_SERVER=.*/RESTARTED_SERVER=\"$RESTARTED_SERVER\"/" \
-        -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
-        $external_vars
-
         # Display the summary:
 
         echo ""
@@ -194,9 +174,29 @@ if [[ $ONGOING_BACKUP == false ]]; then
         echo "Scheduled Incremental Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
         echo ""
 
-        # Mark ongoing backup as finished:
+        # Mark ongoing backup as finished and export variables to be read by main script:
         ONGOING_BACKUP="false"
-        sed -i -e "s/ONGOING_BACKUP=.*/ONGOING_BACKUP=\"$ONGOING_BACKUP\"/" $external_vars
+
+        # Revert RESTARTED_SERVER mode if it was enabled and there were successful incremental backups:
+        if [[ $RESTARTED_SERVER == true && ! -z ${backup_chain_success[@]} ]]; then
+
+            RESTARTED_SERVER="false"
+            echo "RESTARTED_SERVER mode successfully disabled"
+        fi
+
+        # Sed can't expand arrays correctly. Convert variables into strings to be exported properly:
+        CHECK_BACKUPS_LIST="${CHECK_BACKUPS_LIST[@]}"
+        FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
+        SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
+
+        # Export all variables, at the very end of the process:
+        sed -i \
+        -e "s/CHECK_BACKUPS_LIST=.*/CHECK_BACKUPS_LIST=($CHECK_BACKUPS_LIST)/" \
+        -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
+        -e "s/RESTARTED_SERVER=.*/RESTARTED_SERVER=\"$RESTARTED_SERVER\"/" \
+        -e "s/ONGOING_BACKUP=.*/ONGOING_BACKUP=\"$ONGOING_BACKUP\"/" \
+        -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
+        $external_vars
 
     else
         echo "No Virtual machines on schedule. Exited"
