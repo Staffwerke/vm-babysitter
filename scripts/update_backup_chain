@@ -65,12 +65,6 @@ if [[ $ONGOING_BACKUP == false ]]; then
                 # Append the VM to the list of VMs in need of new backup chain:
                 backup_chain_full[$i]=$domain
 
-                # Remove it from SCHEDULED_BACKUPS_LIST:
-                unset SCHEDULED_BACKUPS_LIST[$i]
-
-                # Rebuild indexes into the array:
-                SCHEDULED_BACKUPS_LIST=(${SCHEDULED_BACKUPS_LIST[@]})
-
                 echo "$domain: Backup chain is full and cannot be updated. A new one will created after the current scheduled operation had finished"
 
             else
@@ -130,9 +124,8 @@ if [[ $ONGOING_BACKUP == false ]]; then
             ((i++))
         done
 
-        # Update values to be exported:
-        CHECK_BACKUPS_LIST=(${backup_chain_full[@]})
-        FAILED_VMS_LIST+=(${backup_chain_failed[@]})
+        # Cleanse SCHEDULED_BACKUPS_LIST, since all VMs were processed, and copied into correspondent lists:
+        unset SCHEDULED_BACKUPS_LIST
 
         # Display the summary:
 
@@ -183,6 +176,16 @@ if [[ $ONGOING_BACKUP == false ]]; then
             RESTARTED_SERVER="false"
             echo "RESTARTED_SERVER mode successfully disabled"
         fi
+
+        # Update values to be exported:
+        CHECK_BACKUPS_LIST=(${backup_chain_full[@]})
+        FAILED_VMS_LIST+=(${backup_chain_failed[@]})
+
+        # Recreate SCHEDULED_BACKUPS_LIST based upon successful backups:
+        SCHEDULED_BACKUPS_LIST=(${backup_chain_success[@]})
+
+        # And append failed backups to this list if any, to re-attempt the operation on next schedule anyway:
+        SCHEDULED_BACKUPS_LIST+=(${backup_chain_failed[@]})
 
         # Sed can't expand arrays correctly. Convert variables into strings to be exported properly:
         CHECK_BACKUPS_LIST="${CHECK_BACKUPS_LIST[@]}"
