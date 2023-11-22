@@ -1355,7 +1355,7 @@ end_of_external_variables
                 -e "s/CHECK_BACKUPS_LIST=.*/CHECK_BACKUPS_LIST=()/" \
                 -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
                 -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
-                -e "s/ONGOING_CHECK=.*/ONGOING_CHECK=\"$ONGOING_CHECK\"/"
+                -e "s/ONGOING_CHECK=.*/ONGOING_CHECK=\"$ONGOING_CHECK\"/" \
                 $external_vars
             fi
         fi
