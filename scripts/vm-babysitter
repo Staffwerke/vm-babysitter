@@ -1324,15 +1324,16 @@ end_of_external_variables
 
                     if [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
 
-                        shutdown_required_message="Perform a manual SHUT DOWN of: ${SHUTDOWN_REQUIRED_VMS_LIST[@]} as SOON as POSSIBLE! This is needed to allow being checked automatically (can't perform checks/backups until action has been taken)"
+                        shutdown_required_message="As env variable 'VM_ALLOW_POWERCYCLE' is not set, a manual Shut Down is required for VM(s): ${SHUTDOWN_REQUIRED_VMS_LIST[@]} 'As Soon As Possible'. This is required prior to perform backup integrity checks and cannot procced without that. Once shut down, the program will perform the checks and will restart involved VM(s) automatically."
 
-                        echo "WARNING: $shutdown_required_message"
+                                                echo "WARNING: $shutdown_required_message"
                         [[ $(os_is_unraid) == yes ]] && unraid_notify "warning" "VM-Babysitter" "$user_action_message" "$shutdown_required_message"
                     fi
 
                     if [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
 
-                        failed_vms_message="Perform a FULL MANUAL CHECK of: ${FAILED_VMS_LIST[@]} as SOON as POSSIBLE! Some check, backup or another operation failed unexpectedly. Check $(basename $LOGFILE_PATH) for detailed info"
+                        failed_vms_message="Unexpected failure during check/backup operation involving VM(s): ${FAILED_VMS_LIST[@]}. Human attention is required 'As Soon As Possible' to solve the situation. Any scheduled backup or further alert for involved VM(s) is suspended until this container had been restarted. Check $(basename $LOGFILE_PATH) in this host for detailed logs."
+
 
                         echo  "ERROR: $failed_vms_message"
                         [[ $(os_is_unraid) == yes ]] && unraid_notify "alert" "VM-Babysitter" "$user_action_message" "$failed_vms_message"
@@ -1366,7 +1367,7 @@ end_of_external_variables
 else
 
     # Initial checks have proven non-recoverable errors:
-    failed_initialize_message="Could not initialize due to errors! Check $(basename $LOGFILE_PATH) for detailed info"
+    failed_initialize_message="Could not initialize due to errors! Check $(basename $LOGFILE_PATH) in this host for detailed logs."
 
     echo "ERROR: $failed_initialize_message"
     [[ $(os_is_unraid) == yes ]] && unraid_notify "alert" "VM-Babysitter" "Failed to start container" "$failed_initialize_message"
