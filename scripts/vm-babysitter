@@ -1189,7 +1189,7 @@ end_of_crontab
     # 2.3 Initializes a file with variables externally stored, to be shared with the scheduler:
     #------------------------------------------------------------------------------
     cat << end_of_external_variables > $external_vars
-# Shared values between $(basename %0) and $scheduled_backup_script. DO NOT EDIT!:
+# Shared values between $(basename $0) and $scheduled_backup_script. DO NOT EDIT!:
 
 # Dynamic arrays:
 CHECK_BACKUPS_LIST=()
