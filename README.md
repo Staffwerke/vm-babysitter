@@ -27,6 +27,8 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 | **Variable Name** | **Description** | **Default Value** |
 | --- | --- | --- |
 |`BACKUP_SCHEDULE`|Cron-like string for incremental backups (e.g. `* 2 * * *` triggers everyday at 2 am local time)|`@daily`|
+|`CHECK_BACKUPS_INTEGRITY`|Verify data integrity of backups when checksums are available. This operation takes long time, delaying container's initialization. Use it only under suspect of data corruption. (Disabed by default)||
+<Config Name="Check backups data integrity" Target="CHECK_BACKUPS_INTEGRITY" Default="" Mode="" Description="Also verify data integrity via checksums (when available) of backups, along with initial checks. (Default is not to verify)" Type="Variable" Display="always" Required="false" Mask="false"/>
 |`LOCAL_BACKUP_CHAINS_TO_KEEP`|How many old backup chains to keep archived locally under `LOCAL_BACKUP_PATH`. `0` disable backups archiving (default is no limit)||
 |`LOCAL_BACKUP_PATH`|Container path where vm-babysitter will search for, and save backup chains of all VMs. The container will fail if does not exist, or r/w permission issues are found|`/backups`|
 |`LOGROTATE_CONFIG_PATH`|Container path to place and read log rotation config|`/tmp/logrotate.d/vm-babysitter`|
