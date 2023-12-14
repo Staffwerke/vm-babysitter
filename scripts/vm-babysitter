@@ -1199,7 +1199,7 @@ end_of_crontab
 # Shared values between $(basename $0) and $scheduled_backup_script. DO NOT EDIT!:
 
 # Dynamic arrays:
-CHECK_BACKUPS_LIST=()
+CHECK_BACKUPS_LIST=(${CHECK_BACKUPS_LIST[@]})
 FAILED_VMS_LIST=()
 SCHEDULED_BACKUPS_LIST=()
 
