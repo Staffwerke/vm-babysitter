@@ -24,8 +24,8 @@ stop_container()
 check_patch()
 {
     # Lists to add VMs (and summarize at the end):
-    local domain_shutdown_success
-    local domain_shutdown_failed
+    local domain_shutdown_success_list
+    local domain_shutdown_failed_list
     local vm_patch_success
     local vm_patch_failed
 
@@ -41,7 +41,7 @@ check_patch()
 
         while true; do
 
-            if [[ -z ${domain_shutdown_failed[$i]} && -z ${vm_patch_failed[$i]} ]]; then
+            if [[ -z ${domain_shutdown_failed_list[$i]} && -z ${vm_patch_failed[$i]} ]]; then
 
                 if [[ $(domain_is_patched $domain ) == yes ]]; then
 
@@ -62,18 +62,18 @@ check_patch()
                         if [[ $? -eq 0 ]]; then
 
                             # Adds VM to shutdown success local list:
-                            domain_shutdown_success[$i]+=$domain
+                            domain_shutdown_success_list[$i]+=$domain
                         else
 
                             # Adds VM to failed to shutdown local list
                             # (This VM might shutdown eventually):
-                            domain_shutdown_failed[$i]=$domain
+                            domain_shutdown_failed_list[$i]=$domain
                         fi
                     else
 
                         # Adds VM to failed to shutdown local list
                         # (User must shutdown the VM manually):
-                        domain_shutdown_failed[$i]=$domain
+                        domain_shutdown_failed_list[$i]=$domain
                     fi
 
                     # Restarts the loop (checks VM again under changed conditions):
@@ -110,10 +110,10 @@ check_patch()
     CHECK_BACKUPS_LIST+=(${vm_patch_success[@]})
 
     # Appends sub-list to the global list of powered OFF VMs:
-    POWEREDOFF_VMS_LIST+=(${domain_shutdown_success[@]})
+    POWEREDOFF_VMS_LIST+=(${domain_shutdown_success_list[@]})
 
     # Appends sub list of VMs that failed to shutdown to global SHUTDOWN_REQUIRED_VMS_LIST:
-    SHUTDOWN_REQUIRED_VMS_LIST+=(${domain_shutdown_failed[@]})
+    SHUTDOWN_REQUIRED_VMS_LIST+=(${domain_shutdown_failed_list[@]})
 
     # Appends sub list of failed VMs:
     FAILED_VMS_LIST+=(${vm_patch_failed[@]})
@@ -123,11 +123,11 @@ check_patch()
     echo ""
     echo "Patched for backups:          ${vm_patch_success[@]:-"None"}"
     [[ ! -z $VM_ALLOW_POWERCYCLE ]] && \
-    echo "Into automatic power cycle:   ${domain_shutdown_success[@]:-"None"}" || \
-    echo "Manual shut down is required: ${domain_shutdown_failed[@]:-"None"}"
+    echo "Into automatic power cycle:   ${domain_shutdown_success_list[@]:-"None"}" || \
+    echo "Manual shut down is required: ${domain_shutdown_failed_list[@]:-"None"}"
     echo "Could not apply patch:        ${vm_patch_failed[@]:-"None"}"
 
-    if [[ -z ${domain_shutdown_failed[@]} && -z ${vm_patch_failed[@]} ]]; then
+    if [[ -z ${domain_shutdown_failed_list[@]} && -z ${vm_patch_failed[@]} ]]; then
 
         echo ""
         echo "All VMs patched successfuly!"
@@ -142,17 +142,18 @@ check_backups()
 {
     # Local variables used for flow control:
     local backup_check_failed
-    local backup_chain_full
+    local backup_chain_broken_or_full
     local backup_folder_integrity
     local bitmaps_list
     local checkpoint_list
     local recoverable_backup_chain
+    local virtnbdrestore_status
 
     # Lists to add VMs (and summarize at the end):
-    local broken_or_full_backup_chain
-    local domain_shutdown_failed
-    local domain_shutdown_success
-    local preserved_backup_chain
+    local broken_or_full_backup_chain_list
+    local domain_shutdown_failed_list
+    local domain_shutdown_success_list
+    local preserved_backup_chain_list
 
     echo ""
     echo "____________________________________________________________________________________________________________"
@@ -162,10 +163,11 @@ check_backups()
     for domain in ${CHECK_BACKUPS_LIST[@]}; do
 
         backup_check_failed=""
-        backup_chain_full=""
+        backup_chain_broken_or_full=""
         backup_folder_integrity=""
         checkpoint_list=()
         recoverable_backup_chain=""
+        virtnbdrestore_status=""
 
         echo ""
 
@@ -173,7 +175,7 @@ check_backups()
 
             # Checks once for non existing, corrupted or dummy backup folders and partial checkpoints:
             #------------------------------------------------------------------------------
-            if [[ -z $backup_folder_integrity || -z $recoverable_backup_chain || -z $backup_chain_full ]]; then
+            if [[ -z $backup_folder_integrity || -z $recoverable_backup_chain || -z $backup_chain_broken_or_full ]]; then
 
                 if [[ ! -d $LOCAL_BACKUP_PATH/$domain \
                     || ! -f $LOCAL_BACKUP_PATH/$domain/$domain.cpt \
@@ -212,19 +214,49 @@ check_backups()
                     fi
 
                 else
+                    # Backup folder integrity looks 'OK' at first glance.
 
-                    # Backup folder integrity looks OK, check for 1sr part of retention policy.
+                    if [[ ! -z $CHECK_BACKUPS_INTEGRITY ]]; then
 
-                    # Retireve the number of additional checkpoints in the backup chain:
+                        # It only has sense to scan for backup data integrity on backups that has implemented checksum feature
+                        if [[ ! -z $(find $LOCAL_BACKUP_PATH/$domain -name "*.chksum") ]]; then
+
+                            # Cheksums files are available. Check for backup's data integrity:
+                            echo "$domain: Verifying backup data integrity..."
+                            virtnbdrestore -i $LOCAL_BACKUP_PATH/$domain -o verify
+
+                            # Get the last status of virtnbdrestore:
+                            virtnbdrestore_status=$?
+
+                            if [[ $virtnbdrestore_status -ne 0 ]]; then
+
+                                # Backup chain is broken, a new one will be created:
+                                backup_chain_broken_or_full="true"
+
+                                # Mark backup chain status as broken:
+                                broken_or_full_backup_chain_list[$i]=$domain
+
+                                echo "$domain: Virtnbdrestore failed verifying the integrity of backup chain with status $virtnbdrestore_status. A new backup chain will be created"
+                            fi
+                        else
+
+                            # No checksum files to compare:
+                            echo "$domain: Environment variable CHECK_BACKUPS_INTEGRITY was enabled, but there are no checksum files to compare with. Backup data integrity will not be performed"
+                        fi
+                    fi
+
+                    # At this point, if data integrity check was performed, there's no evidence of issues with this backup chain.
+                    # Apply the 1st part of retention policy by retireving the number of existing checkpoints in the backup chain:
                     local num_of_backup_checkpoints=$(($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num) - 1))
 
-                    if [[ ! -z $MAX_BACKUPS_PER_CHAIN && $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
+                    if [[ $backup_chain_broken_or_full != true && \
+                        ! -z $MAX_BACKUPS_PER_CHAIN && $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
 
                         # Backup chain is full, a new one will be created:
-                        backup_chain_full="true"
+                        backup_chain_broken_or_full="true"
 
                         # Mark backup chain status as full:
-                        broken_or_full_backup_chain[$i]=$domain
+                        broken_or_full_backup_chain_list[$i]=$domain
 
                         echo "$domain: Backup chain contains $num_of_backup_checkpoints checkpoint(s), and the limit set in environment variable MAX_BACKUPS_PER_CHAIN is $MAX_BACKUPS_PER_CHAIN. A new backup chain will be created"
 
@@ -254,7 +286,7 @@ check_backups()
                         if [[ $? -eq 0 ]]; then
 
                             # Adds VM to shutdown success local list:
-                            domain_shutdown_success[$i]=$domain
+                            domain_shutdown_success_list[$i]=$domain
 
                             # Restarts the loop (checks backup again under changed condition):
                             continue
@@ -262,7 +294,7 @@ check_backups()
 
                             # Adds VM to failed to shutdown local list
                             # (This VM might shutdown eventually):
-                            domain_shutdown_failed[$i]=$domain
+                            domain_shutdown_failed_list[$i]=$domain
 
                             # Exits the loop (nothing else can be done):
                             break
@@ -272,7 +304,7 @@ check_backups()
                     echo "$domain: Cannot check backup chain integrity while VM is running (RESTARTED_SERVER mode is enabled)"
 
                     # Adds VM to failed to shutdown local list:
-                    domain_shutdown_failed[$i]=$domain
+                    domain_shutdown_failed_list[$i]=$domain
 
                     # Exits the loop (nothing else can be done):
                     break
@@ -356,7 +388,7 @@ check_backups()
                     done
 
                 # Mark the backup chain status as broken:
-                broken_or_full_backup_chain[$i]=$domain
+                broken_or_full_backup_chain_list[$i]=$domain
 
                 # If backup check was successful:
                 #------------------------------------------------------------------------------
@@ -400,7 +432,7 @@ check_backups()
                     fi
 
                     # Backup chain will be treated as preserved:
-                    preserved_backup_chain+=($domain)
+                    preserved_backup_chain_list+=($domain)
                 fi
 
             # When VM is running, performs a simpler checkpoint check in case is worth to proceed.
@@ -430,14 +462,14 @@ check_backups()
                         fi
 
                         # Backup chain is OK, mark as preserved:
-                        preserved_backup_chain+=($domain)
+                        preserved_backup_chain_list+=($domain)
 
                     else
 
                         echo "$domain: QEMU and Backup's checkpoint lists MISMATCH"
 
                         # Mark the backup chain status as broken:
-                        broken_or_full_backup_chain[$i]=$domain
+                        broken_or_full_backup_chain_list[$i]=$domain
 
                         # Additionally, mark it as non recoverable (to be archived):
                         recoverable_backup_chain="false"
@@ -449,7 +481,7 @@ check_backups()
                 else
 
                     # Mark the backup chain status as broken:
-                    broken_or_full_backup_chain[$i]=$domain
+                    broken_or_full_backup_chain_list[$i]=$domain
                 fi
             fi
 
@@ -472,7 +504,7 @@ check_backups()
                 # Rebuilds the cpt file with the parsed new list of checkpoints:
                 echo "[\"${new_checkpoint_list// /\", \"}\"]" > $LOCAL_BACKUP_PATH/$domain/$domain.cpt
 
-            elif [[ $recoverable_backup_chain == false || $backup_check_failed == true || $backup_chain_full == true ]]; then
+            elif [[ $recoverable_backup_chain == false || $backup_check_failed == true || $backup_chain_broken_or_full == true ]]; then
 
                 # Backup chain can't be used anymore, but it's total or partially recoverable.
                 # Processes backup for being archived locally (and remotely, if set) applying 2nd part of retention policy:
@@ -501,27 +533,27 @@ check_backups()
     unset CHECK_BACKUPS_LIST
 
     # Appends preserved backup chains to scheduled backups directly:
-    SCHEDULED_BACKUPS_LIST+=(${preserved_backup_chain[@]})
+    SCHEDULED_BACKUPS_LIST+=(${preserved_backup_chain_list[@]})
 
     # Appends broken and/or full backup chains for new backup chain creation:
-    CREATE_BACKUP_CHAIN_LIST+=(${broken_or_full_backup_chain[@]})
+    CREATE_BACKUP_CHAIN_LIST+=(${broken_or_full_backup_chain_list[@]})
 
     # Appends successfully shut down VMs for further start:
-    POWEREDOFF_VMS_LIST+=(${domain_shutdown_success[@]})
+    POWEREDOFF_VMS_LIST+=(${domain_shutdown_success_list[@]})
 
     # Appends VMs failed to shutdown (by user's setting or by fail) to request user action:
-    SHUTDOWN_REQUIRED_VMS_LIST+=(${domain_shutdown_failed[@]})
+    SHUTDOWN_REQUIRED_VMS_LIST+=(${domain_shutdown_failed_list[@]})
 
     echo ""
     echo "Backup Chain Integrity Summary:"
     echo ""
-    echo "Added to Scheduled Backups:   ${preserved_backup_chain[@]:-"None"}"
-    echo "In need of new backup chain:  ${broken_or_full_backup_chain[@]:-"None"}"
+    echo "Added to Scheduled Backups:   ${preserved_backup_chain_list[@]:-"None"}"
+    echo "In need of new backup chain:  ${broken_or_full_backup_chain_list[@]:-"None"}"
     [[ ! -z $VM_ALLOW_POWERCYCLE ]] && \
-    echo "Into automatic power cycle:   ${domain_shutdown_success[@]:-"None"}" || \
-    echo "Manual shut down is required: ${domain_shutdown_failed[@]:-"None"}"
+    echo "Into automatic power cycle:   ${domain_shutdown_success_list[@]:-"None"}" || \
+    echo "Manual shut down is required: ${domain_shutdown_failed_list[@]:-"None"}"
 
-    if [[ -z ${domain_shutdown_failed[@]} ]]; then
+    if [[ -z ${domain_shutdown_failed_list[@]} ]]; then
 
         echo ""
         echo "All Backup Chains Checked!"
@@ -536,17 +568,17 @@ create_backup_chain()
     # Local variables used for flow control:
     local original_ram_size
     local memlimit_active
+    local rsync_status
+    local virsh_status
+    local virtnbdbackup_status
 
     # Lists to add VMs (and summarize at the end):
-    local backup_chain_failed
-    local backup_chain_success
-    local domain_poweron_failed
-    local domain_poweron_success
-    local remote_sync_failed
-    local remote_sync_success
-    local rsync_failed_status
-    local virsh_failed_status
-    local virtnbdbackup_failed_status
+    local backup_chain_failed_list
+    local backup_chain_success_list
+    local domain_poweron_failed_list
+    local domain_poweron_success_list
+    local remote_sync_failed_list
+    local remote_sync_success_list
 
     echo ""
     echo "___________________________________________________________________________________________________"
@@ -569,23 +601,23 @@ create_backup_chain()
                 # Only when VM is running, attempts to create a new backup chain:
                 do_backup_chain $domain "full" $LOCAL_BACKUP_PATH $VIRTNBDBACKUP_ARGS
 
-                if [[ $? -eq 0 ]]; then
+                # Get last status for virtnbdbackup:
+                virtnbdbackup_status=$?
+
+                if [[ $virtnbdbackup_status -eq 0 ]]; then
 
                     # Backup chain creation was successful!
-                    backup_chain_success[$i]=$domain
+                    backup_chain_success_list[$i]=$domain
                 else
 
-                    # Get last state for virtnbdbackup:
-                    virtnbdbackup_failed_status=$?
-
                     # Failed to create a new backup chain:
-                    backup_chain_failed[$i]=$domain
+                    backup_chain_failed_list[$i]=$domain
 
                     # Delete partial files (unusable garbage):
                     rm -rf $LOCAL_BACKUP_PATH/$domain
                 fi
 
-                if [[ ${domain_poweron_success[$i]} == $domain ]]; then
+                if [[ ${domain_poweron_success_list[$i]} == $domain ]]; then
 
                     # VM was previously shut off, revert to its previous state:
                     domain_shutdown $domain --nowait
@@ -601,7 +633,7 @@ create_backup_chain()
                     fi
                 fi
 
-                if [[ ${backup_chain_success[$i]} == $domain && ! -z $RSYNC_BACKUP_PATH ]]; then
+                if [[ ${backup_chain_success_list[$i]} == $domain && ! -z $RSYNC_BACKUP_PATH ]]; then
 
                     # Backup chain creation was successful and remote endpoint is (correctly) set,
                     # attempts to transfer changes via rsync:
@@ -611,20 +643,20 @@ create_backup_chain()
                     # Transfer backup using SSH_OPTIONS and RSYNC_ARGS:
                     rsync $RSYNC_ARGS -e "ssh $SSH_OPTIONS" $LOCAL_BACKUP_PATH/$domain/ $RSYNC_BACKUP_PATH/$domain/
 
-                    # Depending on success with rsync, will add the VM to $remote_success or $remote_fail
-                    if [[ $? -eq 0 ]]; then
+                    # Get last status for rsync:
+                    rsync_status=$?
 
-                        # When rsync exited normally, adds the VM to $remote_sync_success:
-                        remote_sync_success[$i]+=$domain
+                    # Depending on success with rsync, will add the VM to $remote_success or $remote_fail
+                    if [[ $rsync_status -eq 0 ]]; then
+
+                        # When rsync exited normally, adds the VM to $remote_sync_success_list:
+                        remote_sync_success_list[$i]+=$domain
                         echo "$domain: New backup chain was copied successfuly to configured remote mirror"
                     else
 
-                        # Get last state for virtnbdbackup:
-                        rsync_failed_status=$?
-
-                        # Adds the VM to $remote_sync_failed list:
-                        remote_sync_failed[$i]+=$domain
-                        echo "$domain: Failed to copy new backup chain to configured remote mirror with status $rsync_failed_status"
+                        # Adds the VM to $remote_sync_failed_list list:
+                        remote_sync_failed_list[$i]+=$domain
+                        echo "$domain: Failed to copy new backup chain to configured remote mirror with status $rsync_status"
                     fi
                 fi
 
@@ -655,21 +687,22 @@ create_backup_chain()
 
                 # Attempts to start the VM (awaits for VM's QEMU agent):
                 domain_start $domain --wait $VM_WAIT_TIME
+
+                # Get last status for virsh:
+                virsh_status=$?
+
                 if [[ $? -eq 0 ]]; then
 
-                    domain_poweron_success[$i]=$domain
+                    domain_poweron_success_list[$i]=$domain
 
                     # Restarts the loop to chech VM under changed conditions:
                     continue
                 else
 
                     # VM failed to power on. This is an abnormal situation:
+                    echo "$domain: Failed to start with virsh status: $virsh_status (no backup chain could be created)"
 
-                    # Get last state for virsh:
-                    virsh_failed_status=$?
-
-                    echo "$domain: Failed to start with virsh status: $virsh_failed_status (no backup chain could be created)"
-                    domain_poweron_failed[$i]=$domain
+                    domain_poweron_failed_list[$i]=$domain
 
                     # Breaks the loop:
                     break
@@ -685,30 +718,30 @@ create_backup_chain()
     unset CREATE_BACKUP_CHAIN_LIST
 
     # Appends successfuly created backup chains to scheduled backups:
-    SCHEDULED_BACKUPS_LIST+=(${backup_chain_success[@]})
+    SCHEDULED_BACKUPS_LIST+=(${backup_chain_success_list[@]})
 
     # Appends failed backup chains to request manual check by the user:
-    FAILED_VMS_LIST+=(${domain_poweron_failed[@]})
-    FAILED_VMS_LIST+=(${backup_chain_failed[@]})
+    FAILED_VMS_LIST+=(${domain_poweron_failed_list[@]})
+    FAILED_VMS_LIST+=(${backup_chain_failed_list[@]})
 
     # And shows the summary at the very end:
 
     echo ""
     echo "Backup Chain Creation Summary:"
     echo ""
-    echo "Added to Scheduled Backups:        ${backup_chain_success[@]:-"None"}"
-    echo "Could not create new backup chain: ${backup_chain_failed[@]:-"None"}"
-    echo "Could not power on:                ${domain_poweron_failed[@]:-"None"}"
+    echo "Added to Scheduled Backups:        ${backup_chain_success_list[@]:-"None"}"
+    echo "Could not create new backup chain: ${backup_chain_failed_list[@]:-"None"}"
+    echo "Could not power on:                ${domain_poweron_failed_list[@]:-"None"}"
 
     if [[ ! -z $RSYNC_BACKUP_PATH ]]; then
 
         # Only show remote stats when remote endppoint is set:
         echo ""
-        echo "Success copying to remote mirror: ${remote_sync_success[@]:-"None"}"
-        echo "Could not copy to remote mirror:  ${remote_sync_failed[@]:-"None"}"
+        echo "Success copying to remote mirror: ${remote_sync_success_list[@]:-"None"}"
+        echo "Could not copy to remote mirror:  ${remote_sync_failed_list[@]:-"None"}"
     fi
 
-    if [[ -z ${backup_chain_failed[@]} && -z ${domain_poweron_failed[@]} && -z ${remote_sync_failed[@]} ]]; then
+    if [[ -z ${backup_chain_failed_list[@]} && -z ${domain_poweron_failed_list[@]} && -z ${remote_sync_failed_list[@]} ]]; then
 
         echo ""
         echo "All Backup Chains Created!"
@@ -717,11 +750,11 @@ create_backup_chain()
 
     elif [[ $(os_is_unraid) == yes ]]; then
 
-        [[ ! -z ${domain_poweron_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virsh failed (last status: $virsh_failed_status)" "Could not power on: ${domain_poweron_failed[@]}"
+        [[ ! -z ${domain_poweron_failed_list[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virsh failed (last status: $virsh_status)" "Could not power on: ${domain_poweron_failed_list[@]}"
 
-        [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_failed_status)" "Could not create backup chain(s) for: ${backup_chain_failed[@]}"
+        [[ ! -z ${backup_chain_failed_list[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_status)" "Could not create backup chain(s) for: ${backup_chain_failed_list[@]}"
 
-        [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync failed (last status: $rsync_failed_status)" "Could not sync backup chain(s) of: ${remote_sync_failed[@]} (Will be re-attempted on next schedule)"
+        [[ ! -z ${remote_sync_failed_list[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync failed (last status: $rsync_status)" "Could not sync backup chain(s) of: ${remote_sync_failed_list[@]} (Will be re-attempted on next schedule)"
     fi
 }
 
@@ -731,6 +764,7 @@ create_backup_chain()
 #------------------------------------------------------------------------------
 
 BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-"@daily"}
+CHECK_BACKUPS_INTEGRITY=${CHECK_BACKUPS_INTEGRITY:-""}
 LOCAL_BACKUP_CHAINS_TO_KEEP=${LOCAL_BACKUP_CHAINS_TO_KEEP:-""}
 LOCAL_BACKUP_PATH=${LOCAL_BACKUP_PATH:-"/backups"}
 LOGFILE_PATH=${LOGFILE_PATH:-"/logs/vm-babysitter.log"}
