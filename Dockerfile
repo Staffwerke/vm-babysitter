@@ -1,14 +1,14 @@
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 ARG DEBIAN_FRONTEND="noninteractive"
 ARG VIRTNBDBACKUP_SOURCE_URL="https://github.com/abbbi/virtnbdbackup"
-ARG VIRTNBDBACKUP_VERSION="v0.56"
+ARG VIRTNBDBACKUP_VERSION="v1.951"
 
 LABEL container.name="vm-babysitter"
 LABEL container.description="Automatic Backup & Monitoring utility for QEMU/KVM Virtual Machines (powered by Virtnbdbackup)"
-LABEL container.version="1.1"
+LABEL container.version="1.2"
 LABEL virtnbdbackup.version="$VIRTNBDBACKUP_VERSION"
-LABEL maintainer="Adrián Parilli <a.parilli@staffwerke.de>"
+LABEL maintainer="Adrián Parilli <adrian.parilli@staffwerke.de>"
 
 RUN \
 apt-get update && \
