@@ -17,6 +17,7 @@ stop_container()
     exit 0
 }
 
+: << 'DISABLED_CODE'
 #------------------------------------------------------------------------------
 # Check if VMs in CHECK_PATCH_LIST are patched for incremental backups (and applies it when possible):
 #------------------------------------------------------------------------------
@@ -132,6 +133,7 @@ check_patch()
         echo "All VMs patched successfuly!"
     fi
 }
+DISABLED_CODE
 
 #------------------------------------------------------------------------------
 # Checks VMs in CHECK_BACKUPS_LIST for backup chain integrity (and puts VMs at point of create new backup chains, if possible):
@@ -1146,7 +1148,8 @@ end_of_crontab
                             POWEREDOFF_VMS_LIST+=($domain)
 
                             # Adds successfully shut off VMs to the initial queue:
-                            CHECK_PATCH_LIST+=($domain)
+                            #CHECK_PATCH_LIST+=($domain)
+                            CHECK_BACKUPS_LIST+=($domain)
 
                         else
 
@@ -1161,12 +1164,14 @@ end_of_crontab
                 else
 
                     # Adds already shut down VMs to the initial queue:
-                    CHECK_PATCH_LIST+=($domain)
+                    #CHECK_PATCH_LIST+=($domain)
+                    CHECK_BACKUPS_LIST+=($domain)
                 fi
             done
 
             echo "RESTARTED_SERVER mode Summary:"
-            echo "Ready for further checks:     ${CHECK_PATCH_LIST[@]:-"None"}"
+            #echo "Ready for further checks:     ${CHECK_PATCH_LIST[@]:-"None"}"
+            echo "Ready for further checks:     ${CHECK_BACKUPS_LIST[@]:-"None"}"
             [[ ! -z $VM_ALLOW_POWERCYCLE ]] && \
             echo "Into automatic power cycle:   ${POWEREDOFF_VMS_LIST[@]:-"None"}" || \
             echo "Manual shut down is required: ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
@@ -1174,7 +1179,8 @@ end_of_crontab
 
             # Fortunately there's not a 'RESTARTED_SERVER' scenario.
             # Add all remaining VMs in DOMAINS_LIST to the first queue:
-            CHECK_PATCH_LIST=(${DOMAINS_LIST[@]})
+            #CHECK_PATCH_LIST=(${DOMAINS_LIST[@]})
+            CHECK_BACKUPS_LIST=(${DOMAINS_LIST[@]})
 
             # Exports the variable, since it's modified by the scheduled script:
             RESTARTED_SERVER="false"
@@ -1183,7 +1189,8 @@ end_of_crontab
 
         # OS is not Unraid.
         # Add all remaining VMs in DOMAINS_LIST to this queue:
-        CHECK_PATCH_LIST=(${DOMAINS_LIST[@]})
+        #CHECK_PATCH_LIST=(${DOMAINS_LIST[@]})
+        CHECK_BACKUPS_LIST=(${DOMAINS_LIST[@]})
     fi
 
     # 2.3 Initializes a file with variables externally stored, to be shared with the scheduler:
@@ -1235,7 +1242,8 @@ end_of_external_variables
                         POWEREDOFF_VMS_LIST+=($domain)
 
                         # Move to main queue for check:
-                        CHECK_PATCH_LIST+=($domain)
+                        #CHECK_PATCH_LIST+=($domain)
+                        CHECK_BACKUPS_LIST+=($domain)
                         unset SHUTDOWN_REQUIRED_VMS_LIST[$i]
 
                         # Rebuild indexes into the array:
@@ -1246,7 +1254,8 @@ end_of_external_variables
                 done
             fi
 
-            if [[ ! -z ${CHECK_PATCH_LIST[@]} || ! -z ${CHECK_BACKUPS_LIST[@]} || ! -z ${CREATE_BACKUP_CHAIN_LIST[@]} ]]; then
+            #if [[ ! -z ${CHECK_PATCH_LIST[@]} || ! -z ${CHECK_BACKUPS_LIST[@]} || ! -z ${CREATE_BACKUP_CHAIN_LIST[@]} ]]; then
+            if [[ ! -z ${CHECK_BACKUPS_LIST[@]} || ! -z ${CREATE_BACKUP_CHAIN_LIST[@]} ]]; then
 
                 # 3.3 Fresh start, or status of at least on VM has changed, and sent to one of the queues. Marks an ongoing check starting:
                 #------------------------------------------------------------------------------
@@ -1254,13 +1263,16 @@ end_of_external_variables
                 sed -i \
                 -e "s/ONGOING_CHECK=.*/ONGOING_CHECK=\"$ONGOING_CHECK\"/" $external_vars
 
+                # Create the global list of VMs to be displayed:
+                ONGOING_CHECK_LIST=(${CHECK_PATCH_LIST[@]} ${CHECK_BACKUPS_LIST[@]} ${CREATE_BACKUP_CHAIN_LIST[@]})
+
                 echo ""
                 echo "____________________________________________________________________________________________________________"
-                echo "Automatic check for VM(s) ${CHECK_PATCH_LIST[@]} ${CHECK_BACKUPS_LIST[@]} ${CREATE_BACKUP_CHAIN_LIST[@]} in progress..."
+                echo "Automatic check for VM(s) ${ONGOING_CHECK_LIST[@]} in progress..."
 
                 # 3.3.1 Check for incremental backups patch on all VMs:
                 #------------------------------------------------------------------------------
-                [[ ! -z ${CHECK_PATCH_LIST[@]} ]] && check_patch
+                #[[ ! -z ${CHECK_PATCH_LIST[@]} ]] && check_patch
 
                 # 3.3.2 Check for backup state (and apply retention policy) on all VMs:
                 #------------------------------------------------------------------------------
@@ -1344,6 +1356,9 @@ end_of_external_variables
                 #------------------------------------------------------------------------------
 
                 ONGOING_CHECK="false"
+
+                # Clean formerly displayed ONGOING_CHECK_LIST:
+                ONGOING_CHECK_LIST=()
 
                # Sed can't expand arrays correctly. Convert variables to be exported into strings.
                # This will be reverted at next block iteration, by sourcing such external variables as arrays:
