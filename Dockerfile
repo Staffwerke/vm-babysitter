@@ -2,7 +2,7 @@ FROM debian:bookworm-slim
 
 ARG DEBIAN_FRONTEND="noninteractive"
 ARG VIRTNBDBACKUP_SOURCE_URL="https://github.com/abbbi/virtnbdbackup"
-ARG VIRTNBDBACKUP_VERSION="v1.951"
+ARG VIRTNBDBACKUP_VERSION="v1.9.51"
 
 LABEL container.name="vm-babysitter"
 LABEL container.description="Automatic Backup & Monitoring utility for QEMU/KVM Virtual Machines (powered by Virtnbdbackup)"
