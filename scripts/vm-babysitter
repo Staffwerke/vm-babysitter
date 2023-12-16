@@ -173,10 +173,13 @@ check_backups()
 
         while true; do
 
-            # Checks once for non existing, corrupted or dummy backup folders and partial checkpoints:
+            # Stage 1: Check backup integrity:
             #------------------------------------------------------------------------------
             if [[ -z $backup_folder_integrity || -z $recoverable_backup_chain || -z $backup_chain_broken_or_full ]]; then
 
+
+                # Discard non existing, and incomplete folders:
+                #------------------------------------------------------------------------------
                 if [[ ! -d $LOCAL_BACKUP_PATH/$domain \
                     || ! -f $LOCAL_BACKUP_PATH/$domain/$domain.cpt \
                     || ! -d $LOCAL_BACKUP_PATH/$domain/checkpoints ]]; then
@@ -184,6 +187,8 @@ check_backups()
                     backup_folder_integrity="false"
                     echo "$domain: No backup chain folder detected, or internal structure is inconsistent"
 
+                # Interrupted operations (may recover backup chain in some cases):
+                #------------------------------------------------------------------------------
                 elif [[ ! -z $(find $LOCAL_BACKUP_PATH/$domain -type f -name "*.partial") ]]; then
 
                     local damaged_backup_checkpoint_list=($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain))
@@ -213,16 +218,41 @@ check_backups()
                         echo "$domain: An incremental backup operation was previously cancelled. It will attempt to fix the current backup chain by deleting the (now useless) data that was being saved right before the cancellation, and deleting the checkpoint from this VM (a full Power Cycle will be performed after repair to apply all the changes)"
                     fi
 
+                # Backup folder integrity looks OK, at first glance:
+                #------------------------------------------------------------------------------
                 else
-                    # Backup folder integrity looks 'OK' at first glance.
 
-                    if [[ ! -z $CHECK_BACKUPS_INTEGRITY ]]; then
+                    # Apply the 1st part of retention policy by retireving the number of existing checkpoints in the backup chain:
+                    #------------------------------------------------------------------------------
+                    local num_of_backup_checkpoints=$(($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num) - 1))
+
+                    if [[ ! -z $MAX_BACKUPS_PER_CHAIN && $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
+
+                        # Backup chain is full, a new one will be created:
+                        backup_chain_broken_or_full="true"
+
+                        # Mark backup chain status as full:
+                        broken_or_full_backup_chain_list[$i]=$domain
+
+                        echo "$domain: Backup chain contains $num_of_backup_checkpoints checkpoint(s), and the limit set in environment variable MAX_BACKUPS_PER_CHAIN is $MAX_BACKUPS_PER_CHAIN. A new backup chain will be created"
+
+                    else
+
+                        # Display checkpoints limits, if set:
+                        [[ ! -z $MAX_BACKUPS_PER_CHAIN ]] && local display_checkpoint_limit=" out of $MAX_BACKUPS_PER_CHAIN"
+
+                        echo "$domain: Detected $num_of_backup_checkpoints$display_checkpoint_limit checkpoints"
+                    fi
+
+                    # Unless backup chain is full, perform data check integrity, if enabled by user (and if backup includes checksum files):
+                    #------------------------------------------------------------------------------
+                    if [[ ! -z $CHECK_BACKUPS_INTEGRITY && $backup_chain_broken_or_full != true ]]; then
 
                         # It only has sense to scan for backup data integrity on backups that has implemented checksum feature
                         if [[ ! -z $(find $LOCAL_BACKUP_PATH/$domain -name "*.chksum") ]]; then
 
                             # Cheksums files are available. Check for backup's data integrity:
-                            echo "$domain: Verifying backup data integrity..."
+                            echo "$domain: Checking backup data integrity..."
                             virtnbdrestore -i $LOCAL_BACKUP_PATH/$domain -o verify
 
                             # Get the last status of virtnbdrestore:
@@ -237,44 +267,31 @@ check_backups()
                                 broken_or_full_backup_chain_list[$i]=$domain
 
                                 echo "$domain: Virtnbdrestore failed verifying the integrity of backup chain with status $virtnbdrestore_status. A new backup chain will be created"
+
+                            else
+                                echo "$domain: Backup data integrity is OK"
                             fi
+
                         else
 
                             # No checksum files to compare:
-                            echo "$domain: Environment variable CHECK_BACKUPS_INTEGRITY was enabled, but there are no checksum files to compare with. Backup data integrity will not be performed"
+                            echo "$domain: Data integrity check cancelled: No checksum files were found (saved with an old version of Virtnbdbackup?)"
                         fi
                     fi
 
-                    # At this point, if data integrity check was performed, there's no evidence of issues with this backup chain.
-                    # Apply the 1st part of retention policy by retireving the number of existing checkpoints in the backup chain:
-                    local num_of_backup_checkpoints=$(($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num) - 1))
-
-                    if [[ $backup_chain_broken_or_full != true && \
-                        ! -z $MAX_BACKUPS_PER_CHAIN && $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
-
-                        # Backup chain is full, a new one will be created:
-                        backup_chain_broken_or_full="true"
-
-                        # Mark backup chain status as full:
-                        broken_or_full_backup_chain_list[$i]=$domain
-
-                        echo "$domain: Backup chain contains $num_of_backup_checkpoints checkpoint(s), and the limit set in environment variable MAX_BACKUPS_PER_CHAIN is $MAX_BACKUPS_PER_CHAIN. A new backup chain will be created"
-
-                    else
-
-                        # Everything looks good to go:
-                        backup_folder_integrity="true"
-
-                        # Display checkpoints limits, if set:
-                        [[ ! -z $MAX_BACKUPS_PER_CHAIN ]] && local display_checkpoint_limit=" out of $MAX_BACKUPS_PER_CHAIN"
-
-                        echo "$domain: Detected $num_of_backup_checkpoints$display_checkpoint_limit checkpoints"
-                    fi
+                    # At this point, everything looks good to continue:
+                    #------------------------------------------------------------------------------
+                    [[ -z $backup_chain_broken_or_full ]] && backup_folder_integrity="true"
                 fi
             fi
 
-            # Checks once if RESTARTED_SERVER is true, VM is running and VM_ALLOW_POWERCYCLE is set
-            # (Will fail if can't shut down the VM):
+            # Stage 2: Verify Qemu's checkpoints consistency against backups:
+            #------------------------------------------------------------------------------
+
+            # Attempt to solve Unraid specific scenario,
+            # where Qemu checkpoints metadata is ALWAYS lost after a server restart,
+            # Therefore, VMs to be checked need to be shut down first.
+            # It will fail if can't do this itself, notifying the user about action required:
             #------------------------------------------------------------------------------
             if [[ $RESTARTED_SERVER == true && $(domain_state $domain) == running ]]; then
 
@@ -311,25 +328,26 @@ check_backups()
                 fi
             fi
 
-            # Performs a deep check when VM is shut down:
+            # Check backup chain integrity, attempting to recover it if results possible:
             #------------------------------------------------------------------------------
             if [[ $(domain_state $domain) == "shut off" ]]; then
 
 
-                # Backup chain is worth of being checked:
-                #------------------------------------------------------------------------------
+                # When backup is ok, or there are chances to fix it; checks if bitmaps and checkpoints are consistent.
+                # Does nothing if no inconsistencies at all are found:
                 if [[ $backup_folder_integrity == true || $recoverable_backup_chain == true ]]; then
 
-                echo "$domain: Is shut down, performing a full check into its backup chain..."
+                    echo "$domain: Is shut down, performing a full check into its backup chain..."
 
                     if [[ $RESTARTED_SERVER == true ]] ; then
 
-                        # No QEMU checkpoints are found in this specific state. Falls back to checkpoints in backup:
-
+                        # No QEMU checkpoints will be found on Unraid in this state. Falls back to checkpoints stored in backup:
                         echo "$domain: Reading checkpoints list from backup"
                         checkpoint_list=($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain))
+
                     else
 
+                        # Read qemu internal checkpoints:
                         echo "$domain: Reading checkpoints list from QEMU"
                         checkpoint_list=($(domain_checkpoint_list $domain))
                     fi
@@ -344,7 +362,7 @@ check_backups()
                             backup_check_failed="true"
                             echo "$domain: Checkpoints and bitmaps lists on disk $image MISMATCH"
 
-                            # Nothing else can be done
+                            # Nothing else can be done...
                             break
 
                         elif [[ ! -z ${bitmaps_list[@]} ]]; then
@@ -356,14 +374,14 @@ check_backups()
                             backup_check_failed="true"
                             echo "$domain: ${#checkpoint_list[@]} checkpoints found, and ${#bitmaps_list[@]} bitmaps found on disk $image (backup chain is broken)"
 
-                            # Nothing else can be done
+                            # Nothing else can be done...
                             break
                         fi
                     done
                 fi
 
-                # When above check failed or something was wrong from the very beginning, cleanses disk images,
-                # checkpoints metadata (if any), and archives or deletes the existing backup chain, according the case:
+                # When inconsistencies are found in the above check, or backup is full, broken or beyond of repair,
+                # cleans all checkpoints and bitmaps from the VM, marking backup's folder for its final disposal:
                 #------------------------------------------------------------------------------
                 if [[ $backup_check_failed == true \
                     || $recoverable_backup_chain == false \
@@ -390,7 +408,9 @@ check_backups()
                 # Mark the backup chain status as broken:
                 broken_or_full_backup_chain_list[$i]=$domain
 
-                # If backup check was successful:
+                # By the other hand, if checkpoints and bitmaps are consistent,
+                # it will attempt to recover the backup chain first (doing a VM power cycle),
+                # and marking the backup chain as usable:
                 #------------------------------------------------------------------------------
                 else
 
@@ -435,7 +455,8 @@ check_backups()
                     preserved_backup_chain_list+=($domain)
                 fi
 
-            # When VM is running, performs a simpler checkpoint check in case is worth to proceed.
+            # When VM is not shut off (and presumed to be running) range of operations is more narrow.
+            # But it's still possible to restore a backup chain when last backup was interrupted:
             #------------------------------------------------------------------------------
             else
 
@@ -454,9 +475,14 @@ check_backups()
 
                         if [[ $recoverable_backup_chain == true ]]; then
 
+                            # Deleting the checkpoint in this way, alsp implies to delete the bitmap:
                             echo "$domain: Removing damaged checkpoint: ${checkpoint_list[-1]} ..."
                             domain_delete_checkpoint $domain ${checkpoint_list[-1]}
 
+                            #------------------------------------------------------------------------------
+                            # Tested so far, requires a full power cycle.
+                            # But is in need of read VM_ALLOW_POWERCYCLE and/or notify user first!!!
+                            #------------------------------------------------------------------------------
                             echo "$domain: Power cycling VM to apply changes..."
                             domain_powercycle $domain $VM_WAIT_TIME
                         fi
@@ -476,6 +502,7 @@ check_backups()
 
                     fi
 
+                # Backup chain is broken, or beyond repair.
                 # Virtnbdbackup can take care of checkpoints/bitmaps in this scenario:
                 #------------------------------------------------------------------------------
                 else
@@ -485,7 +512,7 @@ check_backups()
                 fi
             fi
 
-            # Final step is to process backup chain files according the results:
+            # Stage 3: Process backup chain and files according with the results:
             #------------------------------------------------------------------------------
             if [[ $recoverable_backup_chain == true ]]; then
 
