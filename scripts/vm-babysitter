@@ -24,12 +24,12 @@ check_backups()
 {
     # Local variables used for flow control:
     local backup_chain_integrity
-    local backup_checkpoints_list
+    local existing_backup_checkpoints_list
     local backup_chain_full
     local backup_folder_integrity
-    local bitmaps_list
+    local existing_bitmaps_list
     local powercycle_status
-    local qemu_checkpoints_list
+    local existing_qemu_checkpoints_list
     local recoverable_backup_chain
     local virtnbdrestore_status
 
@@ -170,10 +170,10 @@ check_backups()
         if [[ $backup_folder_integrity = true ]]; then
 
             # Read qemu checkpoints:
-            qemu_checkpoints_list=($(domain_checkpoints_list $domain))
+            existing_qemu_checkpoints_list=($(domain_checkpoints_list $domain))
 
             # Read backup checkpoints:
-            backup_checkpoints_list=($(backup_checkpoints_list $LOCAL_BACKUP_PATH/$domain))
+            existing_backup_checkpoints_list=($(backup_checkpoints_list $LOCAL_BACKUP_PATH/$domain))
 
             if [[ $(domain_state $domain) == "shut off" || $unraid_scenario == true ]]; then
 
@@ -186,9 +186,9 @@ check_backups()
                 for image in $(domain_img_paths_list $domain); do
 
                     # Read bitmaps in each virtual image:
-                    bitmaps_list=($(disk_image_bitmap_list $image))
+                    existing_bitmaps_list=($(disk_image_bitmap_list $image))
 
-                    if [[ ${bitmaps_list[@]} != ${backup_checkpoints_list[@]} ]]; then
+                    if [[ ${existing_bitmaps_list[@]} != ${existing_backup_checkpoints_list[@]} ]]; then
 
                         backup_chain_integrity="false"
                         echo "$domain: Checkpoints and bitmaps lists on disk $image MISMATCH"
@@ -196,7 +196,7 @@ check_backups()
                         # Interrupt the current operation. Nothing else to do:
                         break
 
-                    elif [[ ! -z ${bitmaps_list[@]} ]]; then
+                    elif [[ ! -z ${existing_bitmaps_list[@]} ]]; then
 
                         # It is assumed bitmaps = checkpoints, and none is a empty list.
 
@@ -207,7 +207,7 @@ check_backups()
                     else
 
                         backup_chain_integrity="false"
-                        echo "$domain: ${#backup_checkpoints_list[@]} checkpoints found, and ${#bitmaps_list[@]} bitmaps found on disk $image (backup chain is broken)"
+                        echo "$domain: ${#existing_backup_checkpoints_list[@]} checkpoints found, and ${#existing_bitmaps_list[@]} bitmaps found on disk $image (backup chain is broken)"
 
                         # Interrupt the current operation. Nothing else to do:
                         break
@@ -219,7 +219,7 @@ check_backups()
 
                 echo "$domain: Is running, comparing QEMU and Backup's checkpoint lists..."
 
-                if [[ ${qemu_checkpoints_list[@]} == ${backup_checkpoints_list[@]} ]]; then
+                if [[ ${existing_qemu_checkpoints_list[@]} == ${existing_backup_checkpoints_list[@]} ]]; then
 
                     # Backup chain integrity is OK:
                     backup_chain_integrity="true"
@@ -247,38 +247,38 @@ check_backups()
         elif [[ $recoverable_backup_chain == true ]]; then
 
             # Read qemu checkpoints:
-            qemu_checkpoints_list=($(domain_checkpoints_list $domain))
+            existing_qemu_checkpoints_list=($(domain_checkpoints_list $domain))
 
             if [[ $(domain_state $domain) == "shut off" ]]; then
 
-                echo "$domain: Removing damaged checkpoint metadata: ${qemu_checkpoints_list[-1]} ..."
-                domain_delete_checkpoint $domain ${qemu_checkpoints_list[-1]} --metadata
+                echo "$domain: Removing damaged checkpoint metadata: ${existing_qemu_checkpoints_list[-1]} ..."
+                domain_delete_checkpoint $domain ${existing_qemu_checkpoints_list[-1]} --metadata
 
                 for image in $(domain_img_paths_list $domain); do
 
-                    echo "$domain: Deleting insecure bitmap ${bitmaps_list[-1]} on disk image $image..."
-                    disk_image_delete_bitmap $image ${bitmaps_list[-1]}
+                    echo "$domain: Deleting insecure bitmap ${existing_bitmaps_list[-1]} on disk image $image..."
+                    disk_image_delete_bitmap $image ${existing_bitmaps_list[-1]}
                 done
 
             elif [[ $(domain_state $domain) == "running" ]]; then
 
-                echo "$domain: Removing damaged checkpoint: ${qemu_checkpoints_list[-1]} ..."
-                domain_delete_checkpoint $domain ${qemu_checkpoints_list[-1]}
+                echo "$domain: Removing damaged checkpoint: ${existing_qemu_checkpoints_list[-1]} ..."
+                domain_delete_checkpoint $domain ${existing_qemu_checkpoints_list[-1]}
             fi
 
             echo "$domain: Fixing backup chain data in $LOCAL_BACKUP_PATH/$domain ..."
 
             # Deletes any related file with the damaged checkpoint:
-            find $LOCAL_BACKUP_PATH/$domain -name "*${qemu_checkpoints_list[-1]}*" -type f -delete
+            find $LOCAL_BACKUP_PATH/$domain -name "*${existing_qemu_checkpoints_list[-1]}*" -type f -delete
 
             # Deletes the last checkpoint from the list:
-            unset qemu_checkpoints_list[-1]
+            unset existing_qemu_checkpoints_list[-1]
 
             # Turn the updated list into string to export:
-            qemu_checkpoints_list="${qemu_checkpoints_list[@]}"
+            existing_qemu_checkpoints_list="${existing_qemu_checkpoints_list[@]}"
 
             # Rebuilds the cpt file with the parsed new list of checkpoints:
-            echo "[\"${qemu_checkpoints_list// /\", \"}\"]" > $LOCAL_BACKUP_PATH/$domain/$domain.cpt
+            echo "[\"${existing_qemu_checkpoints_list// /\", \"}\"]" > $LOCAL_BACKUP_PATH/$domain/$domain.cpt
 
             # Backup folder integrity is OK:
             backup_folder_integrity="true"
@@ -293,7 +293,7 @@ check_backups()
 
             if [[ $(domain_state $domain) == "shut off" || $unraid_scenario == true ]]; then
 
-                if [[ ! -z ${qemu_checkpoints_list[@]} ]]; then
+                if [[ ! -z ${existing_qemu_checkpoints_list[@]} ]]; then
 
                     # Deletes checkpoints metadata if any detected:
                     echo "$domain: Pruning existing checkpoints in QEMU..."
