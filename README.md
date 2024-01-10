@@ -27,8 +27,7 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 | **Variable Name** | **Description** | **Default Value** |
 | --- | --- | --- |
 |`BACKUP_SCHEDULE`|Cron-like string for incremental backups (e.g. `* 2 * * *` triggers everyday at 2 am local time)|`@daily`|
-|`CHECK_BACKUPS_INTEGRITY`|Verify data integrity of backups when checksums are available. This operation takes long time, delaying container's initialization. Use it only under suspect of data corruption. (Disabed by default)||
-<Config Name="Check backups data integrity" Target="CHECK_BACKUPS_INTEGRITY" Default="" Mode="" Description="Also verify data integrity via checksums (when available) of backups, along with initial checks. (Default is not to verify)" Type="Variable" Display="always" Required="false" Mask="false"/>
+|`CHECK_BACKUPS_INTEGRITY`|Verify data integrity of backups when checksums are available. This operation takes long time, delaying container's initialization. Use it only under suspect of data corruption. (Disabled by default)||
 |`LOCAL_BACKUP_CHAINS_TO_KEEP`|How many old backup chains to keep archived locally under `LOCAL_BACKUP_PATH`. `0` disable backups archiving (default is no limit)||
 |`LOCAL_BACKUP_PATH`|Container path where vm-babysitter will search for, and save backup chains of all VMs. The container will fail if does not exist, or r/w permission issues are found|`/backups`|
 |`LOGROTATE_CONFIG_PATH`|Container path to place and read log rotation config|`/tmp/logrotate.d/vm-babysitter`|
@@ -43,7 +42,8 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 |`TZ`|Local timezone. Most likely the same on the server running docker (default is container's time)||
 |`UNRAID_NOTIFY_HOST`|Host or IP to send Unraid notifications. Change it when `--network=host` is not possible, or when notifications aren't working. (Applies for Unraid OS only)|`localhost`|
 |`VIRTNBDBACKUP_ARGS`|Extra arguments passed to virtnbdbackup, in both full and inc backup, e.g. `--compress`||
-|`VM_ALLOW_POWERCYCLE`|When enabled performs a controlled powercycle of VMs, checking incremental backup patch and backup chains as needed. (Default is disabled)||
+|`VM_ALLOW_BACKUP_CHAIN_FIX`|When enabled, attempts to fix previously cancelled backup chains operations by removing partial backups and last checkpoints/bitmaps, trying thus to keep using the current backup folder for more checkpoints. (Default is disabled)||
+|`VM_ALLOW_POWERCYCLE`|When enabled, performs a controlled powercycle of VMs when this is needed in order to apply changes, such after fix backup chains or start new ones. (Default is disabled, user must shut down VMs manually, whenever asked)||
 |`VM_AUTOSTART_LIST`|Case Sensitive space separated list of VMs that will be started along with the container||
 |`VM_IGNORED_LIST`|Case Sensitive space separated list of VMs to ignore, so won't be checked or backed up||
 |`VM_RAM_LIMIT`|How much RAM to assign temporarily to a shut down VM to perform backup tasks. Accepts multipliers such as k,K,m,M,g,G and similar, e.g. `1048576K`, `2048m`, `4G`, etc. Otherwise assumes Bytes (default is not to touch RAM values)||
