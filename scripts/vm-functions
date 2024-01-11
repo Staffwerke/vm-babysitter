@@ -228,24 +228,28 @@ domain_powercycle()
 
             elif [[ $counter -eq $wait_time ]]; then
 
-                echo "WARNING: Unable to determine if VM $domain was completely shut down after $wait_time seconds. Attemting to start VM anyway..."
+                powercycle_status=2
+                echo "WARNING: VM $domain did not shut down after $wait_time seconds. This mean either a longer awaiting time should be set, or there are issues with this VM"
             fi
             # Sleep for one second:
             sleep 1
         done
 
-        # Turn on the domain:
-        virsh start $domain
-        start_status=$?
+        if [[ -z $powercycle_status ]]; then
 
-        if [[ $start_status -eq 0 ]]; then
+            # Turn on the domain:
+            virsh start $domain
+            start_status=$?
 
-            powercycle_status=0
-            echo "$domain: Power cycle completed successfully"
+            if [[ $start_status -eq 0 ]]; then
 
-        else
-            powercycle_status=1
-            echo "ERROR: Libvirt failed to start VM $domain after shut down"
+                powercycle_status=0
+                echo "$domain: Power cycle completed successfully"
+
+            else
+                powercycle_status=1
+                echo "ERROR: Libvirt failed to start VM $domain after shut down"
+            fi
         fi
 
     else
