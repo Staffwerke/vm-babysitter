@@ -3,11 +3,9 @@
 Checks existing Virtual machines running on the local server, and performs the following actions:
 
 - Creates a list of (persistent) VMs registered in QEMU to be backed up regularly
-- Sets and internal cron task for scheduled backups
-- Verifies/applies QEMU patch for incremental backups
-- Checks backup chain consistency for each VM, being able to detect some issues and solve them
-- Creates new full backup chains when necessary (e.g. retention policy)
-- Updates the backup chain regularly, via internal cron task
+- Checks backup chain integrity and consistency for each VM, being able to fix broken backup chains when operation was previously cancelled
+- Rotates backup chains and applies retention policy (both local and remotely)
+- Updates backup chains regularly, via internal cron task
 - Rebuilds/recovers backup chains automatically from many disaster scenarios, including a server crash
 - When backup chain gets broken, it can archive it for further restoration, or deletes it when becomes unusable
 - Syncs successful backup operations and is able to archive remote backup chain mirrors independently of local ones
