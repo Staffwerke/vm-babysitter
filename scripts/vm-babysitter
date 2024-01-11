@@ -335,7 +335,7 @@ check_backups()
 
             fi
 
-            if [[ ! -z $unraid_scenario && ! -z $VM_ALLOW_POWERCYCLE && $(domain_state $domain) == "running" ]]; then
+            if [[ $unraid_scenario == true && ! -z $VM_ALLOW_POWERCYCLE && $(domain_state $domain) == "running" ]]; then
 
                 # unraid_scenario where user allows automatic power cycle and VM is running,
                 # perform full power cycle of VM:
@@ -350,7 +350,7 @@ check_backups()
                     && broken_or_full_backup_chain_list+=($domain) \
                     || domain_powercycle_failed_list+=($domain)
 
-            elif [[ ! -z $unraid_scenario && -z $VM_ALLOW_POWERCYCLE && $(domain_state $domain) == "running" ]]; then
+            elif [[ $unraid_scenario == true && -z $VM_ALLOW_POWERCYCLE && $(domain_state $domain) == "running" ]]; then
 
                 # unraid_scenario where user forbids automatic power cycle and VM is running,
                 # add to the list of VMs in need to be shut down manually:
