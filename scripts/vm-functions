@@ -33,7 +33,7 @@ domain_delete_checkpoint()
     local delete_options
     local vm_needed_state
 
-    # First argument is always domain name
+    # First argument is always domain name:
     domain=$1
     shift
 
@@ -53,7 +53,7 @@ domain_delete_checkpoint()
             # Any other value is taken as a checkpoint name, therefore added in checkpoints_list:
             *)
                 checkpoints_list+=($1)
-        ;;
+            ;;
         esac
 
         # Shifts to the next argument:
@@ -651,12 +651,50 @@ disk_image_bitmap_list()
 }
 
 # -----------------------------------------------------------------------------
-# From a given disk image, deletes a secific bitmap, returning the status of the command:
+# Deletes specific bitmaps of a given virtual disk, or all if '--all' argument is passed instead:
 # -----------------------------------------------------------------------------
 disk_image_delete_bitmap()
 {
-    qemu-img bitmap --remove $1 $2
-    return $?
+
+    local bitmaps_list
+
+    # First argument is always the full path to the disk image:
+    local virtual_disk_path=$1
+    shift
+
+    # Remaining arguments are processed as they come:
+    while [[ $@ != "" ]]; do
+
+        case $1 in
+
+            # Indicates to delete all bitmaps found, instead of processing bitmaps_list:
+            --all)
+                bitmaps_list=($(disk_image_bitmap_list $virtual_disk_path))
+                break
+            ;;
+            # Any other value is taken as a bitmap name, therefore added in bitmap_list:
+            *)
+                bitmaps_list+=($1)
+            ;;
+        esac
+
+        # Shifts to the next argument:
+        shift
+    done
+
+    if [[ ! -z ${bitmaps_list[@]} ]]; then
+
+        echo "$domain: Removing ${#bitmaps_list[@]} bitmap(s)..."
+
+        for bitmap in ${bitmaps_list[@]}; do
+            &> /dev/null qemu-img bitmap --remove $virtual_disk_path $bitmap
+        done
+
+        [[ $(domain_state $domain) != "shut off" ]] echo "$(basename $virtual_disk_path): VM full power cycle is needed in order to apply changes"
+
+    else
+        echo "$(basename $virtual_disk_path): No bitmaps to delete"
+    fi
 }
 
 # -----------------------------------------------------------------------------
