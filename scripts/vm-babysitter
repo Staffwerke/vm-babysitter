@@ -350,7 +350,7 @@ check_backups()
                 # Depending on powercycle operation result,
                 # Add VM to the list of broken/failed backup chain ones,
                 # Or notify the user about VM misbehavior:
-                if [[ $powercycle_status -eq 0 ]] \
+                [[ $powercycle_status -eq 0 ]] \
                     && broken_or_full_backup_chain_list+=($domain) \
                     || domain_powercycle_failed_list+=($domain)
 
