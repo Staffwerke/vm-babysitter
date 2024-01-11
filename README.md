@@ -8,7 +8,7 @@ Checks existing Virtual machines running on the local server, and performs the f
 - Checks backup chain consistency for each VM, being able to detect some issues and solve them
 - Creates new full backup chains when necessary (e.g. retention policy)
 - Updates the backup chain regularly, via internal cron task
-- Rebuilds/recovers backup chains automaticaly from many disaster scenarios, including a server crash
+- Rebuilds/recovers backup chains automatically from many disaster scenarios, including a server crash
 - When backup chain gets broken, it can archive it for further restoration, or deletes it when becomes unusable
 - Syncs successful backup operations and is able to archive remote backup chain mirrors independently of local ones
 - Sends important notifications (backup start/end) and alerts to Unraid's notification system, when detected.
@@ -43,7 +43,7 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 |`UNRAID_NOTIFY_HOST`|Host or IP to send Unraid notifications. Change it when `--network=host` is not possible, or when notifications aren't working. (Applies for Unraid OS only)|`localhost`|
 |`VIRTNBDBACKUP_ARGS`|Extra arguments passed to virtnbdbackup, in both full and inc backup, e.g. `--compress`||
 |`VM_ALLOW_BACKUP_CHAIN_FIX`|When enabled, attempts to fix previously cancelled backup chains operations by removing partial backups and last checkpoints/bitmaps, trying thus to keep using the current backup folder for more checkpoints. (Default is disabled)||
-|`VM_ALLOW_POWERCYCLE`|When enabled, performs a controlled powercycle of VMs when this is needed in order to apply changes, such after fix backup chains or start new ones. (Default is disabled, user must shut down VMs manually, whenever asked)||
+|`VM_ALLOW_POWERCYCLE`|When enabled, performs a controlled power cycle of VMs when this is needed in order to apply changes, such after fix backup chains or start new ones. (Default is disabled, user must shut down VMs manually, whenever asked)||
 |`VM_AUTOSTART_LIST`|Case Sensitive space separated list of VMs that will be started along with the container||
 |`VM_IGNORED_LIST`|Case Sensitive space separated list of VMs to ignore, so won't be checked or backed up||
 |`VM_RAM_LIMIT`|How much RAM to assign temporarily to a shut down VM to perform backup tasks. Accepts multipliers such as k,K,m,M,g,G and similar, e.g. `1048576K`, `2048m`, `4G`, etc. Otherwise assumes Bytes (default is not to touch RAM values)||
@@ -65,17 +65,17 @@ The folder where all local backups will be checked and saved is mounted as in th
 
 The service needs full access to ALL VM's disk images to be backed up, from inside the container. There is no canonical rule about this, but the point is to mount the folder that contains all disk images of VMs inside, or add different mounts if disk images are spread in different (and unrelated) places.
 
-If, for example all disk images are located in '/mnt/user/VMs', a mountpoint should be:
+If, for example all disk images are located in '/mnt/user/VMs', a mount point should be:
 
 ```
     -v /mnt/user/vms:/mnt/user/vms
 ```
 
-Replicating host path exacty inside the container. More mounts can be added as needed. As these paths will be searched via libvirt API during execution, if any disk image isn't found or r/w issues are detected, the container will fail.
+Replicating host path exactly inside the container. More mounts can be added as needed. As these paths will be searched via libvirt API during execution, if any disk image isn't found or r/w issues are detected, the container will fail.
 
 ### System, libvirt, and virtnbdbackup sockets:
 
-VM-Babysitter uses self provisioned tools for all operations, however it needs access to sockets on the host where it's running (specially for libvirt's API) or it won't be able to work at all. Therefore, the followng mountpoints are needed:
+VM-Babysitter uses self provisioned tools for all operations, however it needs access to sockets on the host where it's running (specially for libvirt's API) or it won't be able to work at all. Therefore, the following mount points are needed:
 
 Required for Virtnbdbackup (all operating systems):
 
@@ -133,7 +133,7 @@ Setting the real name of the key on your side, and allowing transparent -and mos
 
 ### Persistent logs:
 
-Finally, to have persistent logs of what is happening with VM-Babysitter and scheduled backups, create a mountpoint like this:
+Finally, to have persistent logs of what is happening with VM-Babysitter and scheduled backups, create a mount point like this:
 
 ```
     -v /mnt/user/docker/apps/vm-babysitter/logs:/logs
@@ -145,9 +145,9 @@ Finally, to have persistent logs of what is happening with VM-Babysitter and sch
 
 - For easier management, import the provisioned [XML template](unraid-template/vm-babysitter.xml) to your `~/.docker/templates-user`
 
-- To see Unraid notifications: 1) edit docker options and switch to advanced view, setting Network type to 'host' 2) Add the pulic SSH key counterpart you're using for remote backups into your local authorized_keys file (normally located at ~/.ssh/ folder)
+- To see Unraid notifications: 1) edit docker options and switch to advanced view, setting Network type to 'host' 2) Add the public SSH key counterpart you're using for remote backups into your local authorized_keys file (normally located at ~/.ssh/ folder)
 
-- **Disable VM autostart of the hosts you want to babysit**: When a server is booted, local checkpoints are lost because they are stored in `/var/lib/libvirt/qemu/checkpoint`. While VM-Babysitter can deal with this (thanks to Virtnbdbackup's resilience restoring lost checkpoints from backups) it will refuse to check backups of VMs if these are running. In order to start VMs automatically, pass it selectively via `VM_AUTOSTART_LIST` option; so they will start right after initial checks has been performed.
+- **Disable VM auto start of the hosts you want to babysit**: When a server is booted, local checkpoints are lost because they are stored in `/var/lib/libvirt/qemu/checkpoint`. While VM-Babysitter can deal with this (thanks to Virtnbdbackup's resilience restoring lost checkpoints from backups) it will refuse to check backups of VMs if these are running. In order to start VMs automatically, pass it selectively via `VM_AUTOSTART_LIST` option; so they will start right after initial checks has been performed.
 
 ### Generic example of full docker command for local backups:
 
@@ -305,7 +305,7 @@ Resulting VMs are 'clones' of the source VM in most of features, excepting by:
 
 Disk image provisioning is an optional step, and the user still can set custom paths for future images them in new VM definitions. When cloned with this script, all disk images are thin provisioned.
 
-For remote replication, it makes use of SSH for execute remote commnds, SCP for small file transfers and SSHFS to mount remote folders (thus allowing direct disk image(s) replication onto the remote endpoint)
+For remote replication, it makes use of SSH for execute remote commands, SCP for small file transfers and SSHFS to mount remote folders (thus allowing direct disk image(s) replication onto the remote endpoint)
 
 **To correctly replicate disk images remotely, docker parameters `--device /dev/fuse` and `--cap-add SYS_ADMIN` must be added to the command line**
 
