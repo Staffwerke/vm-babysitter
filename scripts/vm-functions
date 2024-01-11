@@ -186,19 +186,35 @@ domain_nvram_path()
 #------------------------------------------------------------------------------
 domain_powercycle()
 {
-    local powercycle_domain_status=1
+    local powercycle_status
+    local shutdown_status
+    local start_status
 
+    # 1st argument is always domain:
     local domain=$1
     shift
-    # Second arg is '--wait' and third is an integer. Otherwise defaults to 60:
-    [[ $1 == --wait ]] && [[ $2 =~ [0-9] ]] && local wait_time=$2 || local wait_time="60"
+
+    # 2nd argument is '--wait' and third is an integer. Otherwise defaults to 60:
+    if [[ $1 == --wait ]] && [[ $2 =~ [0-9] ]]; then
+
+        # 2nd argument is --wait and 3rd argument the time to wait, in seconds:
+        local wait_time=$2
+
+    else
+        # In any other scenario, override a default value of 60 seconds:
+        local wait_time="60"
+    fi
 
     echo "$domain: Performing a full power cycle..."
 
     # Sends the shutdown signal to the given domain:
     virsh shutdown $domain
+    shutdown_status=$?
 
-    if [[ $? -eq 0 ]]; then
+    if [[ $shutdown_status -eq 0 ]]; then
+
+        # Command was sent successfully.
+        # A matter of query periodically during wait_time, until domain is actually reported shut off:
 
         local counter=0
         while (( $counter < $wait_time )); do
@@ -207,26 +223,37 @@ domain_powercycle()
             ((counter++))
             if [[ $(domain_state $domain) == "shut off" ]]; then
 
-                #echo "$domain: Shut down was successful"
+                echo "$domain: Went shut down successfully after $counter seconds"
                 break
 
-            elif [[ $attempt -eq $wait_time ]]; then
+            elif [[ $counter -eq $wait_time ]]; then
 
-                echo "WARNING: Unable to determine if VM $domain was completely shut down after $wait_time seconds. Starting VM anyway..."
+                echo "WARNING: Unable to determine if VM $domain was completely shut down after $wait_time seconds. Attemting to start VM anyway..."
             fi
-            # Sleeps for one second:
+            # Sleep for one second:
             sleep 1
         done
 
-        # Turns on the domain again:
+        # Turn on the domain:
         virsh start $domain
-        [[ $? -eq 0 ]] && { powercycle_domain_status=0; echo "$domain: Full power cycle completed successfully"; } || echo "ERROR: Failed to complete a full power cycle of VM $domain (could not be started after shut down)"
+        start_status=$?
+
+        if [[ $start_status -eq 0 ]]; then
+
+            powercycle_status=0
+            echo "$domain: Power cycle completed successfully"
+
+        else
+            powercycle_status=1
+            echo "ERROR: Libvirt failed to start VM $domain after shut down"
+        fi
 
     else
-        echo "ERROR: Libvirt failed to perform a power cycle to VM $domain"
+        powercycle_status=1
+        echo "ERROR: Libvirt failed to shut down VM $domain"
     fi
 
-    return $powercycle_domain_status
+    return $powercycle_status
 }
 
 #------------------------------------------------------------------------------
