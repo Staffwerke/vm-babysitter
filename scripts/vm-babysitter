@@ -289,7 +289,7 @@ check_backups()
             # Add VM to the list of preserved backup chain ones:
             preserved_backup_chain_list+=($domain)
 
-        else # All other scenarios where backup folder or chain integrity has been failed...
+        else # All other scenarios where checking backup folder/chain failed, or when backup chin is full...
 
             if [[ $(domain_state $domain) == "shut off" || $unraid_scenario == true ]]; then
 
@@ -335,14 +335,10 @@ check_backups()
 
             fi
 
-            if [[ $(domain_state $domain) == "shut off" ]] ; then
+            if [[ ! -z $unraid_scenario && ! -z $VM_ALLOW_POWERCYCLE && $(domain_state $domain) == "running" ]]; then
 
-                # Add shutdown VM to the list of broken/failed backup chain ones:
-                broken_or_full_backup_chain_list[$i]=$domain
-
-            elif [[ -z $unraid_scenario && ! -z $VM_ALLOW_POWERCYCLE ]]; then
-
-                # unraid_scenario where VM is running and user allows automatic power cycle:
+                # unraid_scenario where user allows automatic power cycle and VM is running,
+                # perform full power cycle of VM:
                 echo "$domain: Applying changes onto VM..."
                 domain_powercycle $domain $VM_WAIT_TIME
                 powercycle_status=$?
@@ -354,11 +350,17 @@ check_backups()
                     && broken_or_full_backup_chain_list+=($domain) \
                     || domain_powercycle_failed_list+=($domain)
 
-            else
-                # unraid_scenario where VM is running and User doesn't allow automatic power cycle.
-                # Add to the list of VMs in need to be shut down manually:
+            elif [[ ! -z $unraid_scenario && -z $VM_ALLOW_POWERCYCLE && $(domain_state $domain) == "running" ]]; then
+
+                # unraid_scenario where user forbids automatic power cycle and VM is running,
+                # add to the list of VMs in need to be shut down manually:
                 echo "$domain: User action is required (env variable VM_ALLOW_POWERCYCLE not set)"
                 domain_powercycle_needed_list+=($domain)
+
+            else # Any other scenario
+
+                # Add shutdown VM to the list of broken/failed backup chain ones:
+                broken_or_full_backup_chain_list[$i]=$domain
             fi
         fi
 
