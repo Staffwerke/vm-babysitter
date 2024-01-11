@@ -122,7 +122,6 @@ check_backups()
                 echo "$domain: Backup chain contains $num_of_backup_checkpoints checkpoint(s), and the limit set in environment variable MAX_BACKUPS_PER_CHAIN is $MAX_BACKUPS_PER_CHAIN. A new backup chain will be created"
 
             else
-
                 # Display checkpoints limits, if set:
                 [[ ! -z $MAX_BACKUPS_PER_CHAIN ]] && local display_checkpoint_limit=" out of $MAX_BACKUPS_PER_CHAIN"
 
@@ -205,7 +204,6 @@ check_backups()
                         echo "$domain: Checkpoints and bitmaps lists on disk $image MATCH"
 
                     else
-
                         backup_chain_integrity="false"
                         echo "$domain: ${#folder_checkpoints_list[@]} checkpoints found, and ${#existing_bitmaps_list[@]} bitmaps found on disk $image (backup chain is broken)"
 
@@ -226,7 +224,6 @@ check_backups()
                     echo "$domain: QEMU and Backup checkpoints lists MATCH"
 
                 else
-
                     # Mark the backup chain status as broken:
                     backup_chain_integrity="false"
                     echo "$domain: QEMU and Backup's checkpoint lists MISMATCH"
@@ -316,7 +313,6 @@ check_backups()
                 # Deletes checkpoints (and bitmaps) if any detected:
                 echo "$domain: Pruning existing checkpoints in QEMU..."
                 domain_delete_checkpoint $domain --all
-
             fi
 
             if [[ $backup_folder_integrity == false ]]; then
@@ -332,7 +328,6 @@ check_backups()
                 # Processes backup for being archived locally (and remotely, if set) applying 2nd part of retention policy:
                 archive_backup $LOCAL_BACKUP_PATH/$domain $LOCAL_BACKUP_CHAINS_TO_KEEP
                 [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain $RSYNC_BACKUP_CHAINS_TO_KEEP
-
             fi
 
             if [[ $unraid_scenario == true && ! -z $VM_ALLOW_POWERCYCLE && $(domain_state $domain) == "running" ]]; then
@@ -447,8 +442,8 @@ create_backup_chain()
 
                     # Backup chain creation was successful!
                     backup_chain_success_list[$i]=$domain
-                else
 
+                else
                     # Failed to create a new backup chain:
                     backup_chain_failed_list[$i]=$domain
 
@@ -491,8 +486,8 @@ create_backup_chain()
                         # When rsync exited normally, adds the VM to $remote_sync_success_list:
                         remote_sync_success_list[$i]+=$domain
                         echo "$domain: New backup chain was copied successfuly to configured remote mirror"
-                    else
 
+                    else
                         # Adds the VM to $remote_sync_failed_list list:
                         remote_sync_failed_list[$i]+=$domain
                         echo "$domain: Failed to copy new backup chain to configured remote mirror with status $rsync_status"
@@ -536,8 +531,8 @@ create_backup_chain()
 
                     # Restarts the loop to chech VM under changed conditions:
                     continue
-                else
 
+                else
                     # VM failed to power on. This is an abnormal situation:
                     echo "$domain: Failed to start with virsh status: $virsh_status (no backup chain could be created)"
 
@@ -699,6 +694,7 @@ if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
                 DOMAINS_LIST=(${DOMAINS_LIST[@]})
 
                 echo "$domain: Into VM_IGNORED_LIST, therefore ignored"
+
             else
                 echo "WARNING: VM '$domain' in VM_IGNORED_LIST not found!"
             fi
@@ -719,8 +715,8 @@ if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
                 # Add VM to the list of VMs to be powered on when monitor starts:
                 POWEREDOFF_VMS_LIST+=($domain)
                 echo "$domain: Into VM_AUTOSTART_LIST, therefore will be started (after initial check)"
-            else
 
+            else
                 echo "WARNING: VM $domain in VM_AUTOSTART_LIST not found!"
             fi
             ((i++))
@@ -840,12 +836,12 @@ if  [[ -d $LOCAL_BACKUP_PATH ]]; then
             unset local_backup_path_status
             echo "ERROR: Incorrect value for environment variable LOCAL_BACKUP_CHAINS_TO_KEEP: '$LOCAL_BACKUP_CHAINS_TO_KEEP' <- It must be a natural integer"
         fi
-    else
 
+    else
         echo "ERROR: Backups main path: $LOCAL_BACKUP_PATH <- Permission issues (cannot be read or written)"
     fi
-else
 
+else
     echo "ERROR: Backups main path: $LOCAL_BACKUP_PATH  <- Not found inside the container. Ensure you mount this correctly (e.g. '-v /path/to/backups-main-path:/$LOCAL_BACKUP_PATH')"
 fi
 
@@ -891,8 +887,8 @@ elif [[ $RSYNC_BACKUP_PATH == *@*:/* ]]; then
 
                 # Was not set:
                 echo "All recoverable backup chains will be archived remotely"
-            else
 
+            else
                 echo "ERROR: Incorrect value for environment variable RSYNC_BACKUP_CHAINS_TO_KEEP: '$RSYNC_BACKUP_CHAINS_TO_KEEP' it must be a positive integer"
                 rsync_backup_path_status="FAILED"
             fi
@@ -909,7 +905,6 @@ else
     echo "ERROR: Incorrect syntax for RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH' it must be SSH-like absolute path (e.g. user@host:/path-to-mirror)"
     rsync_backup_path_status="FAILED"
 fi
-
 
 # 1.5 TO DO: Check other ENV variables, and SSH key:
 #------------------------------------------------------------------------------
@@ -931,6 +926,7 @@ if [[ $domains_list_status == OK && $max_backups_per_chain_status != FAILED && $
 
         # Parse logrotate configuration (overwriting, if any previous):
         echo -e "$LOGFILE_PATH {\n$LOGROTATE_SETTINGS\n}" > $LOGROTATE_CONFIG_PATH
+
     else
         echo "Logrotate disabled by user"
         # Convert variable into a comment, to be added to crontab
@@ -1170,7 +1166,6 @@ end_of_external_variables
     done
 
 else
-
     # Initial checks have proven non-recoverable errors:
     failed_initialize_message="Could not initialize due to errors! Check $(basename $LOGFILE_PATH) in this host for detailed logs."
 
