@@ -290,12 +290,9 @@ check_backups()
 
             if [[ $(domain_state $domain) == "shut off" || $unraid_scenario == true ]]; then
 
-                if [[ ! -z ${qemu_checkpoints_list[@]} ]]; then
-
-                    # Deletes checkpoints metadata if any detected:
-                    echo "$domain: Pruning existing checkpoints in QEMU..."
-                    domain_delete_checkpoint $domain --all --metadata
-                fi
+                # Deletes checkpoints metadata, if any detected:
+                echo "$domain: Pruning any existing checkpoints in QEMU..."
+                domain_delete_checkpoint $domain --all --metadata
 
                 for image in $(domain_img_paths_list $domain); do
 
