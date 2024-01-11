@@ -170,10 +170,10 @@ check_backups()
         if [[ $backup_folder_integrity = true ]]; then
 
             # Read qemu checkpoints:
-            existing_qemu_checkpoints_list=($(domain_checkpoints_list $domain))
+            existing_qemu_checkpoints_list=($(domain_checkpoint_list $domain))
 
             # Read backup checkpoints:
-            existing_backup_checkpoints_list=($(backup_checkpoints_list $LOCAL_BACKUP_PATH/$domain))
+            existing_backup_checkpoints_list=($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain))
 
             if [[ $(domain_state $domain) == "shut off" || $unraid_scenario == true ]]; then
 
