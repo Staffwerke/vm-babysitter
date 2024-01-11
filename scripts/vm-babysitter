@@ -335,14 +335,14 @@ check_backups()
 
             fi
 
-            if [[ -z $unraid_scenario ]] ; then
+            if [[ $(domain_state $domain) == "shut off" ]] ; then
 
-                # Most common scenario. Add VM to the list of broken/failed backup chain ones:
+                # Add shutdown VM to the list of broken/failed backup chain ones:
                 broken_or_full_backup_chain_list[$i]=$domain
 
-            elif [[ ! -z $VM_ALLOW_POWERCYCLE ]]; then
+            elif [[ -z $unraid_scenario && ! -z $VM_ALLOW_POWERCYCLE ]]; then
 
-                # Unraid and User allows to power cycle the VM:
+                # unraid_scenario where VM is running and user allows automatic power cycle:
                 echo "$domain: Applying changes onto VM..."
                 domain_powercycle $domain $VM_WAIT_TIME
                 powercycle_status=$?
@@ -350,13 +350,14 @@ check_backups()
                 # Depending on powercycle operation result,
                 # Add VM to the list of broken/failed backup chain ones,
                 # Or notify the user about VM misbehavior:
-                [[ $powercycle_status -eq 0 ]] \
+                if [[ $powercycle_status -eq 0 ]] \
                     && broken_or_full_backup_chain_list+=($domain) \
                     || domain_powercycle_failed_list+=($domain)
 
             else
-                # unraid_scenario where user intervention is required.
+                # unraid_scenario where VM is running and User doesn't allow automatic power cycle.
                 # Add to the list of VMs in need to be shut down manually:
+                echo "$domain: User action is required (env variable VM_ALLOW_POWERCYCLE not set)"
                 domain_powercycle_needed_list+=($domain)
             fi
         fi
@@ -379,7 +380,6 @@ check_backups()
 
     # Appends failed to shut down VMs to failed VMs list:
     FAILED_VMS_LIST+=(${domain_powercycle_failed_list[@]})
-
 
     echo ""
     echo "Backup Chain Integrity Summary:"
