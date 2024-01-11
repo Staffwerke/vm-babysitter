@@ -297,12 +297,10 @@ check_backups()
                 for image in $(domain_img_paths_list $domain); do
 
                     # Then deletes all bitmaps, in all image disks:
-                    echo "$domain: Deleting bitmaps on disk image $image..."
+                    echo "$domain: Pruning any existing bitmaps on disk image $image..."
 
-                    for bitmap in $(disk_image_bitmap_list $image); do
+                    disk_image_delete_bitmap $image --all
 
-                        disk_image_delete_bitmap $image $bitmap
-                    done
                 done
 
             elif [[ $(domain_state $domain) == "running" ]]; then
