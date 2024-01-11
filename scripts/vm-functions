@@ -690,7 +690,7 @@ disk_image_delete_bitmap()
             &> /dev/null qemu-img bitmap --remove $virtual_disk_path $bitmap
         done
 
-        [[ $(domain_state $domain) != "shut off" ]] echo "$(basename $virtual_disk_path): VM full power cycle is needed in order to apply changes"
+        [[ $(domain_state $domain) != "shut off" ]] && echo "$(basename $virtual_disk_path): VM full power cycle is needed in order to apply changes"
 
     else
         echo "$(basename $virtual_disk_path): No bitmaps to delete"
