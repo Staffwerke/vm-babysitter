@@ -306,7 +306,7 @@ check_backups()
             elif [[ $(domain_state $domain) == "running" ]]; then
 
                 # Deletes checkpoints (and bitmaps) if any detected:
-                echo "$domain: Pruning any existing checkpoints/bitmaps..."
+                echo "$domain: Pruning any existing checkpoints..."
                 domain_delete_checkpoint $domain --all
             fi
 
