@@ -291,7 +291,7 @@ check_backups()
             if [[ $(domain_state $domain) == "shut off" || $unraid_scenario == true ]]; then
 
                 # Deletes checkpoints metadata, if any detected:
-                echo "$domain: Pruning any existing checkpoints in QEMU..."
+                echo "$domain: Pruning any existing checkpoints metadata..."
                 domain_delete_checkpoint $domain --all --metadata
 
                 for image in $(domain_img_paths_list $domain); do
@@ -306,7 +306,7 @@ check_backups()
             elif [[ $(domain_state $domain) == "running" ]]; then
 
                 # Deletes checkpoints (and bitmaps) if any detected:
-                echo "$domain: Pruning existing checkpoints in QEMU..."
+                echo "$domain: Pruning any existing checkpoints/bitmaps..."
                 domain_delete_checkpoint $domain --all
             fi
 
