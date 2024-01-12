@@ -519,6 +519,36 @@ do_backup_chain()
     return $create_backup_chain_status
 }
 
+#------------------------------------------------------------------------------
+# Checks data integrity of a backup chain ($1) and return
+# '0' under success, '1' under fail and '256' if no checksum files are found to verify:
+#------------------------------------------------------------------------------
+verify_backup_chain()
+{
+    local backup_path=$1
+    local backup_status
+    local backup_status_message
+
+    if [[ ! -z $(find $backup_path -name "*.chksum") ]]; then
+
+        # Cheksums files are available:
+        echo "$domain: Checking backup data integrity..."
+        virtnbdrestore -i $backup_path -o verify
+        backup_status=$?
+
+        [[ $backup_status -eq 0 ]] && backup_status_message="Backup data integrity is OK" || backup_status_message="Backup data integrity check has FAILED with status $backup_status"
+
+    else # No checksum data to verify:
+        backup_status=256
+        backup_status_message="Data integrity check cancelled: No checksum files found in backup (saved with an old version of Virtnbdbackup?)"
+    fi
+
+    # Display result:
+    echo "$(bassename $backup_path): $backup_status_message"
+
+    return $backup_status
+}
+
 ###############################################################################
 # POSIX Related Functions:
 ###############################################################################
