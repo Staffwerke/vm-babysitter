@@ -333,19 +333,30 @@ check_backups()
                 domain_powercycle $domain $VM_WAIT_TIME
                 powercycle_status=$?
 
-                # Depending on powercycle operation result,
-                # Add VM to the list of broken/failed backup chain ones,
-                # Or notify the user about VM misbehavior:
-                [[ $powercycle_status -eq 0 ]] \
-                    && broken_or_full_backup_chain_list+=($domain) \
-                    || domain_powercycle_failed_list+=($domain)
+                case $powercycle_status in
+
+                    # Depending on powercycle operation result,
+                    # Add VM to the correspondent list:
+                    0)
+                        broken_or_full_backup_chain_list+=($domain)
+                    ;;
+
+                    1)
+                        domain_powercycle_failed_list+=($domain)
+                    ;;
+
+                    2)
+                      domain_powercycle_needed_list+=($domain)
+                      echo "$domain: Did not shut down after time set in env variable VM_WAIT_TIME ($VM_WAIT_TIME s)"
+                    ;;
+                esac
 
             elif [[ $unraid_scenario == true && -z $VM_ALLOW_POWERCYCLE && $(domain_state $domain) == "running" ]]; then
 
                 # unraid_scenario where user forbids automatic power cycle and VM is running,
                 # add to the list of VMs in need to be shut down manually:
-                echo "$domain: User action is required (env variable VM_ALLOW_POWERCYCLE not set)"
                 domain_powercycle_needed_list+=($domain)
+                echo "$domain: User action is required (env variable VM_ALLOW_POWERCYCLE not set)"
 
             else # Any other scenario
 
