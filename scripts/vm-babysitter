@@ -391,6 +391,7 @@ check_backups()
                     ;;
                 esac
             fi
+        fi
 
         # Increases the index to check the next VM:
         ((i++))
