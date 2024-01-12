@@ -536,7 +536,7 @@ verify_backup_chain()
         virtnbdrestore -i $backup_path -o verify
         backup_status=$?
 
-        [[ $backup_status -eq 0 ]] && backup_status_message="Backup data integrity is OK" || backup_status_message="Backup data integrity check has FAILED with status $backup_status"
+        [[ $backup_status -eq 0 ]] && backup_status_message="Backup data integrity is OK" || backup_status_message="Backup data integrity check has FAILED"
 
     else # No checksum data to verify:
         backup_status=256
@@ -544,7 +544,7 @@ verify_backup_chain()
     fi
 
     # Display result:
-    echo "$(bassename $backup_path): $backup_status_message"
+    echo "$backup_path: $backup_status_message"
 
     return $backup_status
 }
