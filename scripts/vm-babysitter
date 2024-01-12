@@ -44,13 +44,22 @@ check_backups()
 
         for domain in $(domains_list); do
 
-            # When OS is Unraid, look for checkpoints in all VMs, only stopping if it finds something:
+            # When OS is Unraid, look for VMs and its checkpoints, only stopping if it finds something:
             [[ ! -z $(domain_checkpoint_list $domain) ]] && { local checkpoints_found="yes"; break; }
 
         done
 
-        # If no checkpoints were found across the server, set unraid_scenario flag:
-        [[ -z $checkpoints_found ]] && { local unraid_scenario="true"; echo "NOTICE: Unraid OS detected with no QEMU checkpoints at all. Very likely, this server has just been restarted (or this is the first run and no VMs has been backed up yet)"; }
+        if [[ -z $checkpoints_found ]]; then
+
+            # If no checkpoints were found across the server, set unraid_scenario flag:
+            local unraid_scenario="true"
+            echo "NOTICE: Unraid OS detected and no QEMU checkpoints found at all. Known reasons are:"
+            echo
+            echo "  - This is the first run of this program after the last server restart"
+            echo "  - Libvirt, or the entire server has crashed before this container runs"
+            echo
+            echo "Due to the possibility of a crash scenario, running VMs; will be checked differently than under normal operation"
+            echo "Depending on your env variables, user intervention may be required, such as shutting down VMs or restarting this container manually."
     fi
 
     echo ""
