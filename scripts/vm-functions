@@ -229,7 +229,7 @@ domain_powercycle()
             elif [[ $counter -eq $wait_time ]]; then
 
                 powercycle_status=2
-                echo "WARNING: VM $domain did not shut down after $wait_time seconds. This mean either a longer awaiting time should be set, or there are issues with this VM"
+                echo "WARNING: VM $domain did not shut down after $wait_time secs"
             fi
             # Sleep for one second:
             sleep 1
