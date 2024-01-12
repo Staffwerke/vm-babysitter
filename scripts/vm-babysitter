@@ -60,6 +60,7 @@ check_backups()
             echo
             echo "Due to the possibility of a crash scenario, running VMs; will be checked differently than under normal operation"
             echo "Depending on your env variables, user intervention may be required, such as shutting down VMs or restarting this container manually."
+        fi
     fi
 
     echo ""
