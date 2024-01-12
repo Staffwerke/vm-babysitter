@@ -208,9 +208,8 @@ check_backups()
                         break
                     fi
                 done
-            fi
 
-            if [[ $(domain_state $domain) == "running" ]]; then
+            elif [[ $(domain_state $domain) == "running" ]]; then
 
                 echo "$domain: Is running, comparing QEMU and Backup's checkpoint lists..."
 
