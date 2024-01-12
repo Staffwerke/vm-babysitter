@@ -24,7 +24,7 @@ check_backups()
 {
     # Local variables used for flow control:
     local backup_chain_integrity
-    local backup_chain_full
+    local backup_chain_broken_or_full
     local backup_folder_integrity
     local delete_bitmap_status
     local existing_bitmaps_list
@@ -32,7 +32,7 @@ check_backups()
     local powercycle_status
     local qemu_checkpoints_list
     local recoverable_backup_chain
-    local virtnbdrestore_status
+    local verify_integrity_status
 
     # Lists to add VMs (and summarize at the end):
     local broken_or_full_backup_chain_list
@@ -70,12 +70,12 @@ check_backups()
     for domain in ${CHECK_BACKUPS_LIST[@]}; do
 
         backup_chain_integrity=""
-        backup_chain_full=""
+        backup_chain_broken_or_full=""
         backup_folder_integrity=""
         delete_bitmap_status=""
         powercycle_status=""
         recoverable_backup_chain=""
-        virtnbdrestore_status=""
+        verify_integrity_status=""
 
         echo ""
 
@@ -114,7 +114,7 @@ check_backups()
 
                     # Backup chain may be recoverable, and will attempt to fix it:
                     recoverable_backup_chain="true"
-                    echo "$domain: An backup operation was previously cancelled. Backup is partially recoverable and it will attempt to fix it and restore the current backup chain for further use"
+                    echo "$domain: A backup operation was previously cancelled. Backup is partially recoverable and it will attempt to fix it and restore the current backup chain for further use"
                 fi
             fi
 
@@ -129,7 +129,7 @@ check_backups()
             if [[ ! -z $MAX_BACKUPS_PER_CHAIN && $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
 
                 # Backup chain is full, a new one will be created:
-                backup_chain_full="true"
+                backup_chain_broken_or_full="true"
                 echo "$domain: Backup chain contains $num_of_backup_checkpoints checkpoint(s), and the limit set in environment variable MAX_BACKUPS_PER_CHAIN is $MAX_BACKUPS_PER_CHAIN. A new backup chain will be created"
 
             else
@@ -141,37 +141,22 @@ check_backups()
 
             # Unless backup chain is full, perform data check integrity if enabled by user (and if backup includes checksum files):
             #------------------------------------------------------------------------------
-            if [[ ! -z $CHECK_BACKUPS_INTEGRITY && $backup_chain_full != true ]]; then
+            if [[ ! -z $CHECK_BACKUPS_INTEGRITY && $backup_chain_broken_or_full != true ]]; then
 
-                # It only has sense to scan for backup data integrity on backups that has implemented checksum feature
-                if [[ ! -z $(find $LOCAL_BACKUP_PATH/$domain -name "*.chksum") ]]; then
+                verify_backup_chain $LOCAL_BACKUP_PATH/$domain
+                verify_integrity_status=$?
 
-                    # Cheksums files are available. Check for backup's data integrity:
-                    echo "$domain: Checking backup data integrity..."
-                    virtnbdrestore -i $LOCAL_BACKUP_PATH/$domain -o verify
+                if [[ $verify_integrity_status -eq 1 ]]; then
 
-                    # Get the last status of virtnbdrestore:
-                    virtnbdrestore_status=$?
+                    # Backup chain is broken, a new one will be created:
+                    backup_chain_broken_or_full="true"
+                    echo "$domain: A new backup chain will be created"
 
-                    if [[ $virtnbdrestore_status -ne 0 ]]; then
-
-                        # Backup chain is broken, a new one will be created:
-                        backup_chain_full="true"
-
-                        echo "$domain: Virtnbdrestore failed verifying the integrity of backup chain with status $virtnbdrestore_status. A new backup chain will be created"
-
-                    else
-                        echo "$domain: Backup data integrity is OK"
-                    fi
-
-                else
-                    # No checksum files to compare:
-                    echo "$domain: Data integrity check cancelled: No checksum files were found (saved with an old version of Virtnbdbackup?)"
                 fi
             fi
 
             # Backup folder integrity is OK, always is not full or broken:
-            [[ $backup_chain_full != true ]] && backup_folder_integrity="true"
+            [[ $backup_chain_broken_or_full != true ]] && backup_folder_integrity="true"
         fi
 
         #------------------------------------------------------------------------------
