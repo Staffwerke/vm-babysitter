@@ -772,7 +772,7 @@ if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
 
                     echo "ERROR: $domain's disk image: $image not found. Ensure you mount -and mirror- this correctly inside the container (e.g. '-v /common/path/to/vms/disks:/common/path/to/vms/disks')"
 
-                elif [[ ! -r $image && ! -w $image ]]; then
+                elif [[ ! -r $image || ! -w $image ]]; then
 
                     FAILED_VMS_LIST+=($domain)
 
