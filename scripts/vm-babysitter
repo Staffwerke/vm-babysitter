@@ -1025,7 +1025,6 @@ SCHEDULED_BACKUPS_LIST=()
 # Dynamic strings:
 ONGOING_BACKUP="false"
 ONGOING_CHECK="false"
-RESTARTED_SERVER=$RESTARTED_SERVER
 end_of_external_variables
 
     # 3. Begin monitorization for VMs in lists, performing operations as required:

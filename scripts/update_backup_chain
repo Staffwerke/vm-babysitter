@@ -170,13 +170,6 @@ if [[ $ONGOING_BACKUP == false ]]; then
         # Mark ongoing backup as finished and export variables to be read by main script:
         ONGOING_BACKUP="false"
 
-        # Revert RESTARTED_SERVER mode if it was enabled and there were successful incremental backups:
-        if [[ $RESTARTED_SERVER == true && ! -z ${backup_chain_success[@]} ]]; then
-
-            RESTARTED_SERVER="false"
-            echo "RESTARTED_SERVER mode successfully disabled"
-        fi
-
         # Update values to be exported:
         CHECK_BACKUPS_LIST=(${backup_chain_full[@]})
         FAILED_VMS_LIST+=(${backup_chain_failed[@]})
@@ -193,7 +186,6 @@ if [[ $ONGOING_BACKUP == false ]]; then
         sed -i \
         -e "s/CHECK_BACKUPS_LIST=.*/CHECK_BACKUPS_LIST=($CHECK_BACKUPS_LIST)/" \
         -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
-        -e "s/RESTARTED_SERVER=.*/RESTARTED_SERVER=\"$RESTARTED_SERVER\"/" \
         -e "s/ONGOING_BACKUP=.*/ONGOING_BACKUP=\"$ONGOING_BACKUP\"/" \
         -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
         $external_vars
