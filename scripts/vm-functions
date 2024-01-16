@@ -713,7 +713,7 @@ disk_image_bitmap_list()
 
 # -----------------------------------------------------------------------------
 # Deletes specific bitmaps of a given virtual disk, or all if '--all' argument is passed instead.
-# Returns '0' if ended successfully, '1' if ended with errors, '2' if success but power cycle is required and '256' if no bitmaps were found:
+# Returns '0' if ended successfully, '1' if ended with errors and '2' if no bitmaps were found:
 # -----------------------------------------------------------------------------
 disk_image_delete_bitmap()
 {
@@ -747,7 +747,7 @@ disk_image_delete_bitmap()
 
     if [[ ! -z ${bitmaps_list[@]} ]]; then
 
-        echo "$domain: Removing ${#bitmaps_list[@]} bitmap(s)..."
+        echo "Removing ${#bitmaps_list[@]} bitmap(s)..."
 
         for bitmap in ${bitmaps_list[@]}; do
 
@@ -765,13 +765,13 @@ disk_image_delete_bitmap()
         if [[ -z $delete_bitmap_status ]]; then
 
             # Ended successfully. When domain is not shut down, status is 2 and makes notice about mame
-            [[ $(domain_state $domain) == "shut off" ]] && delete_bitmap_status=0 || { delete_bitmap_status=2; local bitmap_message="(a full power cycle is required)"; }
+            delete_bitmap_status=0
 
-            echo "$(basename $virtual_disk_path): Success $bitmap_message"
+            echo "$(basename $virtual_disk_path): Success"
         fi
 
     else
-        delete_bitmap_status=256
+        delete_bitmap_status=2
         echo "$(basename $virtual_disk_path): No bitmaps to delete"
     fi
 
