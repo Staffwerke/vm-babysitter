@@ -30,6 +30,7 @@ domain_delete_checkpoint()
     local domain
     local checkpoints_list
     local delete_all_checkpoints
+    local delete_checkpoint_status
     local delete_options
     local vm_needed_state
 
@@ -60,13 +61,6 @@ domain_delete_checkpoint()
         shift
     done
 
-    # VMs must be running in order to delete checkpoints, except when '--metadata' argument is passed:
-    if [[ ! ${delete_options[@]} =~ "--metadata" ]] && [[ $(domain_state $domain) != "running" ]]; then
-
-        echo "$domain: Failed to proceed. VM must be $vm_needed_state in order to delete checkpoints from QEMU and disk image(s) simultaneously"
-        exit 1
-    fi
-
     # '--all' argument was passed. Search for all checkpoints in this VM:
     [[ ! -z $delete_all_checkpoints ]] && checkpoints_list=($(domain_checkpoint_list $domain))
 
@@ -76,10 +70,14 @@ domain_delete_checkpoint()
 
         for checkpoint in ${checkpoints_list[@]}; do
             &> /dev/null virsh checkpoint-delete $domain $checkpoint ${delete_options[@]}
+            delete_checkpoint_status=$?
         done
     else
+        delete_checkpoint_status=2
         echo "$domain: No checkpoints to delete"
     fi
+
+    return $delete_checkpoint_status
 }
 
 #------------------------------------------------------------------------------
@@ -712,8 +710,9 @@ disk_image_bitmap_list()
 }
 
 # -----------------------------------------------------------------------------
+# NOTE: NEVER run this function when VM is running. It may BREAK the virtual disk:
 # Deletes specific bitmaps of a given virtual disk, or all if '--all' argument is passed instead.
-# Returns '0' if ended successfully, '1' if ended with errors and '2' if no bitmaps were found:
+# Returns '0' if ended successfully, '1' if ended with errors and '2' if no bitmaps were found.
 # -----------------------------------------------------------------------------
 disk_image_delete_bitmap()
 {
