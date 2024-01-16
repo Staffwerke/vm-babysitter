@@ -174,6 +174,8 @@ check_backups()
 
             if [[ $(domain_state $domain) == "shut off" || $unraid_scenario == true ]]; then
 
+                # Checking in-backup checkpoints vs. disk image bitmaps it's the most accurate way to determine backup chain integrity.
+                # Only can be done if VM is shut down (and the only possible when unraid_scenario applies):
                 local backup_check_message="Performing a full check into its backup chain..."
 
                 [[ $unraid_scenario == true ]] \
@@ -212,6 +214,8 @@ check_backups()
 
             elif [[ $(domain_state $domain) == "running" ]]; then
 
+                # When VM is running, bitmaps created during a backup chain update aren't visible with qemu-img info until VM has not been shut down.
+                # The only reliable methos it's to compare in-backup vs QEMU checkpoints count (and this doesn't applu on unraid_scenario):
                 echo "$domain: Is running, comparing QEMU and Backup's checkpoint lists..."
 
                 if [[ ${qemu_checkpoints_list[@]} == ${folder_checkpoints_list[@]} ]]; then
@@ -380,7 +384,7 @@ check_backups()
                         fi
                     ;;
 
-                    *)  # Currently '256: There was no bitmaps to delete (hence no power cycle needed)
+                    *)  # Currently '256: There were no bitmaps to delete (hence no power cycle needed)
                         # Add shutdown VM to the list of broken/failed backup chain ones:
                         broken_or_full_backup_chain_list[$i]=$domain
                     ;;
