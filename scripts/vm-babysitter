@@ -53,12 +53,13 @@ check_backups()
 
             # If no checkpoints were found across the server, set unraid_scenario flag:
             local unraid_scenario="true"
-            echo "NOTICE: Unraid OS detected and no QEMU checkpoints found at all. Known reasons are:"
+            echo ""
+            echo "NOTICE: Unraid OS detected and no VM has QEMU checkpoints at all. Well known reasons are:"
             echo
             echo "  - This is the first run of this program after the last server restart"
-            echo "  - Libvirt, or the entire server has crashed before this container runs"
+            echo "  - This Unraid server crashed before this container runs"
             echo
-            echo "Due to the possibility of a crash scenario, running VMs; will be checked differently than under normal operation"
+            echo "Due to the possibility of a crash scenario, running VMs need to be checked differently than under normal operation"
             echo "Depending on your env variables, user intervention may be required, such as shutting down VMs or restarting this container manually."
         fi
     fi
