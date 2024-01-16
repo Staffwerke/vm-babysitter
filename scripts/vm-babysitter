@@ -321,21 +321,6 @@ check_backups()
                 delete_checkpoint_status=$?
             fi
 
-            if [[ $backup_folder_integrity == false ]]; then
-
-                # Useless or unexistent backup chain folder. Delete it:
-                rm -rf $LOCAL_BACKUP_PATH/$domain
-
-                # if remote path is set, keep existing remote ones without apply any retention policy:
-                [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain
-
-            else # All scenarios where backup chain is still able to be partial or totally restored...
-
-                # Processes backup for being archived locally (and remotely, if set) applying 2nd part of retention policy:
-                archive_backup $LOCAL_BACKUP_PATH/$domain $LOCAL_BACKUP_CHAINS_TO_KEEP
-                [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain $RSYNC_BACKUP_CHAINS_TO_KEEP
-            fi
-
             if [[ $unraid_scenario != true ]]; then
 
                 # Add shutdown VM to the list of broken/failed backup chain ones:
@@ -394,6 +379,22 @@ check_backups()
                     ;;
                 esac
             fi
+
+            if [[ $backup_folder_integrity == false ]]; then
+
+                # Useless or unexistent backup chain folder. Delete it:
+                rm -rf $LOCAL_BACKUP_PATH/$domain
+
+                # if remote path is set, keep existing remote ones without apply any retention policy:
+                [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain
+
+            else # All scenarios where backup chain is still able to be partial or totally restored...
+
+                # Processes backup for being archived locally (and remotely, if set) applying 2nd part of retention policy:
+                archive_backup $LOCAL_BACKUP_PATH/$domain $LOCAL_BACKUP_CHAINS_TO_KEEP
+                [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain $RSYNC_BACKUP_CHAINS_TO_KEEP
+            fi
+
         fi
 
         # Increases the index to check the next VM:
