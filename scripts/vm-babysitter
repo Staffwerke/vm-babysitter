@@ -27,6 +27,7 @@ check_backups()
     local backup_chain_broken_or_full
     local backup_folder_integrity
     local delete_bitmap_status
+    local delete_checkpoint_status
     local existing_bitmaps_list
     local folder_checkpoints_list
     local powercycle_status
@@ -75,6 +76,7 @@ check_backups()
         backup_chain_broken_or_full=""
         backup_folder_integrity=""
         delete_bitmap_status=""
+        delete_checkpoint_status=""
         powercycle_status=""
         recoverable_backup_chain=""
         verify_integrity_status=""
@@ -292,11 +294,12 @@ check_backups()
 
         else # All other scenarios where checking backup folder/chain failed, or when backup chin is full...
 
-            if [[ $(domain_state $domain) == "shut off" || $unraid_scenario == true ]]; then
+            if [[ $(domain_state $domain) == "shut off" ]]; then
 
                 # Deletes checkpoints metadata, if any detected:
                 echo "$domain: Pruning any existing checkpoints metadata..."
                 domain_delete_checkpoint $domain --all --metadata
+                delete_checkpoint_status=$?
 
                 for image in $(domain_img_paths_list $domain); do
 
@@ -310,11 +313,12 @@ check_backups()
                     [[ $delete_bitmap_status -eq 1 ]] && break
                 done
 
-            elif [[ $(domain_state $domain) == "running" ]]; then
+            elif [[ $(domain_state $domain) == "running" && $unraid_scenario != true ]]; then
 
                 # Deletes checkpoints (and bitmaps) if any detected:
                 echo "$domain: Pruning any existing checkpoints..."
                 domain_delete_checkpoint $domain --all
+                delete_checkpoint_status=$?
             fi
 
             if [[ $backup_folder_integrity == false ]]; then
