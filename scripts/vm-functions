@@ -69,7 +69,7 @@ domain_delete_checkpoint()
         echo "$domain: Removing ${#checkpoints_list[@]} checkpoint(s)..."
 
         for checkpoint in ${checkpoints_list[@]}; do
-            &> /dev/null virsh checkpoint-delete $domain $checkpoint ${delete_options[@]}
+            virsh checkpoint-delete $domain $checkpoint ${delete_options[@]}
             delete_checkpoint_status=$?
         done
     else
