@@ -30,15 +30,16 @@ check_backups()
     local delete_checkpoint_status
     local existing_bitmaps_list
     local folder_checkpoints_list
-    local powercycle_status
+    local shutdown_status
     local qemu_checkpoints_list
     local recoverable_backup_chain
     local verify_integrity_status
 
     # Lists to add VMs (and summarize at the end):
     local broken_or_full_backup_chain_list
-    local domain_powercycle_failed_list
-    local domain_powercycle_needed_list
+    local domain_failed_list
+    local domain_shutdown_needed_list
+    local domain_shutdown_success_list
     local preserved_backup_chain_list
 
     if [[ $(os_is_unraid) == yes ]]; then
@@ -56,7 +57,6 @@ check_backups()
             # Look for all VMs to be checked, stop if any of them is running:
             [[ $(domain_state $domain) == "running" ]] { local vms_are_running="true"; break; }
         done
-
 
         if [[ $checkpoints_found == false && $vms_are_running == true ]]; then
 
@@ -86,7 +86,7 @@ check_backups()
         backup_folder_integrity=""
         delete_bitmap_status=""
         delete_checkpoint_status=""
-        powercycle_status=""
+        shutdown_status=""
         recoverable_backup_chain=""
         verify_integrity_status=""
 
@@ -244,12 +244,12 @@ check_backups()
         fi
 
         #------------------------------------------------------------------------------
-        # Stage 3: Process backup chain and files according with the scenarios and previous results:
+        # Stage 3: Process backup chain and files/folders, according with the scenarios and previous results:
         #------------------------------------------------------------------------------
 
         if [[ $backup_chain_integrity == true ]]; then
 
-            # At this point, all checks has been successful.
+            # At this point, all checks has been successful and backup chain is ready for further use.
             # Add VM to the list of preserved backup chain ones:
             preserved_backup_chain_list+=($domain)
 
@@ -309,6 +309,8 @@ check_backups()
 
         else # All other scenarios where checking backup folder/chain failed, or when backup chin is full...
 
+            # Delete checkpoints and/or bitmaps, depending on the case:
+
             if [[ $(domain_state $domain) == "shut off" ]]; then
 
                 # Deletes checkpoints metadata, if any detected:
@@ -334,66 +336,105 @@ check_backups()
                 echo "$domain: Pruning any existing checkpoints..."
                 domain_delete_checkpoint $domain --all
                 delete_checkpoint_status=$?
+
+            elif [[ $(domain_state $domain) == "running" && $unraid_scenario == true ]]; then
+
+                # unraid_scenario. Only does something if is allowed to perform a power cycle on VM:
+
+                if [[ ! -z $VM_ALLOW_POWERCYCLE ]]; then
+
+                    domain_shutdown $domain --wait $VM_WAIT_TIME
+                    shutdown_status=$?
+
+                    if [[ $shutdown_status -eq 0 ]]; then
+
+                        domain_shutdown_success_list+=($domain)
+
+                        for image in $(domain_img_paths_list $domain); do
+
+                            # Then deletes all bitmaps, in all image disks:
+                            echo "$domain: Pruning any existing bitmaps on disk image $image..."
+
+                            disk_image_delete_bitmap $image --all
+                            delete_bitmap_status=$?
+
+                            # When issues are found deleting bitmaps, cancel the entire operation:
+                            [[ $delete_bitmap_status -eq 1 ]] && break
+                        done
+                    fi
+                fi
             fi
 
-            if [[ $unraid_scenario != true ]]; then
+            # Assign VM and/or backup chain to the correspondent list, according the results:
 
-                # Add shutdown VM to the list of broken/failed backup chain ones:
-                broken_or_full_backup_chain_list[$i]=$domain
+            case $delete_checkpoint_status in
 
-            else # Applies unraid_scenario:
+                0|2)
+                    if [[ $(domain_state $domain) == "shut off" ]]; then
 
-                case $delete_bitmap_status in
+                        case $delete_bitmap_status in
 
-                    1)  # Failed to delete one or more bitmaps. VM is failing:
-                        domain_powercycle_failed_list+=($domain)
-                    ;;
-
-                    2)  # Success deleting all bitmaps. Power cycle is required:
-                        if [[ ! -z $VM_ALLOW_POWERCYCLE ]]; then
-
-                            # unraid_scenario where user allows automatic power cycle and VM is running,
-                            # perform full power cycle of VM:
-                            echo "$domain: Applying changes onto VM..."
-                            domain_powercycle $domain $VM_WAIT_TIME
-                            powercycle_status=$?
-
-                            case $powercycle_status in
-
-                                # Depending on powercycle operation result,
-                                # Add VM to the correspondent list:
-
-                                0)  # Full success:
+                            0|2)    # Checkpoints metadata and bitmaps deleted successfully (or nothing to delete).
+                                    # Add to broken/full backup chain list:
                                     broken_or_full_backup_chain_list+=($domain)
+                            ;;
+
+                            *)  # There were problems when deleting bitmaps.
+                                # This VM has issues and user action is required:
+                                domain_failed_list+=($domain)
+                            ;;
+                        esac
+
+                    elif [[ $(domain_state $domain) == "running" ]]; then
+
+                        # Checkpoints deleted successfully (or nothing to delete).
+                        # Add to broken/full backup chain list:
+                        broken_or_full_backup_chain_list+=($domain)
+                    fi
+                ;;
+
+                1)  # There were problems when deleting checkpoints.
+                    # This VM has issues and user action is required:
+                    domain_failed_list+=($domain)
+                ;;
+
+                "") # unraid_scenario (no checkpoints were ever processed):
+
+                    case $shutdown_status in
+
+                        0)
+                            case $delete_bitmap_status in
+
+                                0|2)    # Bitmaps deleted successfully (or nothing to delete).
+                                        # Add to broken/full backup chain list:
+                                        broken_or_full_backup_chain_list+=($domain)
                                 ;;
 
-                                1)  # Either VM shut down or VM start orders failed to complete.
-                                    # This means be VM or Libvirt failure:
-                                    domain_powercycle_failed_list+=($domain)
-                                ;;
-
-                                2)  # Shut down order ended in success, but VM didn't power off within VM_WAIT_TIME.
-                                    # User action will be required if VM hasn't shut down at the moment this is checked again:
-                                    domain_powercycle_needed_list+=($domain)
-                                    echo "$domain: User action is required (VM didn't shut down after time set in env variable VM_ALLOW_POWERCYCLE)"
+                                1)
+                                    # There were problems when deleting bitmaps.
+                                    # This VM has issues and user action is required:
+                                    domain_failed_list+=($domain)
                                 ;;
                             esac
+                        ;;
 
-                        else
+                        1)  # There were problems when shutting down the VM.
+                            # This VM may either have issues, or just taking too long into shut down.
+                            # User action is required (but may also shut down itself eventually):
+                            domain_shutdown_needed_list+=($domain)
+                            echo "$domain: User action is required"
+                        ;;
 
-                            # unraid_scenario where user forbids automatic power cycle and VM is running,
-                            # add to the list of VMs in need to be shut down manually:
-                            domain_powercycle_needed_list+=($domain)
+                        "") # No permissions to power cycle the VM are given (no shutdown was ever attempted):
+                            # User action is required:
+                            domain_shutdown_needed_list+=($domain)
                             echo "$domain: User action is required (env variable VM_ALLOW_POWERCYCLE not set)"
-                        fi
-                    ;;
+                        ;;
+                    esac
+                ;;
+            esac
 
-                    *)  # Currently '256: There were no bitmaps to delete (hence no power cycle needed)
-                        # Add shutdown VM to the list of broken/failed backup chain ones:
-                        broken_or_full_backup_chain_list[$i]=$domain
-                    ;;
-                esac
-            fi
+            # Process backup folder (deleting or renaming) and if applies, retention policy:
 
             if [[ $backup_folder_integrity == false ]]; then
 
@@ -419,32 +460,33 @@ check_backups()
     # Cleanse CHECK_BACKUPS_LIST, since all VMs were processed, and copied into correspondent lists:
     unset CHECK_BACKUPS_LIST
 
-    # Appends preserved backup chains to scheduled backups directly:
-    SCHEDULED_BACKUPS_LIST+=(${preserved_backup_chain_list[@]})
-
     # Appends broken and/or full backup chains for new backup chain creation:
     CREATE_BACKUP_CHAIN_LIST+=(${broken_or_full_backup_chain_list[@]})
 
+    # Appends successfully shut down VMs to the global list in need to be started:
+    POWEREDOFF_VMS_LIST+=(${domain_shutdown_success_list[@]})
+
+    # Appends preserved backup chains to scheduled backups directly:
+    SCHEDULED_BACKUPS_LIST+=(${preserved_backup_chain_list[@]})
+
     # Appends VMs failed to shutdown (by user's setting or by fail) to request user action:
-    SHUTDOWN_REQUIRED_VMS_LIST+=(${domain_powercycle_needed_list[@]})
+    SHUTDOWN_REQUIRED_VMS_LIST+=(${domain_shutdown_needed_list[@]})
 
     # Appends failed to shut down VMs to failed VMs list:
-    FAILED_VMS_LIST+=(${domain_powercycle_failed_list[@]})
+    FAILED_VMS_LIST+=(${domain_failed_list[@]})
 
     echo ""
     echo "Backup Chain Integrity Summary:"
     echo ""
     echo "Added to Scheduled Backups:   ${preserved_backup_chain_list[@]:-"None"}"
     echo "In need of new backup chain:  ${broken_or_full_backup_chain_list[@]:-"None"}"
-    [[ ! -z $VM_ALLOW_POWERCYCLE ]] \
-        && echo "Failed Power Cycle:           ${domain_powercycle_failed_list[@]:-"None"}" \
-        || echo "Manual shut down is required: ${domain_powercycle_needed_list[@]:-"None"}"
-
-    if [[ -z ${domain_powercycle_failed_list[@]} ]]; then
-
-        echo ""
-        echo "All Backup Chains Checked!"
-    fi
+    [[ ! -z $VM_ALLOW_POWERCYCLE ]] && \
+    echo "Into automatic power cycle:   ${domain_shutdown_success_list[@]:-"None"}" || \
+    echo "Manual shut down is required: ${domain_shutdown_needed_list[@]:-"None"}"
+    echo ""
+    [[ -z ${domain_failed_list[@]} ]] && \
+    echo "All Backup Chains Checked!" \ ||
+    echo "Failed Power Cycle:           ${domain_failed_list[@]:-"None"}"
 }
 
 #------------------------------------------------------------------------------
