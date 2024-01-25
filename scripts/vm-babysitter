@@ -55,7 +55,7 @@ check_backups()
         for domain in ${CHECK_BACKUPS_LIST[@]}; do
 
             # Look for all VMs to be checked, stop if any of them is running:
-            [[ $(domain_state $domain) == "running" ]] { local vms_are_running="true"; break; }
+            [[ $(domain_state $domain) == "running" ]] && { local vms_are_running="true"; break; }
         done
 
         if [[ $checkpoints_found == false && $vms_are_running == true ]]; then
@@ -115,19 +115,16 @@ check_backups()
                 backup_folder_integrity="false"
                 echo "$domain: A backup operation was previously cancelled. This backup chain is unrecoverable, therefore will be removed"
 
+            elif [[ -z $VM_ALLOW_BACKUP_CHAIN_FIX || $unraid_scenario = true ]]; then
+
+                # Backup chain may be recoverable, but either user didn't allow to check, or it's unraid_scenario:
+                recoverable_backup_chain="false"
+                echo "$domain: A backup operation was previously cancelled. Backup chain is partially recoverable, but will not attempt to fix the backup for further usage. A new backup chain will be created instead."
+
             else
-
-                if [[ -z $VM_ALLOW_BACKUP_CHAIN_FIX || $unraid_scenario = true ]]; then
-
-                    # Backup chain may be recoverable, but either user didn't allow to check, or it's unraid_scenario:
-                    recoverable_backup_chain="false"
-                    echo "$domain: A backup operation was previously cancelled. Backup chain is partially recoverable, but will not attempt to fix the backup for further usage. A new backup chain will be created instead."
-
-                else
-
-                    # Backup chain may be recoverable, and will attempt to fix it:
-                    recoverable_backup_chain="true"
-                    echo "$domain: A backup operation was previously cancelled. Backup is partially recoverable and it will attempt to fix it and restore the current backup chain for further use"
+                # Backup chain may be recoverable, and will attempt to fix it:
+                recoverable_backup_chain="true"
+                echo "$domain: A backup operation was previously cancelled. Backup is partially recoverable and it will attempt to fix it and restore the current backup chain for further use"
                 fi
             fi
 
