@@ -125,7 +125,6 @@ check_backups()
                 # Backup chain may be recoverable, and will attempt to fix it:
                 recoverable_backup_chain="true"
                 echo "$domain: A backup operation was previously cancelled. Backup is partially recoverable and it will attempt to fix it and restore the current backup chain for further use"
-                fi
             fi
 
         # Backup folder integrity looks 'OK', at a first glance:
