@@ -714,7 +714,7 @@ disk_image_bitmap_list()
 # Deletes specific bitmaps of a given virtual disk, or all if '--all' argument is passed instead.
 # Returns '0' if ended successfully, '1' if ended with errors and '2' if no bitmaps were found.
 # -----------------------------------------------------------------------------
-disk_image_delete_bitmap()
+disk_image_bitmap_delete()
 {
 
     local bitmaps_list

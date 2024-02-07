@@ -271,7 +271,7 @@ check_backups()
                     existing_bitmaps_list=($(disk_image_bitmap_list $image))
 
                     echo "$domain: Deleting insecure bitmap ${existing_bitmaps_list[-1]} on disk image $image..."
-                    disk_image_delete_bitmap $image ${existing_bitmaps_list[-1]}
+                    disk_image_bitmap_delete $image ${existing_bitmaps_list[-1]}
                 done
 
             elif [[ $(domain_state $domain) == "running" ]]; then
@@ -319,7 +319,7 @@ check_backups()
                     # Then deletes all bitmaps, in all image disks:
                     echo "$domain: Pruning any existing bitmaps on disk image $image..."
 
-                    disk_image_delete_bitmap $image --all
+                    disk_image_bitmap_delete $image --all
                     delete_bitmap_status=$?
 
                     # When issues are found deleting bitmaps, cancel the entire operation:
@@ -351,7 +351,7 @@ check_backups()
                             # Then deletes all bitmaps, in all image disks:
                             echo "$domain: Pruning any existing bitmaps on disk image $image..."
 
-                            disk_image_delete_bitmap $image --all
+                            disk_image_bitmap_delete $image --all
                             delete_bitmap_status=$?
 
                             # When issues are found deleting bitmaps, cancel the entire operation:
