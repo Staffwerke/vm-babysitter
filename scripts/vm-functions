@@ -778,6 +778,14 @@ disk_image_bitmap_delete()
 }
 
 # -----------------------------------------------------------------------------
+# From a full path to a virtual disk, returns a string that is the detected format bt qemu-img:
+# -----------------------------------------------------------------------------
+disk_image_format()
+{
+    echo $(qemu-img info $1 | grep "file format:" | cut -d' ' -f3)
+}
+
+# -----------------------------------------------------------------------------
 # Returns a random, uppercase, MAC address, based upon (optional) base pattern 'XX:XX:XX'
 # -----------------------------------------------------------------------------
 gen_random_macaddr()
