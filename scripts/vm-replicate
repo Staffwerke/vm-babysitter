@@ -327,22 +327,25 @@ if [ -z $@ ]; then
         # On Unraid and possibly other OSes, changes the path of persistent Nvram file, if exists:
         sed -i -e "s|$src_uuid|$dest_uuid|g" $vm_definitions_file
 
-        # Replaces MAC addresses for (qemu/kvm) randomized ones:
-        # -----------------------------------------------------------------------------
+        if [[ $endpoint == local ]]; then
 
-        # Gets the original list of MAC addresses from $src_vm:
-        src_macaddr_list=($(domain_macaddr_list $src_vm))
+            # Replaces MAC addresses for (qemu/kvm) randomized ones:
+            # -----------------------------------------------------------------------------
 
-        i=0
-        for mac in ${src_macaddr_list[@]}; do
+            # Gets the original list of MAC addresses from $src_vm:
+            src_macaddr_list=($(domain_macaddr_list $src_vm))
 
-            # Creates a random MAC addr for the given $src_vm MAC
-            dest_macaddr_list+=($(gen_random_macaddr))
+            i=0
+            for mac in ${src_macaddr_list[@]}; do
 
-            # Replaces matching listed mac for a random one:
-            sed -i -e "s|<mac address='$mac'/>|<mac address='${dest_macaddr_list[$i]}'/>|" $vm_definitions_file
-            ((i++))
-        done
+                # Creates a random MAC addr for the given $src_vm MAC
+                dest_macaddr_list+=($(gen_random_macaddr))
+
+                # Replaces matching listed mac for a random one:
+                sed -i -e "s|<mac address='$mac'/>|<mac address='${dest_macaddr_list[$i]}'/>|" $vm_definitions_file
+                ((i++))
+            done
+        fi
 
         # When defined by the user, Replaces disk image paths:
         # -----------------------------------------------------------------------------
