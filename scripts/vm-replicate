@@ -22,14 +22,14 @@ cat << end_of_info
     - qemu-img (this host)
     - ssh, scp and sshfs (this host)
     - ssh server (remote host)
-    - Both hosts must be set with proper RSA/DSA keys authentication, in ways this host can connect with the other directly.
+    - Both hosts must be set with proper SSH keys based authentication, in ways this host can connect with the other directly.
 
  INSTRUCTIONS:
     - A series of options and questions will be presented, and must be answered
     - You will be asked for confirmation before to start the process
     - Once completed, it will display the final result about the operation.
 
-(Maintainer: Adrián Parilli <a.parilli@staffwerke.de>)
+(Maintainer: Adrián Parilli <adrian.parilli@staffwerke.de>)
 end_of_info
 }
 
@@ -111,7 +111,7 @@ if [ -z $@ ]; then
                     endpoint="remote"
                     while true; do
 
-                        read -p "Insert user name and server's FQDN/IP where $src_vm will be replicated (e.g. user@hostname): " remote_server
+                        read -p "Insert username and server's FQDN or IP where $src_vm will be replicated (e.g. user@hostname): " remote_server
 
                         if [[ $remote_server == *@* ]]; then
 
@@ -288,9 +288,10 @@ if [ -z $@ ]; then
             echo "VM '$src_vm' has no writable disks that can be replicated"
         fi
 
-# ADD MEMORY/MAC ADDR CHANGES HERE:
+        # Additional options to set CPU, RAM, MAC addresses, etc. can be added here:
+        # -----------------------------------------------------------------------------
 
-# -----------------------------------------------------------------------------
+        # -----------------------------------------------------------------------------
         # End of interactive part
         # -----------------------------------------------------------------------------
         # Beginning of modification on $vm_definitions_file
