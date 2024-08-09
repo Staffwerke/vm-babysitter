@@ -462,17 +462,10 @@ if [ -z $@ ]; then
 
             elif [[ $endpoint == remote ]]; then
 
-                # Checks if nvram device, as currently defined in dest VM, exists in remote endpoint, returning an answer:
-                remote_nvram_exists=$(ssh $SSH_OPTIONS $remote_server "[[ -f $dest_vm_nvram_path ]] && echo yes || echo no")
-
-                if [[ $remote_nvram_exists == no ]]; then
-
-                    # Remote nvram device doesn't exist in remote endpoint.
-                    # Create directory (in case also doesn't exists) and copy source nvram as dest nvram:
+                    # Create directory (in case also doesn't exists) and if success, copy source nvram as dest nvram:
                     ssh $SSH_OPTIONS $remote_server "mkdir -p $(dirname $dest_vm_nvram_path)" && \
                     scp $SSH_OPTIONS $src_vm_nvram_path $remote_server:$dest_vm_nvram_path
                     nvram_copy_status=$?
-                fi
             fi
 
             case $nvram_copy_status in
