@@ -133,14 +133,6 @@ domain_img_paths_list()
     echo $(virsh domblklist --details $1 | grep -e file | grep -e disk | sed -e 's/ file //g' -e 's/ disk //g' | rev | cut -d' ' -f1 | rev )
 }
 
-#------------------------------------------------------------------------------
-# Returns 'yes' or 'no' about if domain does have 'incremental-backup' capability (accepts extra parameters via $2):
-#------------------------------------------------------------------------------
-domain_is_patched()
-{
-    [[ ! -z $(virsh dumpxml $1 $2 | grep "<qemu:add capability='incremental-backup'/>") ]] && echo "yes" || echo "no"
-}
-
 # -----------------------------------------------------------------------------
 # Returns a string that is the loader path of a given VM, passed as argument:
 # -----------------------------------------------------------------------------
@@ -810,18 +802,6 @@ item_position()
 last_modified()
 {
     echo $(date -r $1 "+%Y-%m-%d %H:%M:%S")
-}
-
-# -----------------------------------------------------------------------------
-# Patches a given xml file to provide incremental backups capability, returning sed status
-# (Assumes the xml file has no patch):
-# -----------------------------------------------------------------------------
-patch_xml()
-{
-    # Modifies the XML file with sed, adding parameters as of virtnbdbackup documentation:
-    sed -i -e "s|<domain type='kvm'>|<domain type='kvm' id='1' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>|" -e "/<\/domain>/i \ \ <qemu:capabilities>\n      <qemu:add capability='incremental-backup'\/>\n  <\/qemu:capabilities>" $1
-
-    return $?
 }
 
 # -----------------------------------------------------------------------------

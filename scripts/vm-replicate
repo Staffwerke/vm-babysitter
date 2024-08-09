@@ -290,20 +290,7 @@ if [ -z $@ ]; then
 
 # ADD MEMORY/MAC ADDR CHANGES HERE:
 
-        # If incremental backup patch is not detected in $src_vm, asks the user for applying this patch into $dest_vm:
-        # -----------------------------------------------------------------------------
-        if [[ $(domain_is_patched $src_vm) == yes ]]; then
-
-            # $src_vm isn't patched. Asks if $dest_vm should be patched:
-            echo ""
-            patch_vm=$(yes_no "Patch VM '$dest_vm' in order to accept incremental backups after being created?" "yes")
-
-        fi
-
-        echo ""
-        read -n1 -s -r -p $'Press any key to start the replication process, or Ctrl+C to Cancel...\n' key
-
-        # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
         # End of interactive part
         # -----------------------------------------------------------------------------
         # Beginning of modification on $vm_definitions_file
@@ -367,16 +354,6 @@ if [ -z $@ ]; then
             ((i++))
         done
 
-        # If requested, patches $dest_vm for incremental backups:
-        # -----------------------------------------------------------------------------
-
-        if [[ $patch_vm == yes ]]; then
-
-            # Patches $dest_vm:
-            patch_xml $vm_definitions_file
-
-            [[ $? -eq 0 ]] && echo "Incremental backup capability successfully added to VM '$dest_vm'" || echo "WARNING: Could not add incremental backup capability to VM '$dest_vm'"
-        fi
         # -----------------------------------------------------------------------------
         # End of modifications on $vm_definitions_file.
         # -----------------------------------------------------------------------------
