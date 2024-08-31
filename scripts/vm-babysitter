@@ -18,6 +18,122 @@ stop_container()
 }
 
 #------------------------------------------------------------------------------
+# Checks environment variables and return success or fail if everything is in order:
+#------------------------------------------------------------------------------
+check_variables()
+{
+    # Starts check assuming failed statuses:
+    local check_variables_status=1
+    local max_backups_per_chain_status=1
+    local local_backup_path_status=1
+    local rsync_backup_path_status=1
+
+    # Check $MAX_BACKUPS_PER_CHAIN
+    #------------------------------------------------------------------------------
+    if [[ $MAX_BACKUPS_PER_CHAIN =~ [0-9] && $MAX_BACKUPS_PER_CHAIN -ge 0 ]]; then
+
+        # Is an integer number:
+        max_backups_per_chain_status=0
+        echo "Max backups to save per chain: $MAX_BACKUPS_PER_CHAIN"
+
+    else
+        # Invalid value:
+        echo "ERROR: Incorrect value for environment variable MAX_BACKUPS_PER_CHAIN: '$MAX_BACKUPS_PER_CHAIN' <- It must be a natural integer and equal/greater than zero"
+    fi
+
+    # Check LOCAL_BACKUP_PATH:
+    #------------------------------------------------------------------------------
+    if  [[ -d $LOCAL_BACKUP_PATH ]]; then
+
+        # $LOCAL_BACKUP_PATH found
+        if  [[ -r $LOCAL_BACKUP_PATH && -w $LOCAL_BACKUP_PATH ]]; then
+
+            # $LOCAL_BACKUP_PATH has read/write permissions.
+            echo "Backups main path internally set to: $LOCAL_BACKUP_PATH"
+
+            # Check $LOCAL_BACKUP_CHAINS_TO_KEEP:
+            if [[ $LOCAL_BACKUP_CHAINS_TO_KEEP =~ [0-9] && $LOCAL_BACKUP_CHAINS_TO_KEEP -ge 0 ]]; then
+
+                # Check passed:
+                local_backup_path_status=0
+                echo "Max backup chains per VM to keep locally: $LOCAL_BACKUP_CHAINS_TO_KEEP"
+
+            else
+                # Invalid value:
+                echo "ERROR: Incorrect value for environment variable LOCAL_BACKUP_CHAINS_TO_KEEP: '$LOCAL_BACKUP_CHAINS_TO_KEEP' <- It must be a natural integer"
+            fi
+
+        else
+            echo "ERROR: Backups main path: $LOCAL_BACKUP_PATH <- Permission issues (cannot be read or written)"
+        fi
+
+    else
+        echo "ERROR: Backups main path: $LOCAL_BACKUP_PATH  <- Not found inside the container. Ensure you mount this correctly (e.g. '-v /path/to/backups-main-path:/$LOCAL_BACKUP_PATH')"
+    fi
+
+    # Check RSYNC_BACKUP_PATH
+    #------------------------------------------------------------------------------
+    if [[ -z $RSYNC_BACKUP_PATH ]]; then
+
+        rsync_backup_path_status=0
+        echo ""
+        echo "Environment variable RSYNC_BACKUP_PATH not set. No remote backup endpoint will be used"
+
+    elif [[ $RSYNC_BACKUP_PATH == *@*:/* ]]; then
+
+        # Apparently includes correct remote login and path. Separates ssh login from remote path:
+        local rsync_server=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f1)
+        local rsync_path=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f2)
+
+        # Attempts to comunicate with the remote host:
+        ssh $SSH_OPTIONS $rsync_server "exit 0"
+        local rsync_server_status=$?
+
+        if [[ $rsync_server_status == 0 ]]; then
+
+            # Attempts to perform similar checks as with $LOCAL_BACKUP_PATH, but creating a remote backup directory if doesn't exists:
+            local rsync_check_backup_path_status=$(ssh $SSH_OPTIONS $rsync_server "[[ -d $rsync_path && -r $rsync_path && -w $rsync_path ]] && echo 'found' || { mkdir -p $rsync_path; [[ -d $rsync_path ]] && echo 'created' || echo 'failed'; }")
+
+
+            if [[ $rsync_check_backup_path_status != failed ]]; then
+
+                # Notifiy about good status of $rsync_path
+                echo "$rsync_server: $rsync_path was $rsync_check_backup_path_status sucessfully"
+
+                # Verify # of backup chains to keep:
+                if [[ $RSYNC_BACKUP_CHAINS_TO_KEEP =~ [0-9] && $RSYNC_BACKUP_CHAINS_TO_KEEP -ge 0 ]]; then
+
+                    # Check passed:
+                    rsync_backup_path_status=0
+                    echo "Max backup chains per VM to keep remotely: $RSYNC_BACKUP_CHAINS_TO_KEEP"
+
+                else
+                    echo "ERROR: Incorrect value for environment variable RSYNC_BACKUP_CHAINS_TO_KEEP: '$RSYNC_BACKUP_CHAINS_TO_KEEP' it must be a positive integer and equal/greater than zero"
+                fi
+
+            else
+                echo "ERROR: remote mirror $rsync_path cannot be read and/or written (or is not a directory)"
+            fi
+
+        else
+            echo "ERROR: Connection with $rsync_server failed with status $rsync_server_status"
+        fi
+
+    else
+        echo "ERROR: Incorrect syntax for RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH' it must be SSH-like absolute path (e.g. user@host:/path-to-mirror)"
+    fi
+
+    # TO DO: Check other ENV variables, and SSH key:
+
+    # When all status variables passed the checks, return success:
+    [[ $local_backup_path_status -eq 0 \
+    && $rsync_backup_path_status -eq 0 ]]
+        && check_variables_status=0
+
+    return $check_variables_status
+}
+
+#------------------------------------------------------------------------------
 # Checks VMs in CHECK_BACKUPS_LIST for backup chain integrity (and puts VMs at point of create new backup chains, if possible):
 #------------------------------------------------------------------------------
 check_backups()
@@ -690,7 +806,7 @@ create_backup_chain()
 
 BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-"@daily"}
 CHECK_BACKUPS_INTEGRITY=${CHECK_BACKUPS_INTEGRITY:-""}
-LOCAL_BACKUP_CHAINS_TO_KEEP=${LOCAL_BACKUP_CHAINS_TO_KEEP:-""}
+LOCAL_BACKUP_CHAINS_TO_KEEP=${LOCAL_BACKUP_CHAINS_TO_KEEP:-"1"}
 LOCAL_BACKUP_PATH=${LOCAL_BACKUP_PATH:-"/backups"}
 LOGFILE_PATH=${LOGFILE_PATH:-"/logs/vm-babysitter.log"}
 LOGROTATE_CONFIG_PATH=${LOGROTATE_CONFIG_PATH:-"/tmp/logrotate.d/vm-babysitter"}
@@ -698,7 +814,7 @@ LOGROTATE_SCHEDULE=${LOGROTATE_SCHEDULE:-"@daily"}
 LOGROTATE_SETTINGS=${LOGROTATE_SETTINGS:-"  compress\n  copytruncate\n  daily\n  dateext\n  dateformat .%Y-%m-%d.%H:%M:%S\n  missingok\n  notifempty\n  rotate 30"}
 MAX_BACKUPS_PER_CHAIN=${MAX_BACKUPS_PER_CHAIN:-"30"}
 RSYNC_ARGS=${RSYNC_ARGS:-"-a"}
-RSYNC_BACKUP_CHAINS_TO_KEEP=${RSYNC_BACKUP_CHAINS_TO_KEEP:-""}
+RSYNC_BACKUP_CHAINS_TO_KEEP=${RSYNC_BACKUP_CHAINS_TO_KEEP:-"2"}
 RSYNC_BACKUP_PATH=${RSYNC_BACKUP_PATH:-""}
 SSH_OPTIONS=${SSH_OPTIONS:-"-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"}
 [[ -f /usr/share/zoneinfo/$TZ ]] && local_timezone_file="/usr/share/zoneinfo/$TZ"
@@ -876,134 +992,16 @@ else
     echo "ERROR: No persistent Virtual machines were found!"
 fi
 
-# 1.2 Check MAX_BACKUPS_PER_CHAIN
+# Check Variables:
 #------------------------------------------------------------------------------
-# Check for LOCAL_BACKUP_CHAINS_TO_KEEP:
-if [[ $MAX_BACKUPS_PER_CHAIN =~ [0-9] ]]; then
+check_variables
+variables_status=$?
 
-    # Is an integer number:
-    max_backups_per_chain_status="OK"
-    echo "Max backups to save per chain: $MAX_BACKUPS_PER_CHAIN"
-
-elif [[ -z $MAX_BACKUPS_PER_CHAIN ]]; then
-
-    # Was not set, warn the user about the potential issue:
-    max_backups_per_chain_status="UNUSED"
-    echo "WARNING: Environment variable MAX_BACKUPS_PER_CHAIN is not set. You should set a reasonable limit for the number of backups, or use the default value. Otherwise the backup chain will grow without any control, filling up your storage!"
-
-else
-    # Invalid value:
-    max_backups_per_chain_status="FAILED"
-    echo "ERROR: Incorrect value for environment variable MAX_BACKUPS_PER_CHAIN: '$MAX_BACKUPS_PER_CHAIN' <- It must be a natural integer"
-fi
-
-# 1.3 Check LOCAL_BACKUP_PATH
-#------------------------------------------------------------------------------
-
-echo ""
-
-if  [[ -d $LOCAL_BACKUP_PATH ]]; then
-
-    # $LOCAL_BACKUP_PATH found
-    if  [[ -r $LOCAL_BACKUP_PATH && -w $LOCAL_BACKUP_PATH ]]; then
-
-        # $LOCAL_BACKUP_PATH has read/write permissions.
-        local_backup_path_status="OK"
-        echo "Backups main path internally set to: $LOCAL_BACKUP_PATH"
-
-        # Check for LOCAL_BACKUP_CHAINS_TO_KEEP:
-        if [[ $LOCAL_BACKUP_CHAINS_TO_KEEP =~ [0-9] ]]; then
-
-            # Is an integer number:
-            echo "Max backup chains per VM to keep locally: $LOCAL_BACKUP_CHAINS_TO_KEEP"
-
-        elif [[ -z $LOCAL_BACKUP_CHAINS_TO_KEEP ]]; then
-
-            # Was not set:
-            echo "Environment variable LOCAL_BACKUP_CHAINS_TO_KEEP not set. ALL recoverable backup chains will be archived locally"
-
-        else
-            # Invalid value (unsets the 'OK' status):
-            unset local_backup_path_status
-            echo "ERROR: Incorrect value for environment variable LOCAL_BACKUP_CHAINS_TO_KEEP: '$LOCAL_BACKUP_CHAINS_TO_KEEP' <- It must be a natural integer"
-        fi
-
-    else
-        echo "ERROR: Backups main path: $LOCAL_BACKUP_PATH <- Permission issues (cannot be read or written)"
-    fi
-
-else
-    echo "ERROR: Backups main path: $LOCAL_BACKUP_PATH  <- Not found inside the container. Ensure you mount this correctly (e.g. '-v /path/to/backups-main-path:/$LOCAL_BACKUP_PATH')"
-fi
-
-# 1.4 Check RSYNC_BACKUP_PATH
-#------------------------------------------------------------------------------
-
-if [[ -z $RSYNC_BACKUP_PATH ]]; then
-
-    rsync_backup_path_status="UNUSED"
-    echo ""
-    echo "Environment variable RSYNC_BACKUP_PATH not set. No remote backup endpoint will be used"
-
-elif [[ $RSYNC_BACKUP_PATH == *@*:/* ]]; then
-
-    echo ""
-
-    # Apparently includes correct remote login and path. Separates ssh login from remote path:
-    rsync_server=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f1)
-    rsync_path=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f2)
-
-    # Attempts to comunicate with the remote host:
-    ssh $SSH_OPTIONS $rsync_server "exit 0"
-    rsync_server_status=$?
-
-    if [[ $rsync_server_status == 0 ]]; then
-
-        # Attempts to perform similar checks as with $LOCAL_BACKUP_PATH:
-        rsync_backup_path_status=$(ssh $SSH_OPTIONS $rsync_server "[[ -d $rsync_path && -r $rsync_path && -w $rsync_path ]] && echo 'OK' || { mkdir -p $rsync_path; [[ -d $rsync_path ]] && echo 'CREATED' || echo 'FAILED'; }")
-
-
-        if [[ $rsync_backup_path_status != FAILED ]]; then
-
-            # Notifiy about good status of $rsync_path
-            echo "$rsync_server: $rsync_path exists and status is '$rsync_backup_path_status'"
-
-            # Verify # of backup chains to keep:
-            if [[ $RSYNC_BACKUP_CHAINS_TO_KEEP =~ [0-9] ]]; then
-
-                # Is an integer number:
-                echo "Max backup chains per VM to keep remotely: $RSYNC_BACKUP_CHAINS_TO_KEEP"
-
-            elif [[ -z $RSYNC_BACKUP_CHAINS_TO_KEEP ]]; then
-
-                # Was not set:
-                echo "All recoverable backup chains will be archived remotely"
-
-            else
-                echo "ERROR: Incorrect value for environment variable RSYNC_BACKUP_CHAINS_TO_KEEP: '$RSYNC_BACKUP_CHAINS_TO_KEEP' it must be a positive integer"
-                rsync_backup_path_status="FAILED"
-            fi
-
-        else
-            echo "ERROR: remote mirror $rsync_path cannot be read and/or written (or is not a directory)"
-        fi
-
-    else
-        echo "ERROR: Connection with $rsync_server failed with status $rsync_server_status"
-        rsync_backup_path_status="FAILED"
-    fi
-else
-    echo "ERROR: Incorrect syntax for RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH' it must be SSH-like absolute path (e.g. user@host:/path-to-mirror)"
-    rsync_backup_path_status="FAILED"
-fi
-
-# 1.5 TO DO: Check other ENV variables, and SSH key:
-#------------------------------------------------------------------------------
 #------------------------------------------------------------------------------
 # 2. Only when input parameters doesn't require to restart the container, it continues the rest of the checks:
 #------------------------------------------------------------------------------
 
-if [[ $domains_list_status == OK && $max_backups_per_chain_status != FAILED && $local_backup_path_status == OK && $rsync_backup_path_status != FAILED ]]; then
+if [[ $domains_list_status == OK && $variables_status -eq 0 ]]; then
 
     # 2.0 Create logrotate config:
     #------------------------------------------------------------------------------
