@@ -556,8 +556,9 @@ archive_backup()
     # VM name basename:
     local domain=$(basename $1)
 
-    # Generate an updated time stamp to rename archived backups:
-    local timestamp=$(date '+%Y-%m-%d.%H:%M:%S')
+    # Get the oldest modification time from files inside,
+    # to rename archived backups with historid timestamp:
+    local timestamp=$(find $backup_path/$domain -type f -printf '%T+ %p\n' | sort | head -n 1 | cut -d' ' -f1)
 
     # Archives the current backup chain, by renaming it with time stamp:
     mv $backup_path/$domain $backup_path/$domain.$timestamp
@@ -574,8 +575,8 @@ archive_backup()
     local index=$( expr $backups_to_keep + 1 )
 
     # Creates a list with EXACT match of archived folder(s) to delete.
-    # Pattern is based upon $(date '+%Y-%m-%d.%H:%M:%S'):
-    local old_backups_list=($(find $backup_path -type d -name "$domain.*" | sort -r | grep -E "^$backup_path/$domain.[0-9]{4}-[0-9]{2}-[0-9]{2}.[0-9]{2}:[0-9]{2}:[0-9]{2}$" | tail -n +$index))
+    # Pattern is based upon a timestamp like '2023-11-08+06:19:36.1501949150':
+    local old_backups_list=($(find $backup_path -type d -name "$domain.*" | sort -r | grep -E "^$backup_path/$domain.[0-9]{4}-[0-9]{2}-[0-9]{2}+[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{10}$" | tail -n +$index))
 
         if [[ ! -z ${old_backups_list[@]} ]]; then
 
@@ -583,7 +584,7 @@ archive_backup()
             echo "$domain: Deleting ${#old_backups_list[@]} old backup chain(s)..."
             rm -rf ${old_backups_list[@]}
         else
-            echo "$domain: No old backup chains to delete by now"
+            echo "$domain: No old backup chains to delete at this time"
         fi
     fi
 }
@@ -614,8 +615,9 @@ archive_remote_backup()
 
         # Remote Server is reachable.
 
-        # Generate an updated time stamp to rename archived backups:
-        local timestamp=$(date '+%Y-%m-%d.%H:%M:%S')
+        # Get the oldest modification time from files inside,
+        # to rename archived backups with historid timestamp:
+        local timestamp=$(find $backup_path/$domain -type f -printf '%T+ %p\n' | sort | head -n 1 | cut -d' ' -f1)
 
         # Checks in advance if remote backup path exists or not:
         local remote_backup_chain_exists=$(ssh $SSH_OPTIONS $remote_server "[[ -d $remote_backup_path ]] && echo \"yes\" || echo \"no\"")
@@ -643,7 +645,7 @@ archive_remote_backup()
 
             # Creates a list with EXACT match of archived folder(s) to delete.
             # Pattern is based upon $(date '+%Y-%m-%d.%H:%M:%S'):
-            local remote_old_backups_list=($(ssh $SSH_OPTIONS $remote_server "find $remote_main_backup_path -type d -name \"$domain.*\" | sort -r | grep -E \"^$remote_main_backup_path/$domain.[0-9]{4}-[0-9]{2}-[0-9]{2}.[0-9]{2}:[0-9]{2}:[0-9]{2}$\" | tail -n +$index"))
+            local remote_old_backups_list=($(ssh $SSH_OPTIONS $remote_server "find $remote_main_backup_path -type d -name \"$domain.*\" | sort -r | grep -E \"^$remote_main_backup_path/$domain.[0-9]{4}-[0-9]{2}-[0-9]{2}+[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{10}$\" | tail -n +$index"))
 
             if [[ ! -z ${remote_old_backups_list[@]} ]]; then
 
