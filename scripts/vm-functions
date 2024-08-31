@@ -644,7 +644,7 @@ archive_remote_backup()
             local index=$( expr $remote_backups_to_keep + 1 )
 
             # Creates a list with EXACT match of archived folder(s) to delete.
-            # Pattern is based upon $(date '+%Y-%m-%d.%H:%M:%S'):
+            # Pattern is based upon a timestamp like '2023-11-08+06:19:36.1501949150':
             local remote_old_backups_list=($(ssh $SSH_OPTIONS $remote_server "find $remote_main_backup_path -type d -name \"$domain.*\" | sort -r | grep -E \"^$remote_main_backup_path/$domain.[0-9]{4}-[0-9]{2}-[0-9]{2}+[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{10}$\" | tail -n +$index"))
 
             if [[ ! -z ${remote_old_backups_list[@]} ]]; then
