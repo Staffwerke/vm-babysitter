@@ -134,8 +134,27 @@ check_variables()
 }
 
 #------------------------------------------------------------------------------
+# Populates DOMAINS_LIST, filtering ignored, into process and failed  VMs:
+#------------------------------------------------------------------------------
+create_domains_list()
+{
+    local domains_all_list=($(domains_list))
+    local domains_skipped_list=(${VM_IGNORED_LIST[@]} ${FAILED_VMS_LIST[@]} ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ${POWEREDOFF_VMS_LIST[@]} ${CHECK_BACKUPS_LIST[@]} ${CREATE_BACKUP_CHAIN_LIST[@]} ${SCHEDULED_BACKUPS_LIST[@]})
+
+    for domain in ${domains_all_list[@]}; do
+
+        for skipped in ${domains_skipped_list[@]}; do
+
+            [[ $domain == $skipped ]] && continue 2
+        done
+
+        DOMAINS_LIST+=($domain)
+    done
+}
+
+#------------------------------------------------------------------------------
 # Checks for VMs in DOMAINS_LIST by verifying existence and read/write permissions of its virtual disks,
-# also marking VMs for automatic start, or ignoring them, as required by the user:
+# also marking VMs for automatic start, when required by the user:
 #------------------------------------------------------------------------------
 check_domains()
 {
@@ -149,16 +168,6 @@ check_domains()
     echo "Checking for Virtual machines: ${DOMAINS_LIST[@]}"
 
     for domain in ${DOMAINS_LIST[@]}; do
-
-        for ignored_vm in $VM_IGNORED_LIST; do
-
-            if [[ $domain == $ignored_vm ]]; then
-
-                # When domain is into VM_IGNORED_LIST it cancels the check for this VM early, and proceeding to the next one:
-                #echo "$domain: Into VM_IGNORED_LIST, therefore ignored"
-                continue 2
-            fi
-        done
 
         # Checks for virtual disks, if are reachable and possess both read/write permissions:
 
@@ -1041,18 +1050,13 @@ end_of_crontab
     echo "Starting Cron..."
     cron -f -l -L2 &
 
-    # 2.2 Add all remaining VMs in DOMAINS_LIST to this queue:
-    #------------------------------------------------------------------------------
-
-    CHECK_BACKUPS_LIST=(${DOMAINS_LIST[@]})
-
     # 2.3 Initializes a file with variables externally stored, to be shared with the scheduler:
     #------------------------------------------------------------------------------
     cat << end_of_external_variables > $external_vars
 # Shared values between $(basename $0) and $scheduled_backup_script. DO NOT EDIT!:
 
 # Dynamic arrays:
-CHECK_BACKUPS_LIST=(${CHECK_BACKUPS_LIST[@]})
+CHECK_BACKUPS_LIST=()
 FAILED_VMS_LIST=()
 SCHEDULED_BACKUPS_LIST=()
 
