@@ -134,6 +134,99 @@ check_variables()
 }
 
 #------------------------------------------------------------------------------
+# Checks for VMs in DOMAINS_LIST by verifying existence and read/write permissions of its virtual disks,
+# also marking VMs for automatic start, or ignoring them, as required by the user:
+#------------------------------------------------------------------------------
+check_domains()
+{
+
+    local domain_autostart_list=()
+    local domain_failed_list=()
+    local domain_success_list=()
+
+    echo ""
+    echo "____________________________________________________________________________________________________________"
+    echo "Checking for Virtual machines: ${DOMAINS_LIST[@]}"
+
+    for domain in ${DOMAINS_LIST[@]}; do
+
+        for ignored_vm in $VM_IGNORED_LIST; do
+
+            if [[ $domain == $ignored_vm ]]; then
+
+                # When domain is into VM_IGNORED_LIST it cancels the check for this VM early, and proceeding to the next one:
+                #echo "$domain: Into VM_IGNORED_LIST, therefore ignored"
+                continue 2
+            fi
+        done
+
+        # Checks for virtual disks, if are reachable and possess both read/write permissions:
+
+        if [[ -z $(domain_drives_list $domain) ]]; then
+
+            # Non-transient VM without disks attached. Adds to failed list, notifies and aborts the check:
+            domain_failed_list+=($domain)
+            echo "WARNING: VM $domain has no drives that can be backed up, therefore will be ignored"
+            break
+
+        else
+            # Does have drives able to be backed up. Checks if such disk images are reachable inside the container:
+            local images_list=($(domain_img_paths_list $domain))
+            for image in ${images_list[@]}; do
+
+                if [[ ! -f $image ]]; then
+
+                    domain_failed_list+=($domain)
+                    echo "ERROR: $domain's disk image: $image not found. Ensure you mount -and mirror- this correctly inside the container (e.g. '-v /common/path/to/vms/disks:/common/path/to/vms/disks')"
+
+                elif [[ ! -r $image || ! -w $image ]]; then
+
+                    domain_failed_list+=($domain)
+                    echo "ERROR: $domain's disk image: $image has permission issues (cannot be read or written)"
+                else
+                    # Check passed:
+                    domain_success_list+=($domain)
+
+                    for autostart_vm in $VM_AUTOSTART_LIST; do
+
+                        if [[ $domain == $autostart_vm ]]; then
+
+                            # If the VM is in VM_AUTOSTART_LIST, requires to be started as soon as possible:
+                            domain_autostart_list+=($domain)
+                            echo "$domain: Into VM_AUTOSTART_LIST, therefore will be started, (after initial check)"
+                            break
+                        fi
+                    done
+                fi
+            done
+        fi
+    done
+
+    # Cleanse DOMAINS_LIST, since all VMs were processed, and copied into correspondent lists:
+    unset DOMAINS_LIST
+
+    # Appends successfully checked VMs for checking backups:
+    CHECK_BACKUPS_LIST+=${domain_success_list[@]}
+
+    # Appends VMs with unexistent, unreachable or virtual disks with permission issues:
+    FAILED_VMS_LIST+=${domain_failed_list[@]}
+
+    # Appends successfully checked VMs to the global list in need to be started:
+    POWEREDOFF_VMS_LIST+=${domain_autostart_list[@]}
+
+    echo ""
+    echo "Virtual Machines Check Summary:"
+    echo ""
+    echo "Ready for Backup Check Integrity:" ${domain_success_list[@]:-"None"}
+    echo "Set for Autostart (after checks):" ${domain_autostart_list[@]:-"None"}
+    echo ""
+    [[ -z ${domain_failed_list[@]} ]] && \
+    echo "All Backup Chains Checked!" \ ||
+    echo "Missing/issues on virtual disks:"  ${domain_failed_list[@]:-"None"}
+}
+
+
+#------------------------------------------------------------------------------
 # Checks VMs in CHECK_BACKUPS_LIST for backup chain integrity (and puts VMs at point of create new backup chains, if possible):
 #------------------------------------------------------------------------------
 check_backups()
@@ -866,133 +959,13 @@ fi
 # 'docker kill --signal=SIGTERM <docker-name-or-id>'
 trap 'stop_container' SIGTERM
 
-#------------------------------------------------------------------------------
-# 1. Check input parameters (exits on error)
-#------------------------------------------------------------------------------
 
 echo "############################################################################################################"
 echo "Container started at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
 echo "############################################################################################################"
 
-# 1.1 Check DOMAINS_LIST:
 #------------------------------------------------------------------------------
-echo ""
-echo "Querying for persistent Virtual machines from libvirt..."
-
-# The initial list of VMs to work:
-DOMAINS_LIST=($(domains_list))
-
-if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
-
-    # 1.1.1 Check VM_IGNORED_LIST:
-    #------------------------------------------------------------------------------
-    if [[ ! -z $VM_IGNORED_LIST ]]; then
-
-    echo ""
-
-        for domain in $VM_IGNORED_LIST; do
-
-            if [[ $(domain_exists $domain) == yes ]]; then
-
-                # Remove the VM from DOMAINS_LIST
-                unset DOMAINS_LIST[$(item_position $domain "DOMAINS_LIST")]
-
-                # Rebuild indexes into the array:
-                DOMAINS_LIST=(${DOMAINS_LIST[@]})
-
-                echo "$domain: Into VM_IGNORED_LIST, therefore ignored"
-
-            else
-                echo "WARNING: VM '$domain' in VM_IGNORED_LIST not found!"
-            fi
-        done
-    fi
-
-    # 1.1.2 Check VM_AUTOSTART_LIST:
-    #------------------------------------------------------------------------------
-    if [[ ! -z $VM_AUTOSTART_LIST ]]; then
-
-    echo ""
-
-    i=0
-        for domain in $VM_AUTOSTART_LIST; do
-
-            if [[ $(domain_exists $domain) == yes ]]; then
-
-                # Add VM to the list of VMs to be powered on when monitor starts:
-                POWEREDOFF_VMS_LIST+=($domain)
-                echo "$domain: Into VM_AUTOSTART_LIST, therefore will be started (after initial check)"
-
-            else
-                echo "WARNING: VM $domain in VM_AUTOSTART_LIST not found!"
-            fi
-            ((i++))
-        done
-    fi
-
-    # 1.1.3 Check DOMAINS_LIST VM's disk images:
-    #------------------------------------------------------------------------------
-
-    echo ""
-
-    i=0
-    for domain in ${DOMAINS_LIST[@]}; do
-
-        drives_list=($(domain_drives_list $domain))
-        if [[ ! -z ${drives_list[@]} ]]; then
-
-            # Does have drives able to be backed up. Checks if such disk images are reachable inside the container:
-            images_list=($(domain_img_paths_list $domain))
-            for image in ${images_list[@]}; do
-
-                if [[ ! -f $image ]]; then
-
-                    FAILED_VMS_LIST+=($domain)
-
-                    echo "ERROR: $domain's disk image: $image not found. Ensure you mount -and mirror- this correctly inside the container (e.g. '-v /common/path/to/vms/disks:/common/path/to/vms/disks')"
-
-                elif [[ ! -r $image || ! -w $image ]]; then
-
-                    FAILED_VMS_LIST+=($domain)
-
-                    echo "ERROR: $domain's disk image: $image has permission issues (cannot be read or written)"
-                fi
-            done
-        else
-
-            # Exclude VMs without disks images that can be backed up:
-            unset DOMAINS_LIST[$i]
-
-            # Rebuild indexes into the array:
-            DOMAINS_LIST=(${DOMAINS_LIST[@]})
-
-            echo "WARNING: VM $domain has no drives that can be backed up, therefore will be ignored"
-        fi
-        ((i++))
-    done
-
-    # Re-check DOMAINS_LIST after the above procedure (ignored and left aside by other issues):
-    if [[ ! -z ${DOMAINS_LIST[@]} ]]; then
-
-        # VMs are left after initial checks, then domain_list_status is correct:
-        domains_list_status="OK"
-
-        echo "Persistent Virtual machine(s) able to be backed up: ${DOMAINS_LIST[@]}"
-
-    elif [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
-
-        # No VMs are left, but one or more failed the initial checks:
-        echo "ERROR: Issues detected with '${FAILED_VMS_LIST[@]}' that need to be solved before to run this container again"
-
-    else
-        echo "WARNING: After initial check, no persistent Virtual machines are left available for backup"
-    fi
-else
-    # No VMs were found from the beginning:
-    echo "ERROR: No persistent Virtual machines were found!"
-fi
-
-# Check Variables:
+# 1. Check input parameters (exits on error)
 #------------------------------------------------------------------------------
 check_variables
 variables_status=$?
@@ -1001,7 +974,7 @@ variables_status=$?
 # 2. Only when input parameters doesn't require to restart the container, it continues the rest of the checks:
 #------------------------------------------------------------------------------
 
-if [[ $domains_list_status == OK && $variables_status -eq 0 ]]; then
+if [[ $variables_status -eq 0 ]]; then
 
     # 2.0 Create logrotate config:
     #------------------------------------------------------------------------------
