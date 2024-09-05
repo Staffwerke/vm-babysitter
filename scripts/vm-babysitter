@@ -985,26 +985,18 @@ variables_status=$?
 
 if [[ $variables_status -eq 0 ]]; then
 
-    # 2.0 Create logrotate config:
+    # Create logrotate config:
     #------------------------------------------------------------------------------
 
-    if [[ -z $DISABLE_LOGROTATE ]]; then
+    echo "Configuring logrotate..."
 
-        echo "Configuring logrotate..."
+    # Create directory if doesn't exist:
+    mkdir -p $(dirname $LOGROTATE_CONFIG_PATH)
 
-        # Create directory if doesn't exist:
-        mkdir -p $(dirname $LOGROTATE_CONFIG_PATH)
+    # Parse logrotate configuration (overwriting, if any previous):
+    echo -e "$LOGFILE_PATH {\n$LOGROTATE_SETTINGS\n}" > $LOGROTATE_CONFIG_PATH
 
-        # Parse logrotate configuration (overwriting, if any previous):
-        echo -e "$LOGFILE_PATH {\n$LOGROTATE_SETTINGS\n}" > $LOGROTATE_CONFIG_PATH
-
-    else
-        echo "Logrotate disabled by user"
-        # Convert variable into a comment, to be added to crontab
-        DISABLE_LOGROTATE="# "
-    fi
-
-    # 2.1 Create/update Cron task for VMs to be (progressively) included in $scheduled_backups_list:
+    # Create/update Cron task for VMs to be (progressively) included in $scheduled_backups_list:
     #------------------------------------------------------------------------------
 
     echo "Configuring $(basename $scheduled_backup_script)..."
@@ -1040,7 +1032,7 @@ external_vars="$external_vars"
 $BACKUP_SCHEDULE $scheduled_backup_script > /proc/1/fd/1 2>&1
 
 # Schedule for logrotate:
-$DISABLE_LOGROTATE$LOGROTATE_SCHEDULE /usr/sbin/logrotate $LOGROTATE_CONFIG_PATH > /proc/1/fd/1 2>&1
+$LOGROTATE_SCHEDULE /usr/sbin/logrotate $LOGROTATE_CONFIG_PATH > /proc/1/fd/1 2>&1
 end_of_crontab
 
     # Sets the cron task:
