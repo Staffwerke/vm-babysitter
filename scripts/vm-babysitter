@@ -1078,7 +1078,7 @@ end_of_external_variables
         # because it could ignore SIGTERM from Docker, thus being killed with SIGKILL:
         sleep 1
 
-        # 3.1 (Re)reads all external variables (presumably modified by $scheduled_backup_script):
+        # (Re)reads all external variables (presumably modified by $scheduled_backup_script):
         #------------------------------------------------------------------------------
         source $external_vars
 
@@ -1086,7 +1086,7 @@ end_of_external_variables
 
             if [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
 
-                # 3.2 Check first for VMs which are in need of shutdown.
+                # Check for VMs which are in need of shutdown.
                 # (This normally happens when the user took the action, or when a VM took long time to shutdown):
                 #------------------------------------------------------------------------------
                 i=0
@@ -1109,32 +1109,39 @@ end_of_external_variables
                 done
             fi
 
-            if [[ ! -z ${CHECK_BACKUPS_LIST[@]} || ! -z ${CREATE_BACKUP_CHAIN_LIST[@]} ]]; then
+            # (Re)creates DOMAINS_LIST, a list of non-transient domains that aren't into any of the queues from past iterations:
+            create_domains_list
 
-                # 3.3 Fresh start, or status of at least on VM has changed, and sent to one of the queues. Marks an ongoing check starting:
+            if [[ -n ${DOMAINS_LIST[@]} || -n ${CHECK_BACKUPS_LIST[@]} || -n ${CREATE_BACKUP_CHAIN_LIST[@]} ]]; then
+
+                # Status of at least on VM has changed, and sent to one of the queues. Marks an ongoing check starting:
                 #------------------------------------------------------------------------------
                 ONGOING_CHECK="true"
                 sed -i \
                 -e "s/ONGOING_CHECK=.*/ONGOING_CHECK=\"$ONGOING_CHECK\"/" $external_vars
 
                 # Create the global list of VMs to be displayed:
-                ONGOING_CHECK_LIST=(${CHECK_BACKUPS_LIST[@]} ${CREATE_BACKUP_CHAIN_LIST[@]})
+                ONGOING_CHECK_LIST=(${DOMAINS_LIST[@]} ${CHECK_BACKUPS_LIST[@]} ${CREATE_BACKUP_CHAIN_LIST[@]})
 
                 echo ""
                 echo "____________________________________________________________________________________________________________"
                 echo "Automatic check for VM(s) ${ONGOING_CHECK_LIST[@]} in progress..."
 
 
-                # 3.3.1 Check for backup state (and apply retention policy) on all VMs:
+                # Check for virtual drives status on detected VMs:
+                #------------------------------------------------------------------------------
+                [[ ! -z ${DOMAINS_LIST[@]} ]] && check_domains
+
+                # Check for backup chain integrity on all VMs:
                 #------------------------------------------------------------------------------
                 [[ ! -z ${CHECK_BACKUPS_LIST[@]} ]] && check_backups
 
-                # Both sub-routines invoked above require to shut down VMs in order to proceed
+                # Some sub-routines invoked above require to shut down VMs in order to proceed
                 # They do this automatically if env variable VM_ALLOW_POWERCYCLE is set.
-                # After they finish, VMs are started if in the global list below:
+                # After they finish, VMs are started if exist in the global list below:
                 if [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]]; then
 
-                    # 3.3.2 Turns on all VMs that was previously shutdown for checks:
+                    # Turns on all VMs that was previously shutdown for checks:
                     #------------------------------------------------------------------------------
                     echo ""
                     i=0
@@ -1157,7 +1164,7 @@ end_of_external_variables
                     done
                 fi
 
-               # 3.3.3 Create new backup chains for VMs that require it:
+               # Create new backup chains for VMs that require it:
                #------------------------------------------------------------------------------
                [[ ! -z ${CREATE_BACKUP_CHAIN_LIST[@]} ]] && create_backup_chain
 
@@ -1173,7 +1180,7 @@ end_of_external_variables
                 echo "Manual Shut Down Required:    ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
                 echo "Misbehaving Virtual Machines: ${FAILED_VMS_LIST[@]:-"None"}"
 
-                if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} && -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} && -z ${FAILED_VMS_LIST[@]} ]]; then
+                if [[ -n ${SCHEDULED_BACKUPS_LIST[@]} && -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} && -z ${FAILED_VMS_LIST[@]} ]]; then
 
                     echo ""
                     echo "All Virtual Machines Running Under Incremental Backups!"
@@ -1226,7 +1233,7 @@ end_of_external_variables
             fi
         fi
 
-        # 3.7 Restarts the loop from 3.1, until receives SIGTERM or SIGKILL from Docker
+        # Restarts the loop, until SIGTERM or SIGKILL are received from Docker...
         #------------------------------------------------------------------------------
     done
 
