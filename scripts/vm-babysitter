@@ -127,7 +127,7 @@ check_variables()
 
     # When all status variables passed the checks, return success:
     [[ $local_backup_path_status -eq 0 \
-    && $rsync_backup_path_status -eq 0 ]]
+    && $rsync_backup_path_status -eq 0 ]] \
         && check_variables_status=0
 
     return $check_variables_status
