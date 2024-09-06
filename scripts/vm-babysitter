@@ -911,6 +911,7 @@ CHECK_BACKUPS_INTEGRITY=${CHECK_BACKUPS_INTEGRITY:-""}
 LOCAL_BACKUP_CHAINS_TO_KEEP=${LOCAL_BACKUP_CHAINS_TO_KEEP:-"1"}
 LOCAL_BACKUP_PATH=${LOCAL_BACKUP_PATH:-"/backups"}
 LOGFILE_PATH=${LOGFILE_PATH:-"/logs/vm-babysitter.log"}
+SCHEDULE_LOGFILE_PATH=${SCHEDULE_LOGFILE_PATH:-"/logs/scheduled-tasks.log"}
 LOGROTATE_CONFIG_PATH=${LOGROTATE_CONFIG_PATH:-"/tmp/logrotate.d/vm-babysitter"}
 LOGROTATE_SCHEDULE=${LOGROTATE_SCHEDULE:-"@daily"}
 LOGROTATE_SETTINGS=${LOGROTATE_SETTINGS:-"  compress\n  copytruncate\n  daily\n  dateext\n  dateformat .%Y-%m-%d.%H:%M:%S\n  missingok\n  notifempty\n  rotate 30"}
@@ -994,7 +995,7 @@ if [[ $variables_status -eq 0 ]]; then
     mkdir -p $(dirname $LOGROTATE_CONFIG_PATH)
 
     # Parse logrotate configuration (overwriting, if any previous):
-    echo -e "$LOGFILE_PATH {\n$LOGROTATE_SETTINGS\n}" > $LOGROTATE_CONFIG_PATH
+    echo -e "$LOGFILE_PATH \n $SCHEDULE_LOGFILE_PATH {\n$LOGROTATE_SETTINGS\n}" > $LOGROTATE_CONFIG_PATH
 
     # Create/update Cron task for VMs to be (progressively) included in $scheduled_backups_list:
     #------------------------------------------------------------------------------
