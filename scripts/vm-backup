@@ -3,7 +3,6 @@
 # Updates backup chains for VMs in SCHEDULED_BACKUPS_LIST
 # Commends to create new backup chain instead (writing to CHECK_BACKUPS_LIST), according with MAX_BACKUPS_PER_CHAIN limits
 # Notifies about issues with virtnbdbackup
-# Does not interrupt main vm-babysitter script (awaits for main script to perform actions)
 #------------------------------------------------------------------------------
 
 # NOTE:
@@ -17,180 +16,155 @@ source $functions_path
 source $external_vars
 #------------------------------------------------------------------------------
 
-if [[ $ONGOING_BACKUP == false ]]; then
+echo "############################################################################################################"
+echo "Scheduled Incremental Backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
 
-    # Only starts running the script if no other incremental backup task has been started:
+if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
 
-    # Marks ONGOING_BACKUP as started externally, so the main process gets paused temporarily:
-    ONGOING_BACKUP="true"
+    [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "Backup chain update" "In progress for ${SCHEDULED_BACKUPS_LIST[@]}. Avoid to stop/restart this container until further notice"
 
-    sed -i -e "s/ONGOING_BACKUP=.*/ONGOING_BACKUP=\"$ONGOING_BACKUP\"/" $external_vars
+    echo "Virtual machines: '${SCHEDULED_BACKUPS_LIST[@]}'"
+    echo ""
 
-    # If main script is performing a check, will enter into this loop:
-    while [[ $ONGOING_CHECK = true ]]; do
+    i=0
+    for domain in ${SCHEDULED_BACKUPS_LIST[@]}; do
 
-        if [[ -z $messaged ]]; then
+        echo "____________________________________________________________________________________________________________"
 
-            # Message this once:
-            echo ""
-            echo "Scheduled backup execution will be delayed until ongoing checks had finished..."
-            echo ""
-            messaged=1
-        fi
-        sleep 1
-        source $external_vars
-    done
+        # Retireve the number of additional checkpoints in the backup chain:
+        num_of_backup_checkpoints=$(($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num) - 1))
 
-    echo "############################################################################################################"
-    echo "Scheduled Incremental Backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
+        if [[ ! -z $MAX_BACKUPS_PER_CHAIN && $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
 
-    if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
+            # Backup chain is full, skip the operation.
+            # Append the VM to the list of VMs in need of new backup chain:
+            backup_chain_full[$i]=$domain
 
-        [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "Backup chain update" "In progress for ${SCHEDULED_BACKUPS_LIST[@]}. Avoid to stop/restart this container until further notice"
+            echo "$domain: Backup chain is full and cannot be updated. A new one will created after the current scheduled operation had finished"
 
-        echo "Virtual machines: '${SCHEDULED_BACKUPS_LIST[@]}'"
-        echo ""
+        else
 
-        i=0
-        for domain in ${SCHEDULED_BACKUPS_LIST[@]}; do
+            # Display checkpoints limits, if set:
+            [[ ! -z $MAX_BACKUPS_PER_CHAIN ]] && display_checkpoint_limit=" out of $MAX_BACKUPS_PER_CHAIN"
 
-            echo "____________________________________________________________________________________________________________"
+            echo "$domain: Detected $num_of_backup_checkpoints$display_checkpoint_limit checkpoints"
 
-            # Retireve the number of additional checkpoints in the backup chain:
-            num_of_backup_checkpoints=$(($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num) - 1))
+            # Do backup now:
+            do_backup_chain $domain "inc" $LOCAL_BACKUP_PATH $VIRTNBDBACKUP_ARGS
 
-            if [[ ! -z $MAX_BACKUPS_PER_CHAIN && $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
+            if [[ $? -eq 0 ]]; then
 
-                # Backup chain is full, skip the operation.
-                # Append the VM to the list of VMs in need of new backup chain:
-                backup_chain_full[$i]=$domain
-
-                echo "$domain: Backup chain is full and cannot be updated. A new one will created after the current scheduled operation had finished"
+                # Backup chain creation was successful!
+                backup_chain_success[$i]=$domain
 
             else
 
-                # Display checkpoints limits, if set:
-                [[ ! -z $MAX_BACKUPS_PER_CHAIN ]] && display_checkpoint_limit=" out of $MAX_BACKUPS_PER_CHAIN"
+                # Get last state for virtnbdbackup:
+                virtnbdbackup_failed_status=$?
 
-                echo "$domain: Detected $num_of_backup_checkpoints$display_checkpoint_limit checkpoints"
+                # Failed to create a new backup chain:
+                backup_chain_failed[$i]=$domain
 
-                # Do backup now:
-                do_backup_chain $domain "inc" $LOCAL_BACKUP_PATH $VIRTNBDBACKUP_ARGS
+            fi
 
+            if [[ ${backup_chain_success[$i]} == $domain && ! -z $RSYNC_BACKUP_PATH ]]; then
+
+                # Incremental backup was successful and remote endpoint is (correctly) set,
+                # attempts to transfer changes via rsync:
+
+                echo "$domain: Syncing changes to remote endpoint..."
+
+                # Transfer backup using SSH_OPTIONS and RSYNC_ARGS:
+                rsync $RSYNC_ARGS -e "ssh $SSH_OPTIONS" $LOCAL_BACKUP_PATH/$domain/ $RSYNC_BACKUP_PATH/$domain/
+
+                # Depending on success with rsync, will add the VM to $remote_success or $remote_fail
                 if [[ $? -eq 0 ]]; then
 
-                    # Backup chain creation was successful!
-                    backup_chain_success[$i]=$domain
-
+                    # When rsync exited normally, adds the VM to $remote_sync_success:
+                    remote_sync_success[$i]+=$domain
+                    echo "$domain: Incremental backup was successfully synced onto remote endpoint"
                 else
 
                     # Get last state for virtnbdbackup:
-                    virtnbdbackup_failed_status=$?
+                    rsync_failed_status=$?
 
-                    # Failed to create a new backup chain:
-                    backup_chain_failed[$i]=$domain
-
-                fi
-
-                if [[ ${backup_chain_success[$i]} == $domain && ! -z $RSYNC_BACKUP_PATH ]]; then
-
-                    # Incremental backup was successful and remote endpoint is (correctly) set,
-                    # attempts to transfer changes via rsync:
-
-                    echo "$domain: Syncing changes to remote endpoint..."
-
-                    # Transfer backup using SSH_OPTIONS and RSYNC_ARGS:
-                    rsync $RSYNC_ARGS -e "ssh $SSH_OPTIONS" $LOCAL_BACKUP_PATH/$domain/ $RSYNC_BACKUP_PATH/$domain/
-
-                    # Depending on success with rsync, will add the VM to $remote_success or $remote_fail
-                    if [[ $? -eq 0 ]]; then
-
-                        # When rsync exited normally, adds the VM to $remote_sync_success:
-                        remote_sync_success[$i]+=$domain
-                        echo "$domain: Incremental backup was successfully synced onto remote endpoint"
-                    else
-
-                        # Get last state for virtnbdbackup:
-                        rsync_failed_status=$?
-
-                        # Otherwise, adds the VM to $remote_sync_failed list:
-                        remote_sync_failed[$i]+=$domain
-                        echo "$domain: Failed to sync incremental backup onto remote endpoint with status $rsync_status"
-                    fi
+                    # Otherwise, adds the VM to $remote_sync_failed list:
+                    remote_sync_failed[$i]+=$domain
+                    echo "$domain: Failed to sync incremental backup onto remote endpoint with status $rsync_status"
                 fi
             fi
-
-            # Increases the index to check the next VM:
-            ((i++))
-        done
-
-        # Cleanse SCHEDULED_BACKUPS_LIST, since all VMs were processed, and copied into correspondent lists:
-        unset SCHEDULED_BACKUPS_LIST
-
-        # Display the summary:
-
-        echo ""
-        echo "____________________________________________________________________________________________________________"
-        echo ""
-        echo "Scheduled Incremental Backup Summary:"
-        echo ""
-        echo "Successful Backups: ${backup_chain_success[@]:-"None"}"
-        echo "Skipped Backups:    ${backup_chain_full[@]:-"None"}"
-        echo "Failed Backups:     ${backup_chain_failed[@]:-"None"}"
-
-        if [[ ! -z $RSYNC_BACKUP_PATH ]]; then
-
-            # Only show remote stats when remote endppoint is set:
-            echo ""
-            echo "Synced to remote mirror:      ${remote_sync_success[@]:-"None"}"
-            echo "Failed sync to remote mirror: ${remote_sync_failed[@]:-"None"}"
         fi
 
-        if [[ -z ${backup_chain_failed[@]} && -z ${remote_sync_failed[@]} && -z ${backup_chain_full[@]} ]]; then
+        # Increases the index to check the next VM:
+        ((i++))
+    done
 
-            echo ""
-            echo "All Backup Chains Updated!"
+    # Cleanse SCHEDULED_BACKUPS_LIST, since all VMs were processed, and copied into correspondent lists:
+    unset SCHEDULED_BACKUPS_LIST
 
-            [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "Backup chain update" "Success"
+    # Display the summary:
 
-        elif [[ $(os_is_unraid) == yes ]]; then
+    echo ""
+    echo "____________________________________________________________________________________________________________"
+    echo ""
+    echo "Scheduled Incremental Backup Summary:"
+    echo ""
+    echo "Successful Backups: ${backup_chain_success[@]:-"None"}"
+    echo "Skipped Backups:    ${backup_chain_full[@]:-"None"}"
+    echo "Failed Backups:     ${backup_chain_failed[@]:-"None"}"
 
-            [[ ! -z ${backup_chain_full[@]} ]] && unraid_notify "normal" "VM-Babysitter" "Backup chain full" "Could not update backup chain(s) for: ${backup_chain_full[@]} (Will be re-created right after this schedule)"
+    if [[ ! -z $RSYNC_BACKUP_PATH ]]; then
 
-            [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_failed_status)" "Could not update backup chain(s) for: ${backup_chain_failed[@]} therefore removed from scheduled backups"
-
-            [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync failed (last status: $rsync_failed_status)" "Could not sync backup chain(s) of: ${remote_sync_failed[@]} (Will be re-attempted on next schedule)"
-        fi
-
+        # Only show remote stats when remote endppoint is set:
         echo ""
-        echo "############################################################################################################"
-        echo "Scheduled Incremental Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
-        echo ""
-
-        # Mark ongoing backup as finished and export variables to be read by main script:
-        ONGOING_BACKUP="false"
-
-        # Update values to be exported:
-        CHECK_BACKUPS_LIST=(${backup_chain_full[@]})
-        FAILED_VMS_LIST+=(${backup_chain_failed[@]})
-
-        # Recreate SCHEDULED_BACKUPS_LIST based upon successful backups:
-        SCHEDULED_BACKUPS_LIST=(${backup_chain_success[@]})
-
-        # Sed can't expand arrays correctly. Convert variables into strings to be exported properly:
-        CHECK_BACKUPS_LIST="${CHECK_BACKUPS_LIST[@]}"
-        FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
-        SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
-
-        # Export all variables, at the very end of the process:
-        sed -i \
-        -e "s/CHECK_BACKUPS_LIST=.*/CHECK_BACKUPS_LIST=($CHECK_BACKUPS_LIST)/" \
-        -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
-        -e "s/ONGOING_BACKUP=.*/ONGOING_BACKUP=\"$ONGOING_BACKUP\"/" \
-        -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
-        $external_vars
-
-    else
-        echo "No Virtual machines on schedule. Exited"
+        echo "Synced to remote mirror:      ${remote_sync_success[@]:-"None"}"
+        echo "Failed sync to remote mirror: ${remote_sync_failed[@]:-"None"}"
     fi
+
+    if [[ -z ${backup_chain_failed[@]} && -z ${remote_sync_failed[@]} && -z ${backup_chain_full[@]} ]]; then
+
+        echo ""
+        echo "All Backup Chains Updated!"
+
+        [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "Backup chain update" "Success"
+
+    elif [[ $(os_is_unraid) == yes ]]; then
+
+        [[ ! -z ${backup_chain_full[@]} ]] && unraid_notify "normal" "VM-Babysitter" "Backup chain full" "Could not update backup chain(s) for: ${backup_chain_full[@]} (Will be re-created right after this schedule)"
+
+        [[ ! -z ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_failed_status)" "Could not update backup chain(s) for: ${backup_chain_failed[@]} therefore removed from scheduled backups"
+
+        [[ ! -z ${remote_sync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync failed (last status: $rsync_failed_status)" "Could not sync backup chain(s) of: ${remote_sync_failed[@]} (Will be re-attempted on next schedule)"
+    fi
+
+    echo ""
+    echo "############################################################################################################"
+    echo "Scheduled Incremental Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
+    echo ""
+
+    # Mark ongoing backup as finished and export variables to be read by main script:
+    ONGOING_BACKUP="false"
+
+    # Update values to be exported:
+    CHECK_BACKUPS_LIST=(${backup_chain_full[@]})
+    FAILED_VMS_LIST+=(${backup_chain_failed[@]})
+
+    # Recreate SCHEDULED_BACKUPS_LIST based upon successful backups:
+    SCHEDULED_BACKUPS_LIST=(${backup_chain_success[@]})
+
+    # Sed can't expand arrays correctly. Convert variables into strings to be exported properly:
+    CHECK_BACKUPS_LIST="${CHECK_BACKUPS_LIST[@]}"
+    FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
+    SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
+
+    # Export all variables, at the very end of the process:
+    sed -i \
+    -e "s/CHECK_BACKUPS_LIST=.*/CHECK_BACKUPS_LIST=($CHECK_BACKUPS_LIST)/" \
+    -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
+    -e "s/ONGOING_BACKUP=.*/ONGOING_BACKUP=\"$ONGOING_BACKUP\"/" \
+    -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
+    $external_vars
+
+else
+    echo "No Virtual machines on schedule. Exited"
 fi

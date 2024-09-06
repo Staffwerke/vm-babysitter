@@ -1021,6 +1021,7 @@ LOCAL_BACKUP_PATH="$LOCAL_BACKUP_PATH"
 MAX_BACKUPS_PER_CHAIN="$MAX_BACKUPS_PER_CHAIN"
 RSYNC_BACKUP_PATH="$RSYNC_BACKUP_PATH"
 RSYNC_ARGS="$RSYNC_ARGS"
+SCHEDULE_LOGFILE_PATH="$SCHEDULE_LOGFILE_PATH"
 SSH_OPTIONS="$SSH_OPTIONS"
 VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS"
 UNRAID_NOTIFY_HOST="$UNRAID_NOTIFY_HOST"
@@ -1030,10 +1031,10 @@ functions_path="$functions_path"
 external_vars="$external_vars"
 
 # Schedule for $(basename $backup_script_path):
-$BACKUP_SCHEDULE $backup_script_path > /proc/1/fd/1 2>&1
+$BACKUP_SCHEDULE $backup_script_path
 
 # Schedule for logrotate:
-$LOGROTATE_SCHEDULE /usr/sbin/logrotate $LOGROTATE_CONFIG_PATH > /proc/1/fd/1 2>&1
+$LOGROTATE_SCHEDULE /usr/sbin/logrotate $LOGROTATE_CONFIG_PATH
 end_of_crontab
 
     # Sets the cron task:
@@ -1052,10 +1053,6 @@ end_of_crontab
 CHECK_BACKUPS_LIST=()
 FAILED_VMS_LIST=()
 SCHEDULED_BACKUPS_LIST=()
-
-# Dynamic strings:
-ONGOING_BACKUP="false"
-ONGOING_CHECK="false"
 end_of_external_variables
 
     # 3. Begin monitorization for VMs in lists, performing operations as required:
@@ -1075,155 +1072,140 @@ end_of_external_variables
         #------------------------------------------------------------------------------
         source $external_vars
 
-        if [[ $ONGOING_BACKUP == false ]]; then
+        if [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
 
-            if [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
+            # Check for VMs which are in need of shutdown.
+            # (This normally happens when the user took the action, or when a VM took long time to shutdown):
+            #------------------------------------------------------------------------------
+            i=0
+            for domain in ${SHUTDOWN_REQUIRED_VMS_LIST[@]}; do
 
-                # Check for VMs which are in need of shutdown.
-                # (This normally happens when the user took the action, or when a VM took long time to shutdown):
+                if [[ $(domain_state $domain) == "shut off" ]]; then
+
+                    # Add VM to the same list of VMs to be powered on when monitor starts:
+                    POWEREDOFF_VMS_LIST+=($domain)
+
+                    # Move to main queue for check:
+                    CHECK_BACKUPS_LIST+=($domain)
+                    unset SHUTDOWN_REQUIRED_VMS_LIST[$i]
+
+                    # Rebuild indexes into the array:
+                    SHUTDOWN_REQUIRED_VMS_LIST=(${SHUTDOWN_REQUIRED_VMS_LIST[@]})
+
+                    [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "Required shut down detected" "Resuming check/backup for $domain"
+                fi
+            done
+        fi
+
+        # (Re)creates DOMAINS_LIST, a list of non-transient domains that aren't into any of the queues from past iterations:
+        create_domains_list
+
+        if [[ -n ${DOMAINS_LIST[@]} || -n ${CHECK_BACKUPS_LIST[@]} || -n ${CREATE_BACKUP_CHAIN_LIST[@]} ]]; then
+
+            # Create the global list of VMs to be displayed:
+            ONGOING_CHECK_LIST=(${DOMAINS_LIST[@]} ${CHECK_BACKUPS_LIST[@]} ${CREATE_BACKUP_CHAIN_LIST[@]})
+
+            echo ""
+            echo "____________________________________________________________________________________________________________"
+            echo "Automatic check for VM(s) ${ONGOING_CHECK_LIST[@]} in progress..."
+
+
+            # Check for virtual drives status on detected VMs:
+            #------------------------------------------------------------------------------
+            [[ ! -z ${DOMAINS_LIST[@]} ]] && check_domains
+
+            # Check for backup chain integrity on all VMs:
+            #------------------------------------------------------------------------------
+            [[ ! -z ${CHECK_BACKUPS_LIST[@]} ]] && check_backups
+
+            # Some sub-routines invoked above require to shut down VMs in order to proceed
+            # They do this automatically if env variable VM_ALLOW_POWERCYCLE is set.
+            # After they finish, VMs are started if exist in the global list below:
+            if [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]]; then
+
+                # Turns on all VMs that was previously shutdown for checks:
                 #------------------------------------------------------------------------------
+                echo ""
                 i=0
-                for domain in ${SHUTDOWN_REQUIRED_VMS_LIST[@]}; do
+                for domain in ${POWEREDOFF_VMS_LIST[@]}; do
 
-                    if [[ $(domain_state $domain) == "shut off" ]]; then
+                    if [[ $(domain_state $domain) != running ]]; then
 
-                        # Add VM to the same list of VMs to be powered on when monitor starts:
-                        POWEREDOFF_VMS_LIST+=($domain)
-
-                        # Move to main queue for check:
-                        CHECK_BACKUPS_LIST+=($domain)
-                        unset SHUTDOWN_REQUIRED_VMS_LIST[$i]
-
-                        # Rebuild indexes into the array:
-                        SHUTDOWN_REQUIRED_VMS_LIST=(${SHUTDOWN_REQUIRED_VMS_LIST[@]})
-
-                        [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "Required shut down detected" "Resuming check/backup for $domain"
+                        # Turn on the VM. Do not wait for Guest's QEMU agent:
+                        domain_start $domain --nowait
                     fi
+
+                    # Remove the VM from the list is being read:
+                    unset POWEREDOFF_VMS_LIST[$i]
+
+                    # Rebuild indexes into the array:
+                    POWEREDOFF_VMS_LIST=(${POWEREDOFF_VMS_LIST[@]})
+
+                    # Increases the counter:
+                    ((i++))
                 done
             fi
 
-            # (Re)creates DOMAINS_LIST, a list of non-transient domains that aren't into any of the queues from past iterations:
-            create_domains_list
+            # Create new backup chains for VMs that require it:
+            #------------------------------------------------------------------------------
+            [[ ! -z ${CREATE_BACKUP_CHAIN_LIST[@]} ]] && create_backup_chain
 
-            if [[ -n ${DOMAINS_LIST[@]} || -n ${CHECK_BACKUPS_LIST[@]} || -n ${CREATE_BACKUP_CHAIN_LIST[@]} ]]; then
+            # 3.4 Show status report and notify about user actions, if required:
+            #------------------------------------------------------------------------------
+            echo ""
+            echo "############################################################################################################"
+            echo "All VMs with status changed finished to be processed at $(date "+%Y-%m-%d %H:%M:%S")"
+            echo ""
+            echo "VM-Babysitter Global Summary:"
+            echo ""
+            echo "Current Scheduled Backups:    ${SCHEDULED_BACKUPS_LIST[@]:-"None"}"
+            echo "Manual Shut Down Required:    ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
+            echo "Misbehaving Virtual Machines: ${FAILED_VMS_LIST[@]:-"None"}"
 
-                # Status of at least on VM has changed, and sent to one of the queues. Marks an ongoing check starting:
-                #------------------------------------------------------------------------------
-                ONGOING_CHECK="true"
-                sed -i \
-                -e "s/ONGOING_CHECK=.*/ONGOING_CHECK=\"$ONGOING_CHECK\"/" $external_vars
-
-                # Create the global list of VMs to be displayed:
-                ONGOING_CHECK_LIST=(${DOMAINS_LIST[@]} ${CHECK_BACKUPS_LIST[@]} ${CREATE_BACKUP_CHAIN_LIST[@]})
+            if [[ -n ${SCHEDULED_BACKUPS_LIST[@]} && -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} && -z ${FAILED_VMS_LIST[@]} ]]; then
 
                 echo ""
-                echo "____________________________________________________________________________________________________________"
-                echo "Automatic check for VM(s) ${ONGOING_CHECK_LIST[@]} in progress..."
+                echo "All Virtual Machines Running Under Incremental Backups!"
 
+            elif [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} || ! -z ${FAILED_VMS_LIST[@]} ]]; then
 
-                # Check for virtual drives status on detected VMs:
-                #------------------------------------------------------------------------------
-                [[ ! -z ${DOMAINS_LIST[@]} ]] && check_domains
+                user_action_message="USER ACTION IS REQUIRED!"
 
-                # Check for backup chain integrity on all VMs:
-                #------------------------------------------------------------------------------
-                [[ ! -z ${CHECK_BACKUPS_LIST[@]} ]] && check_backups
+                echo ""
+                echo $user_action_message
 
-                # Some sub-routines invoked above require to shut down VMs in order to proceed
-                # They do this automatically if env variable VM_ALLOW_POWERCYCLE is set.
-                # After they finish, VMs are started if exist in the global list below:
-                if [[ ! -z ${POWEREDOFF_VMS_LIST[@]} ]]; then
+                if [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
 
-                    # Turns on all VMs that was previously shutdown for checks:
-                    #------------------------------------------------------------------------------
-                    echo ""
-                    i=0
-                    for domain in ${POWEREDOFF_VMS_LIST[@]}; do
+                    shutdown_required_message="As env variable 'VM_ALLOW_POWERCYCLE' is not set, a manual Shut Down is required for VM(s): ${SHUTDOWN_REQUIRED_VMS_LIST[@]} 'As Soon As Possible'. This is required prior to perform backup integrity checks and cannot procced without that. Once shut down, the program will perform the checks and will restart involved VM(s) automatically."
 
-                        if [[ $(domain_state $domain) != running ]]; then
-
-                            # Turn on the VM. Do not wait for Guest's QEMU agent:
-                            domain_start $domain --nowait
-                        fi
-
-                        # Remove the VM from the list is being read:
-                        unset POWEREDOFF_VMS_LIST[$i]
-
-                        # Rebuild indexes into the array:
-                        POWEREDOFF_VMS_LIST=(${POWEREDOFF_VMS_LIST[@]})
-
-                        # Increases the counter:
-                        ((i++))
-                    done
+                    echo "WARNING: $shutdown_required_message"
+                    [[ $(os_is_unraid) == yes ]] && unraid_notify "warning" "VM-Babysitter" "$user_action_message" "$shutdown_required_message"
                 fi
 
-               # Create new backup chains for VMs that require it:
-               #------------------------------------------------------------------------------
-               [[ ! -z ${CREATE_BACKUP_CHAIN_LIST[@]} ]] && create_backup_chain
+                if [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
 
-                # 3.4 Show status report and notify about user actions, if required:
-                #------------------------------------------------------------------------------
-                echo ""
-                echo "############################################################################################################"
-                echo "All VMs with status changed finished to be processed at $(date "+%Y-%m-%d %H:%M:%S")"
-                echo ""
-                echo "VM-Babysitter Global Summary:"
-                echo ""
-                echo "Current Scheduled Backups:    ${SCHEDULED_BACKUPS_LIST[@]:-"None"}"
-                echo "Manual Shut Down Required:    ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
-                echo "Misbehaving Virtual Machines: ${FAILED_VMS_LIST[@]:-"None"}"
-
-                if [[ -n ${SCHEDULED_BACKUPS_LIST[@]} && -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} && -z ${FAILED_VMS_LIST[@]} ]]; then
-
-                    echo ""
-                    echo "All Virtual Machines Running Under Incremental Backups!"
-
-                elif [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} || ! -z ${FAILED_VMS_LIST[@]} ]]; then
-
-                    user_action_message="USER ACTION IS REQUIRED!"
-
-                    echo ""
-                    echo $user_action_message
-
-                    if [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
-
-                        shutdown_required_message="As env variable 'VM_ALLOW_POWERCYCLE' is not set, a manual Shut Down is required for VM(s): ${SHUTDOWN_REQUIRED_VMS_LIST[@]} 'As Soon As Possible'. This is required prior to perform backup integrity checks and cannot procced without that. Once shut down, the program will perform the checks and will restart involved VM(s) automatically."
-
-                                                echo "WARNING: $shutdown_required_message"
-                        [[ $(os_is_unraid) == yes ]] && unraid_notify "warning" "VM-Babysitter" "$user_action_message" "$shutdown_required_message"
-                    fi
-
-                    if [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
-
-                        failed_vms_message="Unexpected failure during check/backup operation involving VM(s): ${FAILED_VMS_LIST[@]}. Human attention is required 'As Soon As Possible' to solve the situation. Any scheduled backup or further alert for involved VM(s) is suspended until this container had been restarted. Check $(basename $LOGFILE_PATH) in this host for detailed logs."
+                    failed_vms_message="Unexpected failure during check/backup operation involving VM(s): ${FAILED_VMS_LIST[@]}. Human attention is required 'As Soon As Possible' to solve the situation. Any scheduled backup or further alert for involved VM(s) is suspended until this container had been restarted. Check $(basename $LOGFILE_PATH) in this host for detailed logs."
 
 
-                        echo  "ERROR: $failed_vms_message"
-                        [[ $(os_is_unraid) == yes ]] && unraid_notify "alert" "VM-Babysitter" "$user_action_message" "$failed_vms_message"
-                    fi
+                    echo  "ERROR: $failed_vms_message"
+                    [[ $(os_is_unraid) == yes ]] && unraid_notify "alert" "VM-Babysitter" "$user_action_message" "$failed_vms_message"
                 fi
-
-                # 3.5 Marks ongoing check as finished and exports variables to be used on scheduled backups (entering in 'silent' mode):
-                #------------------------------------------------------------------------------
-
-                ONGOING_CHECK="false"
-
-                # Clean formerly displayed ONGOING_CHECK_LIST:
-                ONGOING_CHECK_LIST=()
-
-               # Sed can't expand arrays correctly. Convert variables to be exported into strings.
-               # This will be reverted at next block iteration, by sourcing such external variables as arrays:
-                SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
-                FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
-
-                # Export the variables (CHECK_BACKUPS_LIST was unset at the end of its run)
-                sed -i \
-                -e "s/CHECK_BACKUPS_LIST=.*/CHECK_BACKUPS_LIST=()/" \
-                -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
-                -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
-                -e "s/ONGOING_CHECK=.*/ONGOING_CHECK=\"$ONGOING_CHECK\"/" \
-                $external_vars
             fi
+
+            # 3.5 Marks ongoing check as finished and exports variables to be used on scheduled backups (entering in 'silent' mode):
+            #------------------------------------------------------------------------------
+
+            # Sed can't expand arrays correctly. Convert variables to be exported into strings.
+            # This will be reverted at next block iteration, by sourcing such external variables as arrays:
+            SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
+            FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
+
+            # Export the variables (CHECK_BACKUPS_LIST was unset at the end of its run)
+            sed -i \
+            -e "s/CHECK_BACKUPS_LIST=.*/CHECK_BACKUPS_LIST=()/" \
+            -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
+            -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
+            $external_vars
         fi
 
         # Restarts the loop, until SIGTERM or SIGKILL are received from Docker...
