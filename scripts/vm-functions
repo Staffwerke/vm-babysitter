@@ -556,8 +556,7 @@ archive_backup()
     # VM name basename:
     local domain=$(basename $1)
 
-    # Get the oldest modification time from files inside,
-    # to rename archived backups with historid timestamp:
+    # Get the oldest modification time from remote files inside, to rename archived backups with historical timestamp:
     local timestamp=$(find $backup_path/$domain -type f -printf '%T+ %p\n' | sort | head -n 1 | cut -d' ' -f1)
 
     # Archives the current backup chain, by renaming it with time stamp:
@@ -615,14 +614,14 @@ archive_remote_backup()
 
         # Remote Server is reachable.
 
-        # Get the oldest modification time from files inside,
-        # to rename archived backups with historid timestamp:
-        local timestamp=$(find $remote_backup_path/$domain -type f -printf '%T+ %p\n' | sort | head -n 1 | cut -d' ' -f1)
 
         # Checks in advance if remote backup path exists or not:
         local remote_backup_chain_exists=$(ssh $SSH_OPTIONS $remote_server "[[ -d $remote_backup_path/$domain ]] && echo \"yes\" || echo \"no\"")
 
         if [[ $remote_backup_chain_exists == "yes" ]]; then
+
+            # Get the oldest modification time from remote files inside, to rename archived backups with historical timestamp:
+            local timestamp=$(ssh $SSH_OPTIONS $remote_server "find $remote_backup_path/$domain -type f -printf '%T+ %p\n' | sort | head -n 1 | cut -d' ' -f1")
 
             # Archive remote backup chain:
             ssh $SSH_OPTIONS $remote_server "mv $remote_backup_path/$domain $remote_backup_path/$domain.$timestamp"
