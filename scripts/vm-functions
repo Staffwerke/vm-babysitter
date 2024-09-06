@@ -475,7 +475,7 @@ do_backup_chain()
     local domain=$1
     shift
 
-    # Backup Mode: 'full' or 'inc'
+    # Backup Mode: 'full', 'inc or 'auto''
     local backup_mode=$1
     shift
 
@@ -488,7 +488,7 @@ do_backup_chain()
 
     # Notifies the user about the ongoing process:
     echo ""
-    echo "$domain: Started $backup_mode backup (this may take some time, or even look freezed...)"
+    echo "$domain: Started $backup_mode backup..."
     echo ""
 
     # Executes the operation:
