@@ -943,7 +943,7 @@ external_vars="/tmp/vm-babysit-vars"
 functions_path="/usr/local/bin/vm-functions"
 
 # Path of the scheduler script (run by cron):
-scheduled_backup_script="/usr/local/bin/update_backup_chain"
+backup_script_path="/usr/local/bin/vm-backup"
 
 # Main execution:
 ###############################################################################
@@ -1000,7 +1000,7 @@ if [[ $variables_status -eq 0 ]]; then
     # Create/update Cron task for VMs to be (progressively) included in $scheduled_backups_list:
     #------------------------------------------------------------------------------
 
-    echo "Configuring $(basename $scheduled_backup_script)..."
+    echo "Configuring $(basename $backup_script_path)..."
 
     # Silently deletes any previous cron task:
     &> /dev/null crontab -r
@@ -1029,8 +1029,8 @@ UNRAID_NOTIFY_HOST="$UNRAID_NOTIFY_HOST"
 functions_path="$functions_path"
 external_vars="$external_vars"
 
-# Schedule for $(basename $scheduled_backup_script):
-$BACKUP_SCHEDULE $scheduled_backup_script > /proc/1/fd/1 2>&1
+# Schedule for $(basename $backup_script_path):
+$BACKUP_SCHEDULE $backup_script_path > /proc/1/fd/1 2>&1
 
 # Schedule for logrotate:
 $LOGROTATE_SCHEDULE /usr/sbin/logrotate $LOGROTATE_CONFIG_PATH > /proc/1/fd/1 2>&1
@@ -1046,7 +1046,7 @@ end_of_crontab
     # 2.3 Initializes a file with variables externally stored, to be shared with the scheduler:
     #------------------------------------------------------------------------------
     cat << end_of_external_variables > $external_vars
-# Shared values between $(basename $0) and $scheduled_backup_script. DO NOT EDIT!:
+# Shared values between $(basename $0) and $backup_script_path. DO NOT EDIT!:
 
 # Dynamic arrays:
 CHECK_BACKUPS_LIST=()
@@ -1071,7 +1071,7 @@ end_of_external_variables
         # because it could ignore SIGTERM from Docker, thus being killed with SIGKILL:
         sleep 1
 
-        # (Re)reads all external variables (presumably modified by $scheduled_backup_script):
+        # (Re)reads all external variables (presumably modified by $backup_script_path):
         #------------------------------------------------------------------------------
         source $external_vars
 
