@@ -16,6 +16,9 @@ source $functions_path
 source $external_vars
 #------------------------------------------------------------------------------
 
+# Redirect system stdout and stderr to SCHEDULE_LOGFILE_PATH:
+exec > >(tee -a $SCHEDULE_LOGFILE_PATH) 2> >(tee -a $SCHEDULE_LOGFILE_PATH >&2)
+
 echo "############################################################################################################"
 echo "Scheduled Incremental Backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
 
@@ -142,9 +145,6 @@ if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
     echo "Scheduled Incremental Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
     echo ""
 
-    # Mark ongoing backup as finished and export variables to be read by main script:
-    ONGOING_BACKUP="false"
-
     # Update values to be exported:
     CHECK_BACKUPS_LIST=(${backup_chain_full[@]})
     FAILED_VMS_LIST+=(${backup_chain_failed[@]})
@@ -161,7 +161,6 @@ if [[ ! -z ${SCHEDULED_BACKUPS_LIST[@]} ]]; then
     sed -i \
     -e "s/CHECK_BACKUPS_LIST=.*/CHECK_BACKUPS_LIST=($CHECK_BACKUPS_LIST)/" \
     -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
-    -e "s/ONGOING_BACKUP=.*/ONGOING_BACKUP=\"$ONGOING_BACKUP\"/" \
     -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
     $external_vars
 
