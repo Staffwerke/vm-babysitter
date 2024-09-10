@@ -1,11 +1,5 @@
 #!/bin/bash
 
-#------------------------------------------------------------------------------
-# Updates backup chains for VMs in SCHEDULED_BACKUPS_LIST or CREATE_BACKUP_CHAIN_LIST, depending on the input command
-# Commends to create new backup chain instead (writing to CHECK_BACKUPS_LIST), according with MAX_BACKUPS_PER_CHAIN limits
-# Notifies about issues with virtnbdbackup
-#------------------------------------------------------------------------------
-
 # NOTE:
 # - Static variables are set declared in crontab
 # - Dynamic variables are read and written onto $external_vars file
@@ -19,15 +13,22 @@ source $external_vars
 
 case $1 in
 
-    'init')
-        backup_action="Initial"
-        log_path=$LOGFILE_PATH
-        backups_list=(${CREATE_BACKUP_CHAIN_LIST[@]})
-    ;;
-    'run-schedule')
+    run-schedule)
+
         backup_action="Scheduled"
-        log_path=$SCHEDULE_LOGFILE_PATH
+        backup_mode="auto"
         backups_list=(${SCHEDULED_BACKUPS_LIST[@]})
+        log_path=$SCHEDULE_LOGFILE_PATH
+    ;;
+
+    *)
+        backup_action="On-demand"
+        backup_mode="auto"
+        for item in $@; do
+            [[ $(domain_exists $item) == yes ]] && backups_list+=($item)
+        done
+
+        log_path=$LOGFILE_PATH
     ;;
 esac
 
@@ -49,36 +50,13 @@ if [[ -n ${backups_list[@]} ]]; then
 
         echo "____________________________________________________________________________________________________________"
 
-        case $backup_action in
 
-            "Init")
-                [[ $(domain_state $domain) == "shut off" ]] && start_vm="-S"
-            ;;
-
-            "Scheduled")
-                # Retireve the number of additional checkpoints in the backup chain:
-                num_of_backup_checkpoints=$(($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num) - 1))
-
-                if [[ -n $MAX_BACKUPS_PER_CHAIN && $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
-
-                    # Backup chain is full, skip the operation.
-                    # Append the VM to the list of VMs in need of new backup chain:
-                    backup_chain_full[$i]=$domain
-
-                    echo "$domain: Backup chain is full and cannot be updated. A new one will created after the current scheduled operation had finished"
-
-                else
-
-                    # Display checkpoints limits, if set:
-                    [[ -n $MAX_BACKUPS_PER_CHAIN ]] && display_checkpoint_limit=" out of $MAX_BACKUPS_PER_CHAIN"
-
-                    echo "$domain: Detected $num_of_backup_checkpoints$display_checkpoint_limit checkpoints"
-                fi
-            ;;
-        esac
+        [[ ! -d $LOCAL_BACKUP_PATH/$domain || $(dir_is_empty $LOCAL_BACKUP_PATH/$domain) == yes ]] \
+        && [[ $(domain_state $domain) == "shut off" && -z $(grep -o -e "-S" -e "--start-domain" <<< "$VIRTNBDBACKUP_ARGS") ]] \
+            && start_domain="--start-domain"
 
         # Do backup now:
-        do_backup_chain $start_vm $domain "auto" $LOCAL_BACKUP_PATH $VIRTNBDBACKUP_ARGS
+        do_backup_chain $start_domain $domain $backup_mode $LOCAL_BACKUP_PATH $VIRTNBDBACKUP_ARGS
 
         # Get last status for virtnbdbackup:
         virtnbdbackup_status=$?
@@ -126,7 +104,6 @@ if [[ -n ${backups_list[@]} ]]; then
     echo "$backup_action Backup Summary:"
     echo ""
     echo "Successful Backups: ${backup_chain_success[@]:-"None"}"
-    echo "Skipped Backups:    ${backup_chain_full[@]:-"None"}"
     echo "Failed Backups:     ${backup_chain_failed[@]:-"None"}"
 
     if [[ -n $RSYNC_BACKUP_PATH ]]; then
@@ -137,7 +114,7 @@ if [[ -n ${backups_list[@]} ]]; then
         echo "Failed sync to remote mirror: ${remote_sync_failed[@]:-"None"}"
     fi
 
-    if [[ -z ${backup_chain_failed[@]} && -z ${remote_sync_failed[@]} && -z ${backup_chain_full[@]} ]]; then
+    if [[ -z ${backup_chain_failed[@]} && -z ${remote_sync_failed[@]} ]]; then
 
         echo ""
         echo "All Backup Chains Updated!"
@@ -146,8 +123,6 @@ if [[ -n ${backups_list[@]} ]]; then
 
     elif [[ $(os_is_unraid) == yes ]]; then
 
-        [[ -n ${backup_chain_full[@]} ]] && unraid_notify "normal" "VM-Babysitter" "Backup chain full" "Could not update backup chain(s) for: ${backup_chain_full[@]} (Will be re-created right after this schedule)"
-
         [[ -n ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_status)" "Could not update backup chain(s) for: ${backup_chain_failed[@]} therefore removed from scheduled backups"
 
         [[ -n ${remote_sync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync failed (last status: $rsync_status)" "Could not sync backup chain(s) of: ${remote_sync_failed[@]} (Will be re-attempted on next schedule)"
@@ -155,25 +130,21 @@ if [[ -n ${backups_list[@]} ]]; then
 
     echo ""
     echo "############################################################################################################"
-    echo "Scheduled Incremental Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
+    echo "$backup_action Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
     echo ""
 
     # Update values to be exported:
-    CHECK_BACKUPS_LIST=(${backup_chain_full[@]})
     FAILED_VMS_LIST+=(${backup_chain_failed[@]})
 
     # Recreate SCHEDULED_BACKUPS_LIST based upon successful backups:
     SCHEDULED_BACKUPS_LIST=(${backup_chain_success[@]})
 
     # Sed can't expand arrays correctly. Convert variables into strings to be exported properly:
-    CHECK_BACKUPS_LIST="${CHECK_BACKUPS_LIST[@]}"
     FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
     SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
 
     # Export all variables, at the very end of the process:
     sed -i \
-    -e "s/CHECK_BACKUPS_LIST=.*/CHECK_BACKUPS_LIST=($CHECK_BACKUPS_LIST)/" \
-    -e "s/CREATE_BACKUP_CHAIN_LIST=.*/CREATE_BACKUP_CHAIN_LIST=()/" \
     -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
     -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
     $external_vars
