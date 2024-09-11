@@ -242,7 +242,7 @@ check_backups()
 {
     # Local variables used for flow control:
     local backup_chain_integrity
-    local backup_chain_broken_or_full
+    local backup_chain_broken
     local backup_folder_integrity
     local delete_bitmap_status
     local delete_checkpoint_status
@@ -254,7 +254,7 @@ check_backups()
     local verify_integrity_status
 
     # Lists to add VMs (and summarize at the end):
-    local broken_or_full_backup_chain_list
+    local broken_backup_chain_list
     local domain_failed_list
     local domain_shutdown_needed_list
     local domain_shutdown_success_list
@@ -300,7 +300,7 @@ check_backups()
     for domain in ${CHECK_BACKUPS_LIST[@]}; do
 
         backup_chain_integrity=""
-        backup_chain_broken_or_full=""
+        backup_chain_broken=""
         backup_folder_integrity=""
         delete_bitmap_status=""
         delete_checkpoint_status=""
@@ -345,45 +345,24 @@ check_backups()
                 echo "$domain: A backup operation was previously cancelled. Backup is partially recoverable and it will attempt to fix it and restore the current backup chain for further use"
             fi
 
-        # Backup folder integrity looks 'OK', at a first glance:
+        # Backup folder integrity looks 'OK', at a first glance.
+        # Perform data check integrity if enabled by user (and if backup includes checksum files):
         #------------------------------------------------------------------------------
-        else
+        elif [[ -n $CHECK_BACKUPS_INTEGRITY ]]; then
 
-            # Apply the 1st part of retention policy, by retireving the number of existing checkpoints in the backup chain:
-            #------------------------------------------------------------------------------
-            local num_of_backup_checkpoints=$(($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num) - 1))
+            verify_backup_chain $LOCAL_BACKUP_PATH/$domain
+            verify_integrity_status=$?
 
-            if [[ ! -z $MAX_BACKUPS_PER_CHAIN && $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
+            if [[ $verify_integrity_status -eq 1 ]]; then
 
-                # Backup chain is full, a new one will be created:
-                backup_chain_broken_or_full="true"
-                echo "$domain: Backup chain contains $num_of_backup_checkpoints checkpoint(s), and the limit set in environment variable MAX_BACKUPS_PER_CHAIN is $MAX_BACKUPS_PER_CHAIN. A new backup chain will be created"
+                # Backup chain is broken, a new one will be created:
+                backup_chain_broken="true"
+                echo "$domain: A new backup chain will be created"
 
-            else
-                # Display checkpoints limits, if set:
-                [[ ! -z $MAX_BACKUPS_PER_CHAIN ]] && local display_checkpoint_limit=" out of $MAX_BACKUPS_PER_CHAIN"
-
-                echo "$domain: Detected $num_of_backup_checkpoints$display_checkpoint_limit checkpoints"
             fi
 
-            # Unless backup chain is full, perform data check integrity if enabled by user (and if backup includes checksum files):
-            #------------------------------------------------------------------------------
-            if [[ ! -z $CHECK_BACKUPS_INTEGRITY && $backup_chain_broken_or_full != true ]]; then
-
-                verify_backup_chain $LOCAL_BACKUP_PATH/$domain
-                verify_integrity_status=$?
-
-                if [[ $verify_integrity_status -eq 1 ]]; then
-
-                    # Backup chain is broken, a new one will be created:
-                    backup_chain_broken_or_full="true"
-                    echo "$domain: A new backup chain will be created"
-
-                fi
-            fi
-
-            # Backup folder integrity is OK, always is not full or broken:
-            [[ $backup_chain_broken_or_full != true ]] && backup_folder_integrity="true"
+            # Backup folder integrity is OK, always is not broken:
+            [[ $backup_chain_broken != true ]] && backup_folder_integrity="true"
         fi
 
         #------------------------------------------------------------------------------
@@ -440,7 +419,7 @@ check_backups()
             elif [[ $(domain_state $domain) == "running" ]]; then
 
                 # When VM is running, bitmaps created during a backup chain update aren't visible with qemu-img info until VM has not been shut down.
-                # The only reliable methos it's to compare in-backup vs QEMU checkpoints count (and this doesn't applu on unraid_scenario):
+                # The only reliable method it's to compare in-backup vs QEMU checkpoints count (and this doesn't applu on unraid_scenario):
                 echo "$domain: Is running, comparing QEMU and Backup's checkpoint lists..."
 
                 if [[ ${qemu_checkpoints_list[@]} == ${folder_checkpoints_list[@]} ]]; then
@@ -589,8 +568,8 @@ check_backups()
                         case $delete_bitmap_status in
 
                             0|2)    # Checkpoints metadata and bitmaps deleted successfully (or nothing to delete).
-                                    # Add to broken/full backup chain list:
-                                    broken_or_full_backup_chain_list+=($domain)
+                                    # Add to broken backup chain list:
+                                    broken_backup_chain_list+=($domain)
                             ;;
 
                             *)  # There were problems when deleting bitmaps.
@@ -602,8 +581,8 @@ check_backups()
                     elif [[ $(domain_state $domain) == "running" ]]; then
 
                         # Checkpoints deleted successfully (or nothing to delete).
-                        # Add to broken/full backup chain list:
-                        broken_or_full_backup_chain_list+=($domain)
+                        # Add to broken backup chain list:
+                        broken_backup_chain_list+=($domain)
                     fi
                 ;;
 
@@ -620,8 +599,8 @@ check_backups()
                             case $delete_bitmap_status in
 
                                 0|2)    # Bitmaps deleted successfully (or nothing to delete).
-                                        # Add to broken/full backup chain list:
-                                        broken_or_full_backup_chain_list+=($domain)
+                                        # Add to broken backup chain list:
+                                        broken_backup_chain_list+=($domain)
                                 ;;
 
                                 1)
@@ -655,14 +634,8 @@ check_backups()
                 # Useless or unexistent backup chain folder. Delete it:
                 rm -rf $LOCAL_BACKUP_PATH/$domain
 
-                # if remote path is set, keep existing remote ones without apply any retention policy:
+                # If remote path is set, keep existing remote ones without apply any retention policy:
                 [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain
-
-            else # All scenarios where backup chain is still able to be partial or totally restored...
-
-                # Processes backup for being archived locally (and remotely, if set) applying 2nd part of retention policy:
-                archive_backup $LOCAL_BACKUP_PATH/$domain $LOCAL_BACKUP_CHAINS_TO_KEEP
-                [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain $RSYNC_BACKUP_CHAINS_TO_KEEP
             fi
 
         fi
@@ -674,8 +647,8 @@ check_backups()
     # Cleanse CHECK_BACKUPS_LIST, since all VMs were processed, and copied into correspondent lists:
     unset CHECK_BACKUPS_LIST
 
-    # Appends broken and/or full backup chains for new backup chain creation:
-    CREATE_BACKUP_CHAIN_LIST+=(${broken_or_full_backup_chain_list[@]})
+    # Appends broken backup chains for new backup chain creation:
+    CREATE_BACKUP_CHAIN_LIST+=(${broken_backup_chain_list[@]})
 
     # Appends successfully shut down VMs to the global list in need to be started:
     POWEREDOFF_VMS_LIST+=(${domain_shutdown_success_list[@]})
@@ -693,7 +666,7 @@ check_backups()
     echo "Backup Chain Integrity Summary:"
     echo ""
     echo "Added to Scheduled Backups:   ${preserved_backup_chain_list[@]:-"None"}"
-    echo "In need of new backup chain:  ${broken_or_full_backup_chain_list[@]:-"None"}"
+    echo "In need of new backup chain:  ${broken_backup_chain_list[@]:-"None"}"
     [[ ! -z $VM_ALLOW_POWERCYCLE ]] && \
     echo "Into automatic power cycle:   ${domain_shutdown_success_list[@]:-"None"}" || \
     echo "Manual shut down is required: ${domain_shutdown_needed_list[@]:-"None"}"
