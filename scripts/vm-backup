@@ -13,21 +13,26 @@ source $external_vars
 
 case $1 in
 
-    run-schedule)
+    run-schedule) # Processes backups from SCHEDULED_BACKUPS_LIST:
 
         backup_action="Scheduled"
         backup_mode="auto"
         backups_list=(${SCHEDULED_BACKUPS_LIST[@]})
+
+        # Logfile is specific for scheduled tasks:
         log_path=$SCHEDULE_LOGFILE_PATH
     ;;
 
-    *)
+    *) # Processes backups from VMs passed as arguments:
         backup_action="On-demand"
         backup_mode="auto"
+
+        # Filters other arguments and non existing VMs:
         for item in $@; do
             [[ $(domain_exists $item) == yes ]] && backups_list+=($item)
         done
 
+        # Logfile is the main one:
         log_path=$LOGFILE_PATH
     ;;
 esac
@@ -45,12 +50,12 @@ if [[ -n ${backups_list[@]} ]]; then
     echo "Virtual machines: '${backups_list[@]}'"
     echo ""
 
-    i=0
     for domain in ${backups_list[@]}; do
 
         echo "____________________________________________________________________________________________________________"
 
 
+        # Under the specific scenario of new backup chain creation, forces shut off VM to start in paused mode:
         [[ ! -d $LOCAL_BACKUP_PATH/$domain || $(dir_is_empty $LOCAL_BACKUP_PATH/$domain) == yes ]] \
         && [[ $(domain_state $domain) == "shut off" && -z $(grep -o -e "-S" -e "--start-domain" <<< "$VIRTNBDBACKUP_ARGS") ]] \
             && start_domain="--start-domain"
@@ -64,17 +69,22 @@ if [[ -n ${backups_list[@]} ]]; then
         if [[ $virtnbdbackup_status -eq 0 ]]; then
 
             # Backup chain creation was successful!
-            backup_chain_success[$i]=$domain
+            backup_chain_success+=($domain)
 
         else
             # Failed to create a new backup chain:
-            backup_chain_failed[$i]=$domain
+            backup_chain_failed+=($domain)
+
+            # Grabs last failed status, if happens:
+            virtnbdbackup_failed_status=$virtnbdbackup_status
         fi
+    done
 
-        if [[ ${backup_chain_success[$i]} == $domain && -n $RSYNC_BACKUP_PATH ]]; then
+    if [[ -n ${backup_chain_success[@]} -n $RSYNC_BACKUP_PATH ]]; then
 
-            # Incremental backup was successful and remote endpoint is (correctly) set,
-            # attempts to transfer changes via rsync:
+        for domain in ${backup_chain_success[@]}; do
+
+            # Attempts to transfer changes via rsync:
             rsync_backup $LOCAL_BACKUP_PATH/$domain $RSYNC_BACKUP_PATH/$domain
 
             # Get last status for rsync:
@@ -83,16 +93,15 @@ if [[ -n ${backups_list[@]} ]]; then
             if [[ $rsync_status -eq 0 ]]; then
 
                 # When rsync exited normally, adds the VM to $remote_sync_success:
-                remote_sync_success[$i]+=$domain
+                remote_sync_success+=($domain)
             else
                 # Otherwise, adds the VM to $remote_sync_failed list:
-                remote_sync_failed[$i]+=$domain
-            fi
-        fi
+                remote_sync_failed+=($domain)
 
-        # Increases the index to check the next VM:
-        ((i++))
-    done
+                # Grabs last failed status, if happens:
+                rsync_failed_status=$rsync_status
+            fi
+    fi
 
     # Display the summary:
 
@@ -117,13 +126,13 @@ if [[ -n ${backups_list[@]} ]]; then
         echo ""
         echo "All Backup Chains Updated!"
 
-        [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "Backup chain update" "Success"
+        [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "$backup_action Backup" "Success"
 
     elif [[ $(os_is_unraid) == yes ]]; then
 
-        [[ -n ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_status)" "Could not update backup chain(s) for: ${backup_chain_failed[@]} therefore removed from scheduled backups"
+        [[ -n ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_failed_status)" "Could not update backup chain(s) for: ${backup_chain_failed[@]} therefore removed from scheduled backups"
 
-        [[ -n ${remote_sync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync failed (last status: $rsync_status)" "Could not sync backup chain(s) of: ${remote_sync_failed[@]} (Will be re-attempted on next schedule)"
+        [[ -n ${remote_sync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync failed (last status: $rsync_failed_status)" "Could not sync backup chain(s) of: ${remote_sync_failed[@]} (Will be re-attempted on next schedule)"
     fi
 
     echo ""
