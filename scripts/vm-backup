@@ -75,9 +75,7 @@ if [[ -n ${backups_list[@]} ]]; then
 
             # Incremental backup was successful and remote endpoint is (correctly) set,
             # attempts to transfer changes via rsync:
-
             rsync_backup $LOCAL_BACKUP_PATH/$domain $RSYNC_BACKUP_PATH/$domain
-            echo "$domain: Syncing changes to remote endpoint..."
 
             # Get last status for rsync:
             rsync_status=$?
