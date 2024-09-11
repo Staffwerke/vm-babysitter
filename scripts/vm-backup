@@ -13,26 +13,32 @@ source $external_vars
 
 case $1 in
 
-    run-schedule) # Processes backups from SCHEDULED_BACKUPS_LIST:
+    run-schedule)
 
         backup_action="Scheduled"
+
+        # Virtnbdbackup mode is always auto:
         backup_mode="auto"
+
+        # Processes backups from SCHEDULED_BACKUPS_LIST:
         backups_list=(${SCHEDULED_BACKUPS_LIST[@]})
 
-        # Logfile is specific for scheduled tasks:
+        # Logfile is the specified for scheduled tasks:
         log_path=$SCHEDULE_LOGFILE_PATH
     ;;
 
-    *) # Processes backups from VMs passed as arguments:
+    *)
         backup_action="On-demand"
+
+        # Virtnbdbackup mode is always auto (subject to change in future versions):
         backup_mode="auto"
 
-        # Filters other arguments and non existing VMs:
+        # Processes backups from VMs passed as arguments, filtering non existing VMs (or invalid arguments):
         for item in $@; do
             [[ $(domain_exists $item) == yes ]] && backups_list+=($item)
         done
 
-        # Logfile is the main one:
+        # Logfile is the specified the main log:
         log_path=$LOGFILE_PATH
     ;;
 esac
@@ -40,28 +46,28 @@ esac
 # Redirect system stdout and stderr to log_path:
 exec > >(tee -a $log_path) 2> >(tee -a $log_path >&2)
 
+echo ""
 echo "############################################################################################################"
 echo "$backup_action backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
 
 if [[ -n ${backups_list[@]} ]]; then
 
-    [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "$backup_action Backup" "In progress for ${backups_list[@]}. Avoid to stop/restart this container until further notice"
+    [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "$backup_action backup" "In progress for ${backups_list[@]}. Avoid to stop/restart this container until further notice"
 
     echo "Virtual machines: '${backups_list[@]}'"
     echo ""
 
     for domain in ${backups_list[@]}; do
 
-        echo "____________________________________________________________________________________________________________"
-
-
         # Under the specific scenario of new backup chain creation, forces shut off VM to start in paused mode:
         [[ ! -d $LOCAL_BACKUP_PATH/$domain || $(dir_is_empty $LOCAL_BACKUP_PATH/$domain) == yes ]] \
         && [[ $(domain_state $domain) == "shut off" && -z $(grep -o -e "-S" -e "--start-domain" <<< "$VIRTNBDBACKUP_ARGS") ]] \
             && start_domain="--start-domain"
 
-        # Do backup now:
-        do_backup_chain $start_domain $domain $backup_mode $LOCAL_BACKUP_PATH $VIRTNBDBACKUP_ARGS
+        echo "____________________________________________________________________________________________________________"
+
+        # Perform the backup operation:
+        virtnbdbackup $start_domain -d $domain -l $backup_mode -o $LOCAL_BACKUP_PATH/$domain $VIRTNBDBACKUP_ARGS
 
         # Get last status for virtnbdbackup:
         virtnbdbackup_status=$?
@@ -70,10 +76,13 @@ if [[ -n ${backups_list[@]} ]]; then
 
             # Backup chain creation was successful!
             backup_chain_success+=($domain)
+            echo "$domain: $backup_mode backup successfully finished!"
 
         else
             # Failed to create a new backup chain:
             backup_chain_failed+=($domain)
+
+            echo "WARNING: $domain: $backup_mode backup failed (status $virtnbdbackup_status)"
 
             # Grabs last failed status, if happens:
             virtnbdbackup_failed_status=$virtnbdbackup_status
@@ -135,11 +144,6 @@ if [[ -n ${backups_list[@]} ]]; then
         [[ -n ${remote_sync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync failed (last status: $rsync_failed_status)" "Could not sync backup chain(s) of: ${remote_sync_failed[@]} (Will be re-attempted on next schedule)"
     fi
 
-    echo ""
-    echo "############################################################################################################"
-    echo "$backup_action Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
-    echo ""
-
     # Update values to be exported:
     FAILED_VMS_LIST+=(${backup_chain_failed[@]})
 
@@ -159,3 +163,6 @@ if [[ -n ${backups_list[@]} ]]; then
 else
     echo "No Virtual machines for $backup_action backup to process. Exited"
 fi
+
+    echo "############################################################################################################"
+    echo "$backup_action backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"

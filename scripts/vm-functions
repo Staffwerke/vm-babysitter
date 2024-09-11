@@ -462,54 +462,6 @@ domains_list()
 ###############################################################################
 
 #------------------------------------------------------------------------------
-# Creates a backup chain of given domain ($1) on $BACKUP_MAIN_PATH with given options
-#------------------------------------------------------------------------------
-do_backup_chain()
-{
-    # Status variable:
-    local create_backup_chain_status=1
-
-    # Consume initial arguments for each local variable below:
-
-    # VM name:
-    local domain=$1
-    shift
-
-    # Backup Mode: 'full', 'inc or 'auto''
-    local backup_mode=$1
-    shift
-
-    # Full backup path:
-    local backup_path=$1
-    shift
-
-    # Then, all remaining arguments (if any) are extra options passed to virtnbdbackup:
-    local options=$@
-
-    # Notifies the user about the ongoing process:
-    echo ""
-    echo "$domain: Started $backup_mode backup..."
-    echo ""
-
-    # Executes the operation:
-    virtnbdbackup -d $domain -l $backup_mode -o $backup_path/$domain $options
-    create_backup_chain_status=$?
-
-    if [[ $create_backup_chain_status -eq 0 ]]; then
-
-        echo ""
-        echo "$domain: $backup_mode backup successfully finished!"
-    else
-
-        echo ""
-        echo "WARNING: $domain: virtnbdbackup failed with status $create_backup_chain_status. Read the logs above for more details"
-
-    fi
-
-    return $create_backup_chain_status
-}
-
-#------------------------------------------------------------------------------
 # Checks data integrity of a backup chain ($1) and return
 # '0' under success, '1' under fail and '256' if no checksum files are found to verify:
 #------------------------------------------------------------------------------
