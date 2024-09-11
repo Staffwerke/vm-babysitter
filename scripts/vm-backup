@@ -54,7 +54,7 @@ if [[ -n ${backups_list[@]} ]]; then
 
     [[ $(os_is_unraid) == yes ]] && unraid_notify "normal" "VM-Babysitter" "$backup_action backup" "In progress for ${backups_list[@]}. Avoid to stop/restart this container until further notice"
 
-    echo "Virtual machines: '${backups_list[@]}'"
+    echo "Backing up: '${backups_list[@]}'"
     echo ""
 
     for domain in ${backups_list[@]}; do
@@ -76,7 +76,7 @@ if [[ -n ${backups_list[@]} ]]; then
 
             # Backup chain creation was successful!
             backup_chain_success+=($domain)
-            echo "$domain: $backup_mode backup successfully finished!"
+            echo "$domain: $backup_mode backup successfully finished"
 
         else
             # Failed to create a new backup chain:
@@ -85,13 +85,18 @@ if [[ -n ${backups_list[@]} ]]; then
             echo "WARNING: $domain: $backup_mode backup failed (status $virtnbdbackup_status)"
 
             # Grabs last failed status, if happens:
-            virtnbdbackup_failed_status=$virtnbdbackup_status
+            backup_failed_status=$virtnbdbackup_status
         fi
     done
 
     if [[ -n ${backup_chain_success[@]} -n $RSYNC_BACKUP_PATH ]]; then
 
+        echo "Syncing backup chain(s): '${backup_chain_success[@]}'"
+        echo ""
+
         for domain in ${backup_chain_success[@]}; do
+
+            echo "____________________________________________________________________________________________________________"
 
             # Attempts to transfer changes via rsync:
             rsync_backup $LOCAL_BACKUP_PATH/$domain $RSYNC_BACKUP_PATH/$domain
@@ -108,8 +113,9 @@ if [[ -n ${backups_list[@]} ]]; then
                 remote_sync_failed+=($domain)
 
                 # Grabs last failed status, if happens:
-                rsync_failed_status=$rsync_status
+                sync_failed_status=$rsync_status
             fi
+        done
     fi
 
     # Display the summary:
@@ -139,9 +145,9 @@ if [[ -n ${backups_list[@]} ]]; then
 
     elif [[ $(os_is_unraid) == yes ]]; then
 
-        [[ -n ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Virtnbdbackup failed (last status: $virtnbdbackup_failed_status)" "Could not update backup chain(s) for: ${backup_chain_failed[@]} therefore removed from scheduled backups"
+        [[ -n ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "$backup_action finished with errors (last status: $backup_failed_status)" "Could not perform backup(s) for: ${backup_chain_failed[@]}"
 
-        [[ -n ${remote_sync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync failed (last status: $rsync_failed_status)" "Could not sync backup chain(s) of: ${remote_sync_failed[@]} (Will be re-attempted on next schedule)"
+        [[ -n ${remote_sync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Sync backup finished with errors (last status: $sync_failed_status)" "Could not sync backup chain(s) of: ${remote_sync_failed[@]}"
     fi
 
     # Update values to be exported:
