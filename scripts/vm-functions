@@ -815,7 +815,7 @@ rsync_backup()
     # Get the VM name from
     local domain=$(basename $destination)
 
-    echo "$domain: Attempting to sync backup chain to $destination via Rsync..."
+    echo "$domain: Syncing backup chain to $destination..."
 
     # Destination is local. Use RSYNC_ARGS only:
     rsync $RSYNC_ARGS $extra_options $source/ $destination/
@@ -825,10 +825,10 @@ rsync_backup()
 
     if [[ $rsync_backup_status -eq 0 ]]; then
 
-        echo "$domain: Backup chain synced successfuly"
+        echo "$domain: Backup chain synced successfully"
 
     else
-        echo "$domain: Failed to rsync backup chain to $destination with status $rsync_backup_status"
+        echo "$domain: Failed to sync backup chain to $destination (status $rsync_backup_status)"
     fi
 
     return $rsync_backup_status
