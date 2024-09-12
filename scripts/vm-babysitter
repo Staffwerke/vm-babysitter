@@ -234,20 +234,22 @@ check_domains()
     echo "Missing/issues on virtual disks:"  ${domain_failed_list[@]:-"None"}
 }
 
-
 #------------------------------------------------------------------------------
-# Checks VMs in CHECK_BACKUPS_LIST for backup chain integrity (and puts VMs at point of create new backup chains, if possible):
+# Checks VMs in CHECK_BACKUPS_LIST for backup chain's health, permitting to keep using correct ones,
+# managing broken ones according the scenario (archiving restorable backups),
+# and preparing VMs to create a new backup chains.
+# Optionally can verify backups integrity (if enabled by user):
 #------------------------------------------------------------------------------
 check_backups()
 {
     # Local variables used for flow control:
     local backup_chain_integrity
-    local backup_chain_broken
     local backup_folder_integrity
     local delete_bitmap_status
     local delete_checkpoint_status
     local existing_bitmaps_list
     local folder_checkpoints_list
+    local no_backup_chain
     local shutdown_status
     local qemu_checkpoints_list
     local recoverable_backup_chain
@@ -266,7 +268,7 @@ check_backups()
         for domain in $(domains_list); do
 
             # Look for all VMs and its checkpoints, stop if it finds at least one:
-            [[ ! -z $(domain_checkpoint_list $domain) ]] && { local checkpoints_found="true"; break; }
+            [[ -n $(domain_checkpoint_list $domain) ]] && { local checkpoints_found="true"; break; }
 
         done
 
@@ -300,10 +302,11 @@ check_backups()
     for domain in ${CHECK_BACKUPS_LIST[@]}; do
 
         backup_chain_integrity=""
-        backup_chain_broken=""
         backup_folder_integrity=""
         delete_bitmap_status=""
         delete_checkpoint_status=""
+        folder_checkpoints_list=()
+        no_backup_chain=""
         shutdown_status=""
         recoverable_backup_chain=""
         verify_integrity_status=""
@@ -314,30 +317,30 @@ check_backups()
         # Stage 1: Check backup integrity:
         #------------------------------------------------------------------------------
 
-        # Discard non existing, and incomplete folders:
+        # Discard non-existing, and empty folders:
         #------------------------------------------------------------------------------
-        if [[ ! -d $LOCAL_BACKUP_PATH/$domain || ! -f $LOCAL_BACKUP_PATH/$domain/$domain.cpt || ! -d $LOCAL_BACKUP_PATH/$domain/checkpoints ]]; then
+        if [[ ! -d $LOCAL_BACKUP_PATH/$domain || $(dir_is_empty $LOCAL_BACKUP_PATH/$domain) == yes ]]; then
 
             backup_folder_integrity="false"
-            echo "$domain: No backup chain folder detected, or internal structure is inconsistent"
+            echo "$domain: Unexistent or empty backup chain folder"
 
-        # Interrupted operations (may recover backup chain in some cases):
+        # Interrupted operations (may recover backup chains when has more than one checkpoint):
         #------------------------------------------------------------------------------
-        elif [[ ! -z $(find $LOCAL_BACKUP_PATH/$domain -type f -name "*.partial") ]]; then
+        elif [[ -n $(find $LOCAL_BACKUP_PATH/$domain -type f -name "*.partial") ]]; then
 
             folder_checkpoints_list=($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain))
 
-            if [[ ${#folder_checkpoints_list[@]} -eq 1 ]]; then
+            if [[ ${#folder_checkpoints_list[@]} -le 1 ]]; then
 
-                # Backup chain is useless:
+                # Backup is useless:
                 backup_folder_integrity="false"
-                echo "$domain: A backup operation was previously cancelled. This backup chain is unrecoverable, therefore will be removed"
+                echo "$domain: A full/copy backup operation was previously cancelled. This backup is unrecoverable, therefore will be removed"
 
             elif [[ -z $VM_ALLOW_BACKUP_CHAIN_FIX || $unraid_scenario = true ]]; then
 
                 # Backup chain may be recoverable, but either user didn't allow to check, or it's unraid_scenario:
                 recoverable_backup_chain="false"
-                echo "$domain: A backup operation was previously cancelled. Backup chain is partially recoverable, but will not attempt to fix the backup for further usage. A new backup chain will be created instead."
+                echo "$domain: A backup operation was previously cancelled. Backup chain is partially recoverable, but will not attempt to fix the backup for further use"
 
             else
                 # Backup chain may be recoverable, and will attempt to fix it:
@@ -345,28 +348,32 @@ check_backups()
                 echo "$domain: A backup operation was previously cancelled. Backup is partially recoverable and it will attempt to fix it and restore the current backup chain for further use"
             fi
 
-        # Backup folder integrity looks 'OK', at a first glance.
-        # Perform data check integrity if enabled by user (and if backup includes checksum files):
+        # If backup was made in 'copy' mode, there are no checkpoints or bitmaps in this VM to delete (and no checkpoints can be added anyway):
         #------------------------------------------------------------------------------
-        elif [[ -n $CHECK_BACKUPS_INTEGRITY ]]; then
+        elif [[ ! -f $LOCAL_BACKUP_PATH/$domain/$domain.cpt \
+        && $(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num) -eq 0 \
+        && -n $(find $LOCAL_BACKUP_PATH/$domain -type f -name "*.copy.data") ]]; then
 
-            verify_backup_chain $LOCAL_BACKUP_PATH/$domain
-            verify_integrity_status=$?
+            no_backup_chain="true"
+            echo "$domain: Current backup was made in 'copy' mode, and cannot be used for incremental backups"
 
-            if [[ $verify_integrity_status -eq 1 ]]; then
+        else # Backup folder integrity looks 'OK', at a first glance
 
-                # Backup chain is broken, a new one will be created:
-                backup_chain_broken="true"
-                echo "$domain: A new backup chain will be created"
+            # Perform data check integrity when enabled by user:
+            #------------------------------------------------------------------------------
+            if [[ -n $CHECK_BACKUPS_INTEGRITY ]]; then
 
+                verify_backup_chain $LOCAL_BACKUP_PATH/$domain
+                verify_integrity_status=$?
             fi
 
-            # Backup folder integrity is OK, always is not broken:
-            [[ $backup_chain_broken != true ]] && backup_folder_integrity="true"
+            # When has passed all tests above (including integrity check, if enabled),
+            # then is approved for further checks:
+            [[ $verify_integrity_status != 1 ]] && backup_folder_integrity="true"
         fi
 
         #------------------------------------------------------------------------------
-        # Stage 2: Verify backup chain integrity:
+        # Stage 2: Verify backup chain integrity on backup folders without issues or limitations:
         #------------------------------------------------------------------------------
         if [[ $backup_folder_integrity = true ]]; then
 
@@ -379,7 +386,7 @@ check_backups()
             if [[ $(domain_state $domain) == "shut off" || $unraid_scenario == true ]]; then
 
                 # Checking in-backup checkpoints vs. disk image bitmaps it's the most accurate way to determine backup chain integrity.
-                # Only can be done if VM is shut down (and the only possible when unraid_scenario applies):
+                # Only can be done if VM is shut down (and the only possible way when unraid_scenario applies):
                 local backup_check_message="Performing a full check into its backup chain..."
 
                 [[ $unraid_scenario == true ]] \
@@ -399,7 +406,7 @@ check_backups()
                         # Interrupt the current operation. Nothing else to do:
                         break
 
-                    elif [[ ! -z ${existing_bitmaps_list[@]} ]]; then
+                    elif [[ -n ${existing_bitmaps_list[@]} ]]; then
 
                         # It is assumed bitmaps = checkpoints, and none is a empty list.
 
@@ -419,7 +426,7 @@ check_backups()
             elif [[ $(domain_state $domain) == "running" ]]; then
 
                 # When VM is running, bitmaps created during a backup chain update aren't visible with qemu-img info until VM has not been shut down.
-                # The only reliable method it's to compare in-backup vs QEMU checkpoints count (and this doesn't applu on unraid_scenario):
+                # The only reliable method it's to compare in-backup vs QEMU checkpoints count (and this doesn't apply on unraid_scenario):
                 echo "$domain: Is running, comparing QEMU and Backup's checkpoint lists..."
 
                 if [[ ${qemu_checkpoints_list[@]} == ${folder_checkpoints_list[@]} ]]; then
@@ -437,7 +444,7 @@ check_backups()
         fi
 
         #------------------------------------------------------------------------------
-        # Stage 3: Process backup chain and files/folders, according with the scenarios and previous results:
+        # Stage 3: Process the results, according with all previous checks (attempting to fix recoverable issues, if possible):
         #------------------------------------------------------------------------------
 
         if [[ $backup_chain_integrity == true ]]; then
@@ -446,13 +453,20 @@ check_backups()
             # Add VM to the list of preserved backup chain ones:
             preserved_backup_chain_list+=($domain)
 
+        elif [[ $no_backup_chain == true ]]; then
+
+            # This is a 'copy' backup. As neither checkpoints nor bitmaps are present,
+            # and no checkpoints can't be added; doesn't require further comprobations.
+            # Add VM to the list of broken backup chain ones:
+            broken_backup_chain_list+=($domain)
+
         elif [[ $recoverable_backup_chain == true ]]; then
 
             # This usually happens when container is stopped or restarted in the middle of a backup operation,
-            # leaving an incomplete and unusable backup chain.
+            # leaving an incomplete -and unusable- backup chain.
             # By deleting last checkpoint & bitmap from VM, and files generated by virtnbdbackup before the interruption,
             # backup chain ends at the latest successful backup state, and can receive more updates.
-            # (Under unraid_scenario, chances to repair a backup chain this way, so this operation won't happen in that case)
+            # (Under unraid_scenario, there are basically NO chances to repair a backup chain this way, so this operation won't happen in that case):
 
             # Read qemu checkpoints:
             qemu_checkpoints_list=($(domain_checkpoints_list $domain))
@@ -500,7 +514,7 @@ check_backups()
             # Add VM to the list of preserved backup chain ones:
             preserved_backup_chain_list+=($domain)
 
-        else # All other scenarios where checking backup folder/chain failed, or when backup chin is full...
+        else # All other scenarios, where checking backup folder and/or chain failed...
 
             # Delete checkpoints and/or bitmaps, depending on the case:
 
@@ -626,18 +640,25 @@ check_backups()
                     esac
                 ;;
             esac
+        fi
 
-            # Process backup folder (deleting or renaming) and if applies, retention policy:
+        #------------------------------------------------------------------------------
+        # Stage 4: Process backup folders that cannot be used anymore by archiving or deleting, accordingly:
+        #------------------------------------------------------------------------------
+        if [[ $backup_chain_integrity != true ]]; then
 
             if [[ $backup_folder_integrity == false ]]; then
 
-                # Useless or unexistent backup chain folder. Delete it:
+                # Delete non-recoverable backup folder:
                 rm -rf $LOCAL_BACKUP_PATH/$domain
 
-                # If remote path is set, keep existing remote ones without apply any retention policy:
-                [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain
+            else
+                # Archive any total or partially restorable backup:
+                archive_backup $LOCAL_BACKUP_PATH/$domain
             fi
 
+            # If a rsync path is set, archive any existing existing remote backup:
+            [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain
         fi
 
         # Increases the index to check the next VM:
