@@ -89,7 +89,7 @@ if [[ -n ${backups_list[@]} ]]; then
         fi
     done
 
-    if [[ -n ${backup_chain_success[@]} -n $RSYNC_BACKUP_PATH ]]; then
+    if [[ -n ${backup_chain_success[@]} && -n $RSYNC_BACKUP_PATH ]]; then
 
         echo "Syncing backup chain(s): '${backup_chain_success[@]}'"
         echo ""
