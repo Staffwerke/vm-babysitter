@@ -548,7 +548,7 @@ check_backups()
 
                 # unraid_scenario. Only does something if is allowed to perform a power cycle on VM:
 
-                if [[ ! -z $VM_ALLOW_POWERCYCLE ]]; then
+                if [[ -n $VM_ALLOW_POWERCYCLE ]]; then
 
                     domain_shutdown $domain --wait $VM_WAIT_TIME
                     shutdown_status=$?
@@ -658,7 +658,7 @@ check_backups()
             fi
 
             # If a rsync path is set, archive any existing existing remote backup:
-            [[ ! -z $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain
+            [[ -n $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain
         fi
 
         # Increases the index to check the next VM:
@@ -688,7 +688,7 @@ check_backups()
     echo ""
     echo "Added to Scheduled Backups:   ${preserved_backup_chain_list[@]:-"None"}"
     echo "In need of new backup chain:  ${broken_backup_chain_list[@]:-"None"}"
-    [[ ! -z $VM_ALLOW_POWERCYCLE ]] && \
+    [[ -n $VM_ALLOW_POWERCYCLE ]] && \
     echo "Into automatic power cycle:   ${domain_shutdown_success_list[@]:-"None"}" || \
     echo "Manual shut down is required: ${domain_shutdown_needed_list[@]:-"None"}"
     echo ""
@@ -723,7 +723,6 @@ VM_ALLOW_BACKUP_CHAIN_FIX=${VM_ALLOW_BACKUP_CHAIN_FIX:-""}
 VM_ALLOW_POWERCYCLE=${VM_ALLOW_POWERCYCLE:-""}
 VM_AUTOSTART_LIST=${VM_AUTOSTART_LIST:-""}
 VM_IGNORED_LIST=${VM_IGNORED_LIST:-""}
-[[ ! -z $VM_RAM_LIMIT ]] && VM_RAM_LIMIT=$(numfmt --from=iec --to-unit=1Ki ${VM_RAM_LIMIT^^})
 VM_WAIT_TIME=${VM_WAIT_TIME:-"60"}
 
 # Internal Variables:
@@ -754,7 +753,7 @@ source $functions_path
 [[ ! -d $( dirname $LOGFILE_PATH) ]] && mkdir -p $(dirname $LOGFILE_PATH)
 
 # Sets the local timezone (if ENV TZ was set):
-if [[ ! -z $local_timezone_file ]]; then
+if [[ -n $local_timezone_file ]]; then
 
     ln -fs $local_timezone_file /etc/localtime
     &> /dev/null dpkg-reconfigure -f noninteractive tzdata
@@ -966,14 +965,14 @@ end_of_external_variables
                 echo ""
                 echo "All Virtual Machines Running Under Incremental Backups!"
 
-            elif [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} || ! -z ${FAILED_VMS_LIST[@]} ]]; then
+            elif [[ -n ${SHUTDOWN_REQUIRED_VMS_LIST[@]} || -n ${FAILED_VMS_LIST[@]} ]]; then
 
                 user_action_message="USER ACTION IS REQUIRED!"
 
                 echo ""
                 echo $user_action_message
 
-                if [[ ! -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
+                if [[ -n ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
 
                     shutdown_required_message="As env variable 'VM_ALLOW_POWERCYCLE' is not set, a manual Shut Down is required for VM(s): ${SHUTDOWN_REQUIRED_VMS_LIST[@]} 'As Soon As Possible'. This is required prior to perform backup integrity checks and cannot procced without that. Once shut down, the program will perform the checks and will restart involved VM(s) automatically."
 
@@ -981,7 +980,7 @@ end_of_external_variables
                     [[ $(os_is_unraid) == yes ]] && unraid_notify "warning" "VM-Babysitter" "$user_action_message" "$shutdown_required_message"
                 fi
 
-                if [[ ! -z ${FAILED_VMS_LIST[@]} ]]; then
+                if [[ -n ${FAILED_VMS_LIST[@]} ]]; then
 
                     failed_vms_message="Unexpected failure during check/backup operation involving VM(s): ${FAILED_VMS_LIST[@]}. Human attention is required 'As Soon As Possible' to solve the situation. Any scheduled backup or further alert for involved VM(s) is suspended until this container had been restarted. Check $(basename $LOGFILE_PATH) in this host for detailed logs."
 

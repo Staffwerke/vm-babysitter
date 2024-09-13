@@ -44,7 +44,6 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 |`VM_ALLOW_POWERCYCLE`|When enabled, performs a controlled power cycle of VMs when this is needed in order to apply changes, such after fix backup chains or start new ones. (Default is disabled, user must shut down VMs manually, whenever asked)||
 |`VM_AUTOSTART_LIST`|Case Sensitive space separated list of VMs that will be started along with the container||
 |`VM_IGNORED_LIST`|Case Sensitive space separated list of VMs to ignore, so won't be checked or backed up||
-|`VM_RAM_LIMIT`|How much RAM to assign temporarily to a shut down VM to perform backup tasks. Accepts multipliers such as k,K,m,M,g,G and similar, e.g. `1048576K`, `2048m`, `4G`, etc. Otherwise assumes Bytes (default is not to touch RAM values)||
 |`VM_WAIT_TIME`|Maximum time in seconds to await for VMs to confirm it has reached on/off states in certain scenarios|`60`|
 
 ## Mount points:
@@ -153,7 +152,6 @@ Finally, to have persistent logs of what is happening with VM-Babysitter and sch
     docker run -d --rm --network host --name docker.staffwerke.de/vm-babysitter:latest \
     -e BACKUP_SCHEDULE="* 2 * * *" \
     -e LOCAL_BACKUP_CHAINS_TO_KEEP="2" \
-    -e VM_RAM_LIMIT="4096M" \
     -e VM_ALLOW_POWERCYCLE="yes" \
     -e TZ="Europe/Berlin" \
     -e VIRTNBDBACKUP_ARGS="--compress" \
@@ -169,7 +167,7 @@ Finally, to have persistent logs of what is happening with VM-Babysitter and sch
     <container_name>
 ```
 
-Scheduling all found VMs for (compressed) incremental backups on local endpoint every day at 2 am (Berlin time) and will save up to 2 backup chains per VM in case one needs to be rebuilt, throttling RAM's VMs to 4096 MiB when its original setting is above this value.
+Scheduling all found VMs for (compressed) incremental backups on local endpoint every day at 2 am (Berlin time) and will save up to 2 backup chains per VM in case one needs to be rebuilt.
 
 ### Generic example of full docker command for local and remote backups:
 
@@ -178,7 +176,6 @@ Scheduling all found VMs for (compressed) incremental backups on local endpoint 
     -e LOCAL_BACKUP_PATH="/mnt/user/Backups/vm-backups" \
     -e BACKUP_SCHEDULE="* */12 * * *" \
     -e LOCAL_BACKUP_CHAINS_TO_KEEP="0" \
-    -e VM_RAM_LIMIT="8G" \
     -e RSYNC_BACKUP_PATH="root@10.0.0.2:/mnt/user/vm-backups-mirrors" \
     -e RSYNC_BACKUP_CHAINS_TO_KEEP="3" \
     -e VM_ALLOW_POWERCYCLE="yes" \
@@ -198,7 +195,7 @@ Scheduling all found VMs for (compressed) incremental backups on local endpoint 
     <container_name>
 ```
 
-Scheduling all found VMs for (compressed) incremental backups on both local and remote endpoint (at a max of 1179648 Kbps or 1 Gbps) every 12 hours (Berlin time) and will save up to 3 backup chains per VM remotely, in case one needs to be rebuilt but not saving any backup chain on local endpoint at all; throttling RAM's VMs to 8 GiB when its original setting is above this value.
+Scheduling all found VMs for (compressed) incremental backups on both local and remote endpoint (at a max of 1179648 Kbps or 1 Gbps) every 12 hours (Berlin time) and will save up to 3 backup chains per VM remotely, in case one needs to be rebuilt but not saving any backup chain on local endpoint at all.
 
 In both examples above, rotation is performed each 30 backups, the default value for `MAX_BACKUPS_PER_CHAIN`.
 
@@ -334,4 +331,4 @@ More detailed info is available at the same script, by running it with `vm-resto
 - Add/Remove VMs on the fly
 - Detect and alert when space in LOCAL_BACKUP_PATH and RSYNC_BACKUP_PATH is low
 
-#### Author: Adrián Parilli <a.parilli@staffwerke.de>
+#### Author: Adrián Parilli <adrian.parilli@staffwerke.de>
