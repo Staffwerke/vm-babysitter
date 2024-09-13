@@ -24,7 +24,7 @@ case $1 in
         backups_list=(${SCHEDULED_BACKUPS_LIST[@]})
 
         # Logfile is the specified for scheduled tasks:
-        log_path=$SCHEDULE_LOGFILE_PATH
+        #log_path=$SCHEDULE_LOGFILE_PATH
     ;;
 
     *)
@@ -39,12 +39,12 @@ case $1 in
         done
 
         # Logfile is the specified the main log:
-        log_path=$LOGFILE_PATH
+        #log_path=$LOGFILE_PATH
     ;;
 esac
 
 # Redirect system stdout and stderr to log_path:
-exec > >(tee -a $log_path) 2> >(tee -a $log_path >&2)
+#exec > >(tee -a $log_path) 2> >(tee -a $log_path >&2)
 
 echo ""
 echo "############################################################################################################"
