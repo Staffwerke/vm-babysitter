@@ -747,8 +747,7 @@ export functions_path
 # Main execution:
 ###############################################################################
 
-# Redirect system stdout and stderr to $LOGFILE_PATH:
-#exec > >(tee -a $LOGFILE_PATH) 2> >(tee -a $LOGFILE_PATH >&2)
+# Redirect system stdout and stderr to $LOGFILE_PATH. Note this applies to all other commands and scripts run from this script:
 exec &> >(tee -a $LOGFILE_PATH)
 
 # Load functions:
@@ -821,7 +820,6 @@ LOCAL_BACKUP_PATH="$LOCAL_BACKUP_PATH"
 MAX_BACKUPS_PER_CHAIN="$MAX_BACKUPS_PER_CHAIN"
 RSYNC_BACKUP_PATH="$RSYNC_BACKUP_PATH"
 RSYNC_ARGS="$RSYNC_ARGS"
-#SCHEDULE_LOGFILE_PATH="$SCHEDULE_LOGFILE_PATH"
 SSH_OPTIONS="$SSH_OPTIONS"
 VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS"
 UNRAID_NOTIFY_HOST="$UNRAID_NOTIFY_HOST"

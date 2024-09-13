@@ -22,9 +22,6 @@ case $1 in
 
         # Processes backups from SCHEDULED_BACKUPS_LIST:
         backups_list=(${SCHEDULED_BACKUPS_LIST[@]})
-
-        # Logfile is the specified for scheduled tasks:
-        #log_path=$SCHEDULE_LOGFILE_PATH
     ;;
 
     *)
@@ -37,14 +34,8 @@ case $1 in
         for item in $@; do
             [[ $(domain_exists $item) == yes ]] && backups_list+=($item)
         done
-
-        # Logfile is the specified the main log:
-        #log_path=$LOGFILE_PATH
     ;;
 esac
-
-# Redirect system stdout and stderr to log_path:
-#exec > >(tee -a $log_path) 2> >(tee -a $log_path >&2)
 
 echo ""
 echo "############################################################################################################"
