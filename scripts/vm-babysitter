@@ -740,6 +740,10 @@ functions_path="/usr/local/bin/vm-functions"
 # Path of the scheduler script (run by cron):
 backup_script_path="/usr/local/bin/vm-backup"
 
+# Export variables used by children processes:
+export external_vars
+export functions_path
+
 # Main execution:
 ###############################################################################
 
