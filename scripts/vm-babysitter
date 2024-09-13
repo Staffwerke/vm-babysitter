@@ -830,7 +830,7 @@ functions_path="$functions_path"
 external_vars="$external_vars"
 
 # Schedule for $(basename $backup_script_path):
-$BACKUP_SCHEDULE $backup_script_path
+$BACKUP_SCHEDULE $backup_script_path run-schedule
 
 # Schedule for logrotate:
 $LOGROTATE_SCHEDULE /usr/sbin/logrotate $LOGROTATE_CONFIG_PATH
