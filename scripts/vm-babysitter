@@ -748,7 +748,8 @@ export functions_path
 ###############################################################################
 
 # Redirect system stdout and stderr to $LOGFILE_PATH:
-exec > >(tee -a $LOGFILE_PATH) 2> >(tee -a $LOGFILE_PATH >&2)
+#exec > >(tee -a $LOGFILE_PATH) 2> >(tee -a $LOGFILE_PATH >&2)
+exec &> >(tee -a $LOGFILE_PATH)
 
 # Load functions:
 source $functions_path
