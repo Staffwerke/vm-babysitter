@@ -831,7 +831,7 @@ rsync_backup()
     else
 
         # Run rsync with user defined arguments only:
-        rsync $RSYNC_ARGS ${extra_options[@]} $source/ $destination/
+        rsync $RSYNC_ARGS $source/ $destination/
 
         # Get last status for rsync:
         rsync_backup_status=$?
