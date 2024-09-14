@@ -534,6 +534,10 @@ archive_backup()
     # VM name basename:
     local domain=$(basename $1)
 
+    # Second argument, when passed, triggers retention policy,
+    # preserving as many old backup chains as the integer value is:
+    local backups_to_keep=$2
+
     # Get the oldest modification time from remote files inside, to rename archived backups with historical timestamp:
     local timestamp=$(find $backup_path/$domain -type f -printf '%T+ %p\n' | sort | head -n 1 | cut -d' ' -f1)
 
@@ -541,11 +545,9 @@ archive_backup()
     mv $backup_path/$domain $backup_path/$domain.$timestamp
     echo "$domain: Current backup chain archived as $backup_path/$domain.$timestamp"
 
-    if [[ ! -z $2 ]]; then
+    if [[ -n $backups_to_keep && $backups_to_keep -ge 1 ]]; then
 
-    # Second argument, when passed, triggers retention policy,
-    # preserving as many old backup chains as the integer value is:
-    local backups_to_keep=$2
+    # Apply retention policy if backups_to_keep exists and is >= 1:
     echo "Applying local retention policy..."
 
     # Position of the first folder to delete, ordered from most recent timestamp:
@@ -584,6 +586,9 @@ archive_remote_backup()
     # VM name basename:
     local domain=$(basename $(echo $1 | cut -d':' -f2))
 
+    # When a second argument is passed, takes it as the max # of backup chains to keep remotely:
+    local remote_backups_to_keep=$2
+
     # Attempts to comunicate with the remote host:
     ssh $SSH_OPTIONS $remote_server "exit 0"
     local remote_server_status=$?
@@ -591,7 +596,6 @@ archive_remote_backup()
     if [[ $remote_server_status -eq 0 ]]; then
 
         # Remote Server is reachable.
-
 
         # Checks in advance if remote backup path exists or not:
         local remote_backup_chain_exists=$(ssh $SSH_OPTIONS $remote_server "[[ -d $remote_backup_path/$domain ]] && echo \"yes\" || echo \"no\"")
@@ -611,11 +615,10 @@ archive_remote_backup()
             echo "$domain: No current backup chain(s) found at $remote_server"
         fi
 
-        if [[ ! -z $2 ]]; then
+        if [[ -n $remote_backups_to_keep && $remote_backups_to_keep -ge 1 ]]; then
 
-            # When a second argument is passed, takes it as the max # of backup chains to keep remotely:
-            local remote_backups_to_keep=$2
-            echo "Applying remote retention policy on $remote_server..."
+            # Apply retention policy if backups_to_keep exists and is >= 1:
+            echo "Applying retention policy on $remote_server..."
 
             # Position of the first folder to delete, ordered from most recent timestamp
             local index=$( expr $remote_backups_to_keep + 1 )
@@ -635,7 +638,6 @@ archive_remote_backup()
             fi
         fi
     else
-
         # Returns status of failed connection:
         echo "WARNING: Remote endpoint $remote_server is currently unreachable (status: $remote_server_status)"
         return $remote_server_status
