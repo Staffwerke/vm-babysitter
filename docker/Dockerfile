@@ -16,7 +16,7 @@ apt-get -y autoremove --purge && apt-get clean && \
 rm -rf /var/lib/apt/lists/* /tmp/* && \
 mkdir -p /logs /private
 
-COPY --chown=root:root --chmod=755 scripts/* /usr/local/bin/
+COPY --chown=root:root --chmod=755 ../scripts/* /usr/local/bin/
 
 CMD ["vm-babysitter"]
 
