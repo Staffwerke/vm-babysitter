@@ -1,0 +1,78 @@
+#!/bin/bash
+
+# Internal global variables and common functions are managed via this script:
+source $functions_path
+
+# And SCHEDULED_BACKUPS_LIST is loaded from file (written by the main script):
+source $external_vars
+
+case $1 in
+
+    run-schedule)
+
+        retention_action="Scheduled"
+
+        # Processes backups from SCHEDULED_BACKUPS_LIST:
+        retention_list=(${SCHEDULED_BACKUPS_LIST[@]})
+    ;;
+
+    *)
+        retention_action="On-demand"
+
+        # Processes backups from VMs passed as arguments, filtering non existing VMs (or invalid arguments):
+        for item in $@; do
+            [[ $(domain_exists $item) == yes ]] && retention_list+=($item)
+        done
+    ;;
+esac
+
+if [[ -n ${retention_list[@]} ]]; then
+
+    for domain in ${retention_list[@]}; do
+
+        # source $VM_CONFIG_PATH/$domain.conf
+
+        if [[ -n $MAX_BACKUPS_PER_CHAIN && $MAX_BACKUPS_PER_CHAIN -ne 0 ]]; then
+
+
+            if [[ -d $LOCAL_BACKUP_PATH/$domain ]]; then
+
+                # Retrieve the number of existing checkpoints in the backup chain:
+                #------------------------------------------------------------------------------
+                num_of_backup_checkpoints=$(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num)
+
+                case $num_of_backup_checkpoints in
+
+                    0)
+                        end_of_lifecycle=true
+                        echo "$domain: Current backup was made in 'copy' mode, and cannot be used for incremental backups. A new backup chain will be created"
+                    ;;
+
+                    *)
+                        [[ $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]] && { end_of_lifecycle=true; additional_message=". A new backup chain will be created"; }
+                        echo "$domain: Detected $num_of_backup_checkpoints of max possible $MAX_BACKUPS_PER_CHAIN checkpoints$additional_message"
+                    ;;
+                esac
+
+                if [[ $end_of_lifecycle == true ]]; then
+
+                    # Processes backup for being archived locally:
+                    archive_backup $LOCAL_BACKUP_PATH/$domain $LOCAL_BACKUP_CHAINS_TO_KEEP
+
+                    # And remotely, if set:
+                    [[ -n $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain $RSYNC_BACKUP_CHAINS_TO_KEEP
+                fi
+
+            else
+                echo "$domain: No backup found at $LOCAL_BACKUP_PATH to process"
+            fi
+
+        else
+            echo "$domain: Retention policy is currently disabled by user"
+        fi
+
+    done
+
+else
+    echo "No Virtual machines for $retention_action retention policy to process. Exited"
+fi

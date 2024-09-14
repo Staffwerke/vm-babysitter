@@ -492,36 +492,6 @@ verify_backup_chain()
 }
 
 # -----------------------------------------------------------------------------
-# From a list of given domains, checks and applies retention policy based upon:
-# MAX_BACKUPS_PER_CHAIN, LOCAL_BACKUP_CHAINS_TO_KEEP and RSYNC_BACKUP_CHAINS_TO_KEEP:
-# -----------------------------------------------------------------------------
-apply_retention_policy()
-{
-    local domains_list="$@"
-
-    for domain in $domains_list; do
-
-        # Retrieve the number of existing checkpoints in the backup chain:
-        #------------------------------------------------------------------------------
-        local num_of_backup_checkpoints=$(($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num) - 1))
-
-        if [[ $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
-
-            # Backup chain is full, a new one will be created:
-            echo "$domain: Backup chain contains $num_of_backup_checkpoints checkpoint(s), and the limit set in environment variable MAX_BACKUPS_PER_CHAIN is $MAX_BACKUPS_PER_CHAIN"
-
-            # Processes backup for being archived locally (and remotely, if set):
-            archive_backup $LOCAL_BACKUP_PATH/$domain $LOCAL_BACKUP_CHAINS_TO_KEEP
-
-            [[ -n $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain $RSYNC_BACKUP_CHAINS_TO_KEEP
-        else
-
-            echo "$domain: Detected $num_of_backup_checkpoints out of $MAX_BACKUPS_PER_CHAIN checkpoints"
-        fi
-    done
-}
-
-# -----------------------------------------------------------------------------
 # Renames a backup folder (backup_path/domain) given as first argument
 # Second argument, when passed, is the max # of old backup chains with same timestamp,
 # and implies retention policy:
