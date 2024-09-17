@@ -30,6 +30,10 @@ if [[ -n ${retention_list[@]} ]]; then
 
     for domain in ${retention_list[@]}; do
 
+        # (Re)Initialize used variables:
+        end_of_lifecycle=""
+        additional_message=""
+
         # source $VM_CONFIG_PATH/$domain.conf
 
         if [[ -n $MAX_BACKUPS_PER_CHAIN && $MAX_BACKUPS_PER_CHAIN -ne 0 ]]; then
@@ -44,13 +48,22 @@ if [[ -n ${retention_list[@]} ]]; then
                 case $num_of_backup_checkpoints in
 
                     0)
+                        # '0' checkpoints means it's a 'copy' backup:
                         end_of_lifecycle=true
-                        echo "$domain: Current backup was made in 'copy' mode, and cannot be used for incremental backups. A new backup chain will be created"
+                        echo "$domain: Current backup was made in 'copy' mode and cannot be used for incremental backups. A new backup chain will be created"
                     ;;
 
                     *)
-                        [[ $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]] && { end_of_lifecycle=true; additional_message=". A new backup chain will be created"; }
-                        echo "$domain: Detected $num_of_backup_checkpoints of max possible $MAX_BACKUPS_PER_CHAIN checkpoints$additional_message"
+                        # Any other positive integer number it's the current number of checkpoints present into the backup chain:.
+                        # Check if it has reached the maximum allowed:
+                        if [[ $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
+
+                            # Backup has reached the max allowed checkpoints and must be archived:
+                            end_of_lifecycle=true
+                            additional_message=". A new backup chain will be created"
+                        fi
+
+                            echo "$domain: Detected $num_of_backup_checkpoints of max allowed $MAX_BACKUPS_PER_CHAIN checkpoints$additional_message"
                     ;;
                 esac
 
