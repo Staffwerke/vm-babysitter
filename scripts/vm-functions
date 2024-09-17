@@ -539,8 +539,8 @@ archive_backup()
 }
 
 # -----------------------------------------------------------------------------
-# Similar with 'archive_backup' but operates on a remote endpoint via SSH:
-# Returns SSH error status if fails attempt to connect:
+# Similar to 'archive_backup' but operates on a remote endpoint via SSH,
+# returning SSH error status if it fails connect:
 # -----------------------------------------------------------------------------
 archive_remote_backup()
 {
@@ -549,9 +549,6 @@ archive_remote_backup()
 
     # Remote folder to be manipulated:
     local remote_backup_path=$(dirname $(echo $1 | cut -d':' -f2))
-
-    # Main backup path where remote backup is located:
-    #local remote_main_backup_path=$(dirname $remote_backup_path)
 
     # VM name basename:
     local domain=$(basename $(echo $1 | cut -d':' -f2))
