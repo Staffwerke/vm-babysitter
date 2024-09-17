@@ -35,6 +35,9 @@ case $1 in
     ;;
 esac
 
+echo ""
+echo "############################################################################################################"
+echo "$backup_action backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
 
 # Checks all VMs before to be processed, discarding deleted VMs:
 for item in ${received_backups_list[@]}; do
@@ -49,10 +52,6 @@ for item in ${received_backups_list[@]}; do
         echo "WARNING: '$item' not found (Has been this VM removed?)"
     fi
 done
-
-echo ""
-echo "############################################################################################################"
-echo "$backup_action backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
 
 if [[ -n ${backups_list[@]} ]]; then
 
