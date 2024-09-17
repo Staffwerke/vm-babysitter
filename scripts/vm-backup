@@ -20,8 +20,8 @@ case $1 in
         # Virtnbdbackup mode is always auto:
         backup_mode="auto"
 
-        # Processes backups from SCHEDULED_BACKUPS_LIST:
-        backups_list=(${SCHEDULED_BACKUPS_LIST[@]})
+        # Processes initial backups list from SCHEDULED_BACKUPS_LIST:
+        received_backups_list=(${SCHEDULED_BACKUPS_LIST[@]})
     ;;
 
     *)
@@ -30,12 +30,25 @@ case $1 in
         # Virtnbdbackup mode is always auto (subject to change in future versions):
         backup_mode="auto"
 
-        # Processes backups from VMs passed as arguments, filtering non existing VMs (or invalid arguments):
-        for item in $@; do
-            [[ $(domain_exists $item) == yes ]] && backups_list+=($item)
-        done
+        # Processes initial backups list from input:
+        received_backups_list=($@)
     ;;
 esac
+
+
+# Checks all VMs before to be processed, discarding deleted VMs:
+for item in ${received_backups_list[@]}; do
+    if [[ $(domain_exists $item) == yes ]]; then
+
+        # Add the VM to the main list:
+        backups_list+=($item)
+
+    else
+        # Create a separated list of 'lost' VMs, and prompt about the unexpected error
+        domain_detection_failed+=($item)
+        echo "WARNING: '$item' not found (Has been this VM removed?)"
+    fi
+done
 
 echo ""
 echo "############################################################################################################"
@@ -127,7 +140,14 @@ if [[ -n ${backups_list[@]} ]]; then
         echo "Failed sync to remote mirror: ${remote_sync_failed[@]:-"None"}"
     fi
 
-    if [[ -z ${backup_chain_failed[@]} && -z ${remote_sync_failed[@]} ]]; then
+    if [[ -n ${domain_detection_failed[@]} ]]; then
+
+        # Only show missing VMs when not detected:
+        echo ""
+        echo "Deleted or missing:           ${domain_detection_failed[@]:-"None"}"
+    fi
+
+    if [[ -z ${backup_chain_failed[@]} && -z ${remote_sync_failed[@]} && -z ${domain_detection_failed[@]} ]]; then
 
         echo ""
         echo "All Backup Chains Updated!"
@@ -136,9 +156,12 @@ if [[ -n ${backups_list[@]} ]]; then
 
     elif [[ $(os_is_unraid) == yes ]]; then
 
-        [[ -n ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "$backup_action finished with errors (last status: $backup_failed_status)" "Could not perform backup(s) for: ${backup_chain_failed[@]}"
+        [[ -n ${domain_detection_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "$backup_action backup finished, but found possible issues" "Could not detect the following VM(s): ${domain_detection_failed[@]} (might have been deleted?)"
+
+        [[ -n ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "$backup_action backup finished with errors (last status: $backup_failed_status)" "Could not perform backup(s) for: ${backup_chain_failed[@]}"
 
         [[ -n ${remote_sync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Sync backup finished with errors (last status: $sync_failed_status)" "Could not sync backup chain(s) of: ${remote_sync_failed[@]}"
+
     fi
 
     # Update values to be exported:
