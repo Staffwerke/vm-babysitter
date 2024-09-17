@@ -62,6 +62,9 @@ if [[ -n ${backups_list[@]} ]]; then
 
     for domain in ${backups_list[@]}; do
 
+        # Check and apply if necessary, retention policy prior to perform the backup:
+        vm-retention-policy $domain
+
         # Under the specific scenario of new backup chain creation, forces shut off VM to start in paused mode:
         [[ ! -d $LOCAL_BACKUP_PATH/$domain || $(dir_is_empty $LOCAL_BACKUP_PATH/$domain) == yes ]] \
         && [[ $(domain_state $domain) == "shut off" && -z $(grep -o -e "-S" -e "--start-domain" <<< "$VIRTNBDBACKUP_ARGS") ]] \
