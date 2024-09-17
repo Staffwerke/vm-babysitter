@@ -525,7 +525,7 @@ archive_backup()
 
     # Creates a list with EXACT match of archived folder(s) to delete.
     # Pattern is based upon a timestamp like '2023-11-08+06:19:36.1501949150':
-    local old_backups_list=($(find $backup_path -type d -name "$domain.*" | sort -r | grep -E "^$backup_path/$domain.[0-9]{4}-[0-9]{2}-[0-9]{2}+[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{10}$" | tail -n +$index))
+    local old_backups_list=($(find $backup_path -type d -name "$domain.*" | sort -r | grep -E "^$backup_path/$domain\.[0-9]{4}-[0-9]{2}-[0-9]{2}\+[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{10}$" | tail -n +$index))
 
         if [[ ! -z ${old_backups_list[@]} ]]; then
 
@@ -592,7 +592,7 @@ archive_remote_backup()
 
             # Creates a list with EXACT match of archived folder(s) to delete.
             # Pattern is based upon a timestamp like '2023-11-08+06:19:36.1501949150':
-            local remote_old_backups_list=($(ssh $SSH_OPTIONS $remote_server "find $remote_backup_path -type d -name \"$domain.*\" | sort -r | grep -E \"^$remote_backup_path/$domain.[0-9]{4}-[0-9]{2}-[0-9]{2}+[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{10}$\" | tail -n +$index"))
+            local remote_old_backups_list=($(ssh $SSH_OPTIONS $remote_server "find $remote_backup_path -type d -name \"$domain.*\" | sort -r | grep -E \"^$remote_backup_path/$domain\.[0-9]{4}-[0-9]{2}-[0-9]{2}\+[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{10}$\" | tail -n +$index"))
 
             if [[ ! -z ${remote_old_backups_list[@]} ]]; then
 
