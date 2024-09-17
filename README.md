@@ -15,7 +15,7 @@ Checks existing Virtual machines running on the local server, and performs the f
 
 - Clone/download/pull this repository
 - Get into the main folder
-- Build the image: `docker build . -t docker.staffwerke.de/vm-babysitter:<tag>`
+- Build the image: `docker build -f docker/Dockerfile . -t docker.staffwerke.de/vm-babysitter:<tag>`
 - Push the image: `docker image push docker.staffwerke.de/vm-babysitter:<tag>`
 
 ## Environment variables:
