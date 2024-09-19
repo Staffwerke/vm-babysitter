@@ -110,9 +110,9 @@ case $rsync_action in
         echo "____________________________________________________________________________________________________________"
         echo "$rsync_action Rsync Summary:"
         echo ""
-        echo "Synced to mirror:      ${rsync_success[@]:-"None"}"
-        echo "Failed sync to mirror: ${rsync_failed[@]:-"None"}"
-        echo "Skipped (not found):   ${rsync_skipped[@]:-"None"}"
+        echo "Successful syncs:    ${rsync_success[@]:-"None"}"
+        echo "Failed to sync:      ${rsync_failed[@]:-"None"}"
+        echo "Skipped (no backup): ${rsync_skipped[@]:-"None"}"
 
         if [[ $(os_is_unraid) == yes ]]; then
 
