@@ -8,7 +8,7 @@ source $external_vars
 
 case $1 in
 
-    run-schedule)
+    --run-schedule)
 
         retention_action="Scheduled"
 
