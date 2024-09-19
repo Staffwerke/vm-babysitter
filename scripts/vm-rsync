@@ -56,19 +56,19 @@ if [[ -n ${rsync_list[@]} ]]; then
             rsync_destination=$RSYNC_BACKUP_PATH/$domain
 
             echo "____________________________________________________________________________________________________________"
-            echo "$domain: Syncing backup chain to $rsync_destination..."
+            echo "$domain: Syncing backup chain to $rsync_destination ..."
 
             if [[ $rsync_destination == *@*:/* ]]; then
 
                 # Remote endpoint. Run rsync with extra options for remote connection when detected:
-                rsync $RSYNC_ARGS -e "ssh $SSH_OPTIONS" $source/ $destination/
+                rsync $RSYNC_ARGS -e "ssh $SSH_OPTIONS" $rsync_source/ $rsync_destination/
 
                 # Get last status for rsync:
                 rsync_backup_status=$?
             else
 
                 # Locally reachable endpoint. Run rsync with user defined arguments only:
-                rsync $RSYNC_ARGS $source/ $destination/
+                rsync $RSYNC_ARGS $rsync_source/ $rsync_destination/
 
                 # Get last status for rsync:
                 rsync_backup_status=$?
@@ -81,7 +81,7 @@ if [[ -n ${rsync_list[@]} ]]; then
 
             else
                 rsync_failed+=($domain)
-                echo "$domain: Failed to sync backup chain to $destination (status $rsync_backup_status)"
+                echo "$domain: Failed to sync backup chain to $rsync_destination (status $rsync_backup_status)"
             fi
         else
             rsync_skipped+=($domain)
@@ -99,8 +99,8 @@ case $rsync_action in
 
         if [[ ${#rsync_list[@]} -eq 1 && -z ${rsync_skipped[@]} ]]; then
 
-            # Only returns a final status when there was only one backup on the list and existed (not skipped):
-            return $rsync_backup_status
+            # Only exits with rsync code when there was only one backup on the list and existed (not skipped):
+            exit $rsync_backup_status
         fi
     ;;
 
