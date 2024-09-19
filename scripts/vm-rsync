@@ -1,0 +1,131 @@
+#!/bin/bash
+
+# Runs rsync to synchronize backups of VMs from LOCAL_BACKUP_PATH to RSYNC_BACKUP_PATH, from either:
+# - A given list of domains (passed as arguments) or
+# - All VMs listed in SCHEDULED_BACKUPS_LIST if 'run-schedule' is passed as argument.
+# Can process backups individually or in a batch, but only returns rsync exit code during the individual scenario.
+
+# Load common functions:
+source $functions_path
+
+case $1 in
+
+    --run-schedule)
+
+        rsync_action="Scheduled"
+
+        # Load SCHEDULED_BACKUPS_LIST from external variables list:
+        source $external_vars
+
+        # Processes backups from SCHEDULED_BACKUPS_LIST:
+        rsync_list=(${SCHEDULED_BACKUPS_LIST[@]})
+
+        # Display initial message to append at logfile:
+        echo ""
+        echo "############################################################################################################"
+        echo "$rsync_action Rsync started at: $(date "+%Y-%m-%d %H:%M:%S")"
+    ;;
+
+    *)
+        rsync_action="On-demand"
+
+        # Processes backup folders from LOCAL_BACKUP_PATH as main source path, and VMs (passed as arguments) as subfolders:
+        for item in $@; do
+            # Add the backup to the main list:
+            rsync_list+=($item)
+        done
+    ;;
+esac
+
+if [[ -n ${rsync_list[@]} ]]; then
+
+    # Notify via Unraid about the start of a scheduled process:
+    [[ $backup_action == "Scheduled" && $(os_is_unraid) == yes ]] && \ unraid_notify "normal" "VM-Babysitter" "$rsync_action Rsync" "In progress for ${rsync_list[@]}. Avoid to stop/restart this container until further notice"
+
+    for domain in ${rsync_list[@]}; do
+
+        # (Re)Initialize status variable:
+        rsync_backup_status=""
+
+        # Build rsync_source directly from variables:
+        rsync_source=$LOCAL_BACKUP_PATH/$domain
+
+        if [[ -d $LOCAL_BACKUP_PATH/$rsync_source ]]; then
+
+            # Backup exists. Build rsync_destination directly from variables:
+            rsync_destination=$RSYNC_BACKUP_PATH/$domain
+
+            [[ $backup_action == "Scheduled" ]] \
+                && echo "____________________________________________________________________________________________________________" \
+                || echo ""
+
+
+            echo "$domain: Syncing backup chain to $rsync_destination..."
+
+            if [[ $rsync_destination == *@*:/* ]]; then
+
+                # Remote endpoint. Run rsync with extra options for remote connection when detected:
+                rsync $RSYNC_ARGS -e "ssh $SSH_OPTIONS" $source/ $destination/
+
+                # Get last status for rsync:
+                rsync_backup_status=$?
+            else
+
+                # Locally reachable endpoint. Run rsync with user defined arguments only:
+                rsync $RSYNC_ARGS $source/ $destination/
+
+                # Get last status for rsync:
+                rsync_backup_status=$?
+            fi
+
+            if [[ $rsync_backup_status -eq 0 ]]; then
+
+                rsync_success+=($domain)
+                echo "$domain: Backup chain synced successfully"
+
+            else
+                rsync_failed+=($domain)
+                echo "$domain: Failed to sync backup chain to $destination (status $rsync_backup_status)"
+            fi
+        else
+            rsync_skipped+=($domain)
+            echo "$domain: There is no backup folder to sync. Skipped"
+        fi
+    done
+
+else
+    echo "No path(s) were found for $rsync_action Rsync to process. Exited"
+fi
+
+case $rsync_action in
+
+    "On-demand")
+
+        if [[ ${#rsync_list[@]} -eq 1 && -z ${rsync_skipped[@]} ]]; then
+
+            # Only returns a final status when there was only one backup on the list and existed (not skipped):
+            return $rsync_backup_status
+        fi
+    ;;
+
+    "Schedule")
+
+        # Displays a brief summary:
+        echo "____________________________________________________________________________________________________________"
+        echo "$rsync_action Rsync Summary:"
+        echo ""
+        echo "Synced to mirror:      ${rsync_success[@]:-"None"}"
+        echo "Failed sync to mirror: ${rsync_failed[@]:-"None"}"
+        echo "Skipped (not found):   ${rsync_skipped[@]:-"None"}"
+
+        if [[ $(os_is_unraid) == yes ]]; then
+
+            # Notifies via Unraid about the results:
+            [[ -z ${rsync_failed[@]} ]] \
+                && [unraid_notify "normal" "VM-Babysitter" "$backup_action Rsync" "Success" \
+                || unraid_notify "warning" "VM-Babysitter" "$backup_action Rsync finished with errors" "Could not sync backup chain(s) of: ${rsync_failed[@]}"
+        fi
+
+        echo "$rsync_action Rsync ended at: $(date "+%Y-%m-%d %H:%M:%S")"
+    ;;
+esac
