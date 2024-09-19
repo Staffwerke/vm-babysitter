@@ -55,11 +55,7 @@ if [[ -n ${rsync_list[@]} ]]; then
             # Backup exists. Build rsync_destination directly from variables:
             rsync_destination=$RSYNC_BACKUP_PATH/$domain
 
-            [[ $backup_action == "Scheduled" ]] \
-                && echo "____________________________________________________________________________________________________________" \
-                || echo ""
-
-
+            echo "____________________________________________________________________________________________________________"
             echo "$domain: Syncing backup chain to $rsync_destination..."
 
             if [[ $rsync_destination == *@*:/* ]]; then
@@ -89,12 +85,12 @@ if [[ -n ${rsync_list[@]} ]]; then
             fi
         else
             rsync_skipped+=($domain)
-            echo "$domain: There is no backup folder to sync. Skipped"
+            echo "$domain: There is no backup folder to sync (skipped)"
         fi
     done
 
 else
-    echo "No path(s) were found for $rsync_action Rsync to process. Exited"
+    echo "No path(s) were found for $rsync_action Rsync to process (exited)"
 fi
 
 case $rsync_action in
