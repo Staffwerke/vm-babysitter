@@ -40,7 +40,8 @@ esac
 if [[ -n ${rsync_list[@]} ]]; then
 
     # Notify via Unraid about the start of a scheduled process:
-    [[ $backup_action == "Scheduled" && $(os_is_unraid) == yes ]] && \ unraid_notify "normal" "VM-Babysitter" "$rsync_action Rsync" "In progress for ${rsync_list[@]}. Avoid to stop/restart this container until further notice"
+    [[ $backup_action == "Scheduled" && $(os_is_unraid) == yes ]] \
+        && unraid_notify "normal" "VM-Babysitter" "$rsync_action Rsync" "In progress for ${rsync_list[@]}. Avoid to stop/restart this container until further notice"
 
     for domain in ${rsync_list[@]}; do
 
