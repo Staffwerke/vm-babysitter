@@ -102,10 +102,9 @@ if [[ -n ${backups_list[@]} ]]; then
 
         for domain in ${backup_chain_success[@]}; do
 
-            echo "____________________________________________________________________________________________________________"
-
             # Attempts to transfer changes via rsync:
-            rsync_backup $LOCAL_BACKUP_PATH/$domain $RSYNC_BACKUP_PATH/$domain
+            #rsync_backup $LOCAL_BACKUP_PATH/$domain $RSYNC_BACKUP_PATH/$domain
+            vm-rsync $domain
 
             # Get last status for rsync:
             rsync_status=$?
