@@ -166,7 +166,7 @@ case $rsync_action in
             else
                 [[ -n ${domain_detection_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "$backup_action backup finished, but found possible issues" "Could not detect the following VM(s): ${domain_detection_failed[@]} (might have been deleted?)"
 
-                [[ -n ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup finished with errors (last status: $backup_failed_status)" "Could not perform backup(s) for: ${backup_chain_failed[@]}"
+                [[ -n ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup finished with errors" "Could not perform backup(s) for: ${backup_chain_failed[@]}"
 
                 [[ -n ${rsync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync finished with errors" "Could not sync backup chain(s) of: ${rsync_failed[@]}"
             fi
