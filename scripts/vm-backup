@@ -7,56 +7,58 @@ case $1 in
 
     --run-schedule)
 
+        # Performs backups (and other actions) as a scheduled task:
         backup_action="Scheduled"
 
-        # Load SCHEDULED_BACKUPS_LIST from external variables list:
+        # Processes initial backups list from SCHEDULED_BACKUPS_LIST in external variables file:
         source $external_vars
+        backups_list=(${SCHEDULED_BACKUPS_LIST[@]})
 
-        # Virtnbdbackup mode is always auto:
+        # Virtnbdbackup mode is set to 'auto':
         backup_mode="auto"
 
-        # Processes initial backups list from SCHEDULED_BACKUPS_LIST:
-        received_backups_list=(${SCHEDULED_BACKUPS_LIST[@]})
-
-        # On scheduled mode, force '--no-color' for more clarity in log files:
+        # On Scheduled mode, force '--no-color' for more clarity in log files:
         [[ -z $(grep -o -e "--no-color" <<< "$VIRTNBDBACKUP_ARGS") ]] \
             && VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS --no-color"
 
-        # Display initial message to append at logfile:
+        # Display initial message to be appended at logfile:
         echo ""
         echo "############################################################################################################"
         echo "$backup_action Backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
     ;;
 
+    --add-schedule)
+
+            # Performs backups (and other actions) for first time, after initial checks:
+            backup_action="Initial"
+            shift
+
+            # Virtnbdbackup mode is set to 'full':
+            backup_mode="full"
+
+            # Virtnbdbackup mode is set to 'auto':
+            backup_mode="auto"
+
+            # Processes initial backups list from VMs (as remaining arguments):
+            backups_list=($@)
+    ;;
+
     *)
-        backup_action="On-demand"
+            # Assumes 'On-demand' backup, triggered by the user:
+            backup_action="On-demand"
 
-        # Virtnbdbackup mode is always auto (subject to change in future versions):
-        backup_mode="auto"
+            # Virtnbdbackup mode is set to 'auto':
+            backup_mode="auto"
 
-        # Processes initial backups list from input:
-        received_backups_list=($@)
+            # Processes initial backups list from VMs (as arguments):
+            backups_list=($@)
     ;;
 esac
-
-# Checks all VMs before to be processed, discarding deleted VMs:
-for item in ${received_backups_list[@]}; do
-    if [[ $(domain_exists $item) == yes ]]; then
-
-        # Add the VM to the main list:
-        backups_list+=($item)
-
-    else
-        # Create a separated list of 'lost' VMs, and prompt about the unexpected error
-        domain_detection_failed+=($item)
-        echo "WARNING: VM '$item' not found (skipped)"
-    fi
-done
 
 if [[ -n ${backups_list[@]} ]]; then
 
     # Notify via Unraid about the start of a scheduled process:
-    [[ $backup_action == "Scheduled" && $(os_is_unraid) == yes ]] \
+    [[ $(os_is_unraid) == yes ]] \
         && unraid_notify "normal" "VM-Babysitter" "$backup_action Backup" "In progress for ${backups_list[@]}. Avoid to stop/restart this container until further notice"
 
     [[ ${backups_list[@]} -ge 2 ]] \
@@ -66,49 +68,58 @@ if [[ -n ${backups_list[@]} ]]; then
 
         echo "____________________________________________________________________________________________________________"
 
-        # Check and apply if necessary, retention policy prior to perform the backup:
-        vm-retention-policy $domain
+        if [[ $(domain_exists $domain) == yes ]]; then
 
-        if [[ ! -d $LOCAL_BACKUP_PATH/$domain \
-            || $(dir_is_empty $LOCAL_BACKUP_PATH/$domain) == yes ]] \
-        && [[ $(domain_state $domain) == "shut off" \
-            && -z $(grep -o -e "-S" -e "--start-domain" <<< "$VIRTNBDBACKUP_ARGS") ]]; then
+            # Check and apply if necessary, retention policy prior to perform the backup:
+            vm-retention-policy $domain
 
-            # Under specific scenario of new backup chain and powered off VMs, force --start-server to turn on the VM in paused mode:
-            start_domain="--start-domain"
-        fi
+            if [[ ! -d $LOCAL_BACKUP_PATH/$domain || $(dir_is_empty $LOCAL_BACKUP_PATH/$domain) == yes ]] \
+            && [[ $(domain_state $domain) == "shut off" && -z $(grep -o -e "-S" -e "--start-domain" <<< "$VIRTNBDBACKUP_ARGS") ]]; then
 
-        echo "$domain: Running backup operation..."
+                # Under specific scenario of new backup chain and powered off VMs, force --start-server to turn on the VM in paused mode:
+                start_domain="--start-domain"
+            fi
 
-        # Perform the backup operation:
-        virtnbdbackup $start_domain -d $domain -l $backup_mode -o $LOCAL_BACKUP_PATH/$domain $VIRTNBDBACKUP_ARGS
+            echo "$domain: Running backup operation..."
 
-        # Get last status for virtnbdbackup:
-        virtnbdbackup_status=$?
+            # Perform the backup operation:
+            virtnbdbackup $start_domain -d $domain -l $backup_mode -o $LOCAL_BACKUP_PATH/$domain $VIRTNBDBACKUP_ARGS
 
-        if [[ $virtnbdbackup_status -eq 0 ]]; then
+            # Get last status for virtnbdbackup:
+            virtnbdbackup_status=$?
 
-            # Backup chain creation was successful!
-            backup_chain_success+=($domain)
-            echo "$domain: $backup_mode backup successfully finished"
+            if [[ $virtnbdbackup_status -eq 0 ]]; then
 
-        else
-            # Failed to create a new backup chain:
-            backup_chain_failed+=($domain)
+                # Backup chain creation was successful!
+                backup_success_list+=($domain)
+                echo "$domain: $backup_mode backup successfully finished"
 
-            echo "WARNING: $domain: $backup_mode backup failed (status $virtnbdbackup_status)"
-        fi
-    done
+            else
+                # Failed to create a new backup chain:
+                backup_failed_list+=($domain)
 
-    if [[ -n ${backup_chain_success[@]} && -n $RSYNC_BACKUP_PATH ]]; then
+                echo "WARNING: $domain: $backup_mode backup failed (status $virtnbdbackup_status)"
+            fi
+        done
 
-        if [[ ${backup_chain_success[@]} -ge 2 ]]; then
+    else
+        # Create a separated list of 'lost' VMs, and prompt about the unexpected error
+        backup_skipped_list+=($item)
+        echo "$domain: There is no VM to backup (skipped)"
+    fi
+
+    if [[ -n ${backup_success_list[@]} && -n $RSYNC_BACKUP_PATH ]]; then
+
+        # Activate rsync mode:
+        rsync_mode=true
+
+        if [[ ${backup_success_list[@]} -ge 2 ]]; then
 
             echo "===========================================================================================================_"
-            echo "Rsync of: ${backup_chain_success[@]} in progress..."
+            echo "Rsync of: ${backup_success_list[@]} in progress..."
         fi
 
-        for domain in ${backup_chain_success[@]}; do
+        for domain in ${backup_success_list[@]}; do
 
             # Attempts to transfer changes via rsync:
             #rsync_backup $LOCAL_BACKUP_PATH/$domain $RSYNC_BACKUP_PATH/$domain
@@ -120,10 +131,10 @@ if [[ -n ${backups_list[@]} ]]; then
             if [[ $rsync_status -eq 0 ]]; then
 
                 # Rsync exited normally:
-                rsync_success+=($domain)
+                rsync_success_list+=($domain)
             else
                 # Rsync failed:
-                rsync_failed+=($domain)
+                rsync_failed_list+=($domain)
             fi
         done
     fi
@@ -132,64 +143,83 @@ else
     echo "No Virtual machines for $backup_action Backup to process (exited)"
 fi
 
-case $rsync_action in
+case $backup_action in
+
+    "Initial")
+
+        # Append VMs to the correspondent lists to be exported:
+        FAILED_VMS_LIST+=(${backup_failed_list[@]})
+        SCHEDULED_BACKUPS_LIST+=(${backup_success_list[@]})
+
+        # Export all variables:
+        sed -i \
+        -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=(${FAILED_VMS_LIST[@]})/" \
+        -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=(${SCHEDULED_BACKUPS_LIST[@]})/" \
+        $external_vars
+
+        # Show results on screen and log file:
+        display_summary
+    ;;
 
     "Schedule")
 
-        # Displays a brief summary:
-        echo "____________________________________________________________________________________________________________"
-        echo "$backup_action Backup Summary:"
-        echo ""
-        echo "Successful backups:    ${backup_chain_success[@]:-"None"}"
-        echo "Failed backups:        ${backup_chain_failed[@]:-"None"}"
-        echo "Skipped (no VM found): ${domain_detection_failed[@]:-"None"}"
+        # Load SCHEDULED_BACKUPS_LIST FAILED_VMS_LIST again,
+        # in case other VMs were added during this run:
+        source $external_vars
 
-        if [[ -n $RSYNC_BACKUP_PATH ]]; then
+        # TO DO: Update variables to be exported based on results....
 
-            # Only show remote stats when remote endppoint is set:
-            echo "____________________________________________________________________________________________________________"
-            echo "Rsync summary:"
-            echo ""
-            echo "Successful syncs:    ${rsync_success[@]:-"None"}"
-            echo "Failed to sync:      ${rsync_failed[@]:-"None"}"
-        fi
+        # Show results into log file:
+        display_summary
+        echo "$backup_action Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
 
-        if [[ $(os_is_unraid) == yes ]]; then
+    ;;
 
-            # Notifies via Unraid about the results:
-            if [[ -z ${backup_chain_failed[@]} \
-                && -z ${rsync_failed[@]} \
-                && -z ${domain_detection_failed[@]} ]]; then
+    "On-demand")
 
-                unraid_notify "normal" "VM-Babysitter" "$backup_action Backup" "Success"
-
-            else
-                [[ -n ${domain_detection_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "$backup_action backup finished, but found possible issues" "Could not detect the following VM(s): ${domain_detection_failed[@]} (might have been deleted?)"
-
-                [[ -n ${backup_chain_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup finished with errors" "Could not perform backup(s) for: ${backup_chain_failed[@]}"
-
-                [[ -n ${rsync_failed[@]} ]] && unraid_notify "warning" "VM-Babysitter" "Rsync finished with errors" "Could not sync backup chain(s) of: ${rsync_failed[@]}"
-            fi
-        fi
-
-        # Update values to be exported:
-        FAILED_VMS_LIST+=(${backup_chain_failed[@]})
-
-        # Recreate SCHEDULED_BACKUPS_LIST based upon successful backups:
-        SCHEDULED_BACKUPS_LIST=(${backup_chain_success[@]})
-
-        # Sed can't expand arrays correctly. Convert variables into strings to be exported properly:
-        FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
-        SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
-
-        # Export all variables, at the very end of the process:
-        sed -i \
-        -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
-        -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
-        $external_vars
-
-        echo "$backup_action backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
+        # Nothing else to do or report:
+        echo "Finished"
     ;;
 esac
 
+display_summary()
+{
+    echo "____________________________________________________________________________________________________________"
+    echo "$backup_action Backup Summary:"
+    echo ""
+    echo "Successful backups:    ${backup_success_list[@]:-"None"}"
+    echo "Failed backups:        ${backup_failed_list[@]:-"None"}"
+    echo "Skipped (missing VMs): ${backup_skipped_list[@]:-"None"}"
+
+    if [[ $rsync_mode == true ]]; then
+
+        # Only show remote stats when remote endppoint is set:
+        echo "____________________________________________________________________________________________________________"
+        echo "$backup_action Rsync summary:"
+        echo ""
+        echo "Successful syncs: ${rsync_success_list[@]:-"None"}"
+        echo "Failed to sync:   ${rsync_failed_list[@]:-"None"}"
+    fi
+
+    if [[ $(os_is_unraid) == yes ]]; then
+
+        # Notifies via Unraid about the results:
+        if [[ -z ${backup_failed_list[@]} \
+            && -z ${rsync_failed_list[@]} \
+            && -z ${backup_skipped_list[@]} ]]; then
+
+            unraid_notify "normal" "VM-Babysitter" "$backup_action Backup" "Finished Successfully"
+
+        else
+            [[ -n ${backup_skipped_list[@]} ]] \
+                && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup" "Unable to find VM(s): ${backup_skipped_list[@]} and therefore removed from schedule (maybe deleted by the user?) "
+
+            [[ -n ${backup_failed_list[@]} ]] \
+                && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup finished with errors" "Could not perform backup(s) for: ${backup_failed_list[@]}"
+
+            [[ -n ${rsync_failed_list[@]} ]] \
+                && unraid_notify "warning" "VM-Babysitter" "$backup_action Rsync finished with errors" "Could not sync backup chain(s) of: ${rsync_failed_list[@]}"
+        fi
+    fi
+}
 
