@@ -5,9 +5,27 @@ source $functions_path
 
 case $1 in
 
-    --run-schedule)
+    --add-schedule) # Usage: vm-backup --add-schedule <vm-name1> [vm-name2]...
 
-        # Performs backups (and other actions) as a scheduled task:
+            # Creates new backup chains of VMs in need of it (passed as arguments),
+            # during container start or when a new VM is detected, appending/exporting VMs to their correspondent lists,
+            # depending on the result:
+            backup_action="Initial"
+
+            # Forces to read from the 2nd argument, where the (first) VM is expected to be declared:
+            shift
+
+            # Virtnbdbackup mode is set to 'full':
+            backup_mode="full"
+
+            # Populates the backups list from VMs passed as (remaining) arguments:
+            backups_list=($@)
+    ;;
+
+    --run-schedule) # Usage: vm-backup --run-schedule [>> $SCHEDULE_LOGFILE_PATH 2>&1]
+
+        # Performs backups from SCHEDULED_BACKUPS_LIST when called via cron,
+        # updating/exporting correspondent lists, depending on the results (included deleted VMs):
         backup_action="Scheduled"
 
         # Processes initial backups list from SCHEDULED_BACKUPS_LIST in external variables file:
@@ -21,30 +39,18 @@ case $1 in
         [[ -z $(grep -o -e "--no-color" <<< "$VIRTNBDBACKUP_ARGS") ]] \
             && VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS --no-color"
 
-        # Display initial message to be appended at logfile:
+        # Display initial message to be appended into log file:
         echo ""
         echo "############################################################################################################"
         echo "$backup_action Backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
     ;;
 
-    --add-schedule)
+    *) # Usage: vm-backup <vm-name1> [vm-name2]...
 
-            # Performs backups (and other actions) for first time, after initial checks:
-            backup_action="Initial"
-            shift
+            # Without flags, the script performs 'on-demand' backups of the VMs passed as arguments. No lists are updated or exported.
+            # Is mostly for test/debugging purposes, so use with care:
 
-            # Virtnbdbackup mode is set to 'full':
-            backup_mode="full"
-
-            # Virtnbdbackup mode is set to 'auto':
-            backup_mode="auto"
-
-            # Processes initial backups list from VMs (as remaining arguments):
-            backups_list=($@)
-    ;;
-
-    *)
-            # Assumes 'On-demand' backup, triggered by the user:
+            # TODO: Add user confirmation action.
             backup_action="On-demand"
 
             # Virtnbdbackup mode is set to 'auto':
@@ -147,7 +153,8 @@ case $backup_action in
 
     "Initial")
 
-        # Append VMs to the correspondent lists to be exported:
+        # Append VM(s) to the correspondent lists to be exported.
+        # (is assumed that VM(s) still don't exist into any list):
         FAILED_VMS_LIST+=(${backup_failed_list[@]})
         SCHEDULED_BACKUPS_LIST+=(${backup_success_list[@]})
 
@@ -163,21 +170,45 @@ case $backup_action in
 
     "Schedule")
 
-        # Load SCHEDULED_BACKUPS_LIST FAILED_VMS_LIST again,
-        # in case other VMs were added during this run:
-        source $external_vars
+        # VMs in backup_success_list are assumed to always exist in SCHEDULED_BACKUPS_LIST.
 
-        # TO DO: Update variables to be exported based on results....
+        if [[ -n ${backup_failed_list[@]} || -n ${backup_skipped_list[@]} ]]; then
+
+            # When some VM is into one of these lists, it must be removed from SCHEDULED_BACKUPS_LIST,
+            # appended to FAILED_VMS_LIST if failed.
+
+            # Load SCHEDULED_BACKUPS_LIST FAILED_VMS_LIST again, in case other VMs were appended somewhere during this run:
+            source $external_vars
+
+            for vm in ${backup_failed_list[@]} ${backup_skipped_list[@]}; do
+
+                # If any, delete each failed or skipped VM from the list:
+                unset SCHEDULED_BACKUPS_LIST[$(item_position $vm "SCHEDULED_BACKUPS_LIST")]
+
+                # Rebuild the array upon each iteration:
+                SCHEDULED_BACKUPS_LIST=(${SCHEDULED_BACKUPS_LIST[@]})
+            done
+
+            # Append failed VMs to its correspondent list to be exported:
+            FAILED_VMS_LIST+=(${backup_failed_list[@]})
+
+            # Export all variables:
+            sed -i \
+            -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=(${FAILED_VMS_LIST[@]})/" \
+            -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=(${SCHEDULED_BACKUPS_LIST[@]})/" \
+            $external_vars
+        fi
 
         # Show results into log file:
         display_summary
-        echo "$backup_action Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
 
+        # Append the ending date and time into log file:
+        echo "$backup_action Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
     ;;
 
     "On-demand")
 
-        # Nothing else to do or report:
+        # Report the script has ended:
         echo "Finished"
     ;;
 esac
@@ -222,4 +253,3 @@ display_summary()
         fi
     fi
 }
-
