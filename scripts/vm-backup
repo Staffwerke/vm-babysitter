@@ -67,8 +67,9 @@ if [[ -n ${backups_list[@]} ]]; then
     [[ $(os_is_unraid) == yes ]] \
         && unraid_notify "normal" "VM-Babysitter" "$backup_action Backup" "In progress for ${backups_list[@]}. Avoid to stop/restart this container until further notice"
 
-    [[ ${backups_list[@]} -ge 2 ]] \
-        && echo "$backup_action Backup of: ${backups_list[@]} in progress..."
+    # When processing batches, notify first which VM(s) will be processed:
+    [[ ${#backups_list[@]} -ge 2 ]] \
+        && echo "$backup_action Backup of VMs: ${backups_list[@]} in progress..."
 
     for domain in ${backups_list[@]}; do
 
