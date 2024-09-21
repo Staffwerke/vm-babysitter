@@ -1,11 +1,14 @@
 #!/bin/bash
 
+# Usage:
+# vm-backup [--run-schedule] [[--create-new] <vm-name1> [vm-name2]...]
+
 # Load common functions:
 source $functions_path
 
 case $1 in
 
-    --add-schedule) # Usage: vm-backup --add-schedule <vm-name1> [vm-name2]...
+    --create-new)
 
             # Creates new backup chains of VMs in need of it (passed as arguments),
             # during container start or when a new VM is detected, appending/exporting VMs to their correspondent lists,
@@ -22,7 +25,7 @@ case $1 in
             backups_list=($@)
     ;;
 
-    --run-schedule) # Usage: vm-backup --run-schedule [>> $SCHEDULE_LOGFILE_PATH 2>&1]
+    --run-schedule)
 
         # Performs backups from SCHEDULED_BACKUPS_LIST when called via cron,
         # updating/exporting correspondent lists, depending on the results (included deleted VMs):
@@ -45,8 +48,7 @@ case $1 in
         echo "$backup_action Backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
     ;;
 
-    *) # Usage: vm-backup <vm-name1> [vm-name2]...
-
+    *)
             # Without flags, the script performs 'on-demand' backups of the VMs passed as arguments. No lists are updated or exported.
             # Is mostly for test/debugging purposes, so use with care:
 
