@@ -40,7 +40,7 @@ case $1 in
 
         # On Scheduled mode, force '--no-color' for more clarity in log files:
         [[ -z $(grep -o -e "--no-color" <<< "$VIRTNBDBACKUP_ARGS") ]] \
-            && VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS --no-color"
+            && VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS --nocolor"
 
         # Display initial message to be appended into log file:
         echo ""
