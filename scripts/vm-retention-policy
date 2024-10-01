@@ -1,32 +1,21 @@
 #!/bin/bash
 
-# Internal global variables and common functions are managed via this script:
+# Usage:
+# vm-retention-policy <vm-name1> [vm-name2]...
+# - Checks backups lifecyle based MAX_BACKUPS_PER_CHAIN, archiving it when reaches that number of checkpoints
+# - Applies retention policy, based on LOCAL|RSYNC_BACKUP_CHAINS_TO_KEEP, keeping as many (and most recent) backup chains on each endpoint, deleting the older ones.
+
+# Load common functions:
 source $functions_path
 
-# And SCHEDULED_BACKUPS_LIST is loaded from file (written by the main script):
-source $external_vars
-
-case $1 in
-
-    --run-schedule)
-
-        retention_action="Scheduled"
-
-        # Processes backups from SCHEDULED_BACKUPS_LIST:
-        retention_list=(${SCHEDULED_BACKUPS_LIST[@]})
-    ;;
-
-    *)
-        retention_action="On-demand"
-
-        # Processes backups from VMs passed as arguments, filtering non existing VMs (or invalid arguments):
-        for item in $@; do
-            [[ $(domain_exists $item) == yes ]] && retention_list+=($item)
-        done
-    ;;
-esac
+# Processes initial backups list from VMs (passed as arguments):
+retention_list=($@)
 
 if [[ -n ${retention_list[@]} ]]; then
+
+    # When processing batches, notify first which backups will be processed:
+    [[ ${#retention_list[@]} -ge 2 ]] \
+        && echo "Retention Policy of VMs backups: ${retention_list[@]} in progress..."
 
     for domain in ${retention_list[@]}; do
 
@@ -34,15 +23,12 @@ if [[ -n ${retention_list[@]} ]]; then
         end_of_lifecycle=""
         additional_message=""
 
-        # source $VM_CONFIG_PATH/$domain.conf
+        if [[ -n $MAX_BACKUPS_PER_CHAIN && $MAX_BACKUPS_PER_CHAIN -gt 0 ]]; then
 
-        if [[ -n $MAX_BACKUPS_PER_CHAIN && $MAX_BACKUPS_PER_CHAIN -ne 0 ]]; then
-
-
+            # Retention policy is set (at least, partially) by the user.
             if [[ -d $LOCAL_BACKUP_PATH/$domain ]]; then
 
                 # Retrieve the number of existing checkpoints in the backup chain:
-                #------------------------------------------------------------------------------
                 num_of_backup_checkpoints=$(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num)
 
                 case $num_of_backup_checkpoints in
@@ -50,20 +36,20 @@ if [[ -n ${retention_list[@]} ]]; then
                     0)
                         # '0' checkpoints means it's a 'copy' backup:
                         end_of_lifecycle=true
-                        echo "$domain: Current backup was made in 'copy' mode and cannot be used for incremental backups. A new backup chain will be created"
+                        echo "$domain: Current backup was made in 'copy' mode and cannot be used for incremental backups. This backup chain will be archived"
                     ;;
 
                     *)
-                        # Any other positive integer number it's the current number of checkpoints present into the backup chain:.
+                        # Any other positive integer number it's the current number of checkpoints present into the backup chain.
                         # Check if it has reached the maximum allowed:
                         if [[ $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
 
                             # Backup has reached the max allowed checkpoints and must be archived:
                             end_of_lifecycle=true
-                            additional_message=". A new backup chain will be created"
+                            additional_message=". This backup chain will be archived"
                         fi
 
-                            echo "$domain: Detected $num_of_backup_checkpoints of max allowed $MAX_BACKUPS_PER_CHAIN checkpoints$additional_message"
+                        echo "$domain: Detected $num_of_backup_checkpoints of max allowed $MAX_BACKUPS_PER_CHAIN checkpoints$additional_message"
                     ;;
                 esac
 
@@ -77,7 +63,7 @@ if [[ -n ${retention_list[@]} ]]; then
                 fi
 
             else
-                echo "$domain: No backup found at $LOCAL_BACKUP_PATH to process"
+                echo "$domain: No backup found at $LOCAL_BACKUP_PATH to apply"
             fi
 
         else
@@ -87,5 +73,5 @@ if [[ -n ${retention_list[@]} ]]; then
     done
 
 else
-    echo "No Virtual machines for $retention_action retention policy to process. Exited"
+    echo "No Virtual machines for Retention Policy to apply (exited)"
 fi
