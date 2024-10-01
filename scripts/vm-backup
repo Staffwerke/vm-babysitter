@@ -80,12 +80,12 @@ if [[ -n ${backups_list[@]} ]]; then
         if [[ $(domain_exists $domain) == yes ]]; then
 
             # When backup chain exists, check and apply when necessary retention policy, prior to perform the backup operation:
-            if [[ $backup_action != "Initial" ]] && vm-retention-policy $domain
+            [[ $backup_action != "Initial" ]] && vm-retention-policy $domain
 
+            # Under specific scenario of new backup chain and powered off VMs, force --start-server to turn on the VM in paused mode:
             if [[ ! -d $LOCAL_BACKUP_PATH/$domain || $(dir_is_empty $LOCAL_BACKUP_PATH/$domain) == yes ]] \
             && [[ $(domain_state $domain) == "shut off" && -z $(grep -o -e "-S" -e "--start-domain" <<< "$VIRTNBDBACKUP_ARGS") ]]; then
 
-                # Under specific scenario of new backup chain and powered off VMs, force --start-server to turn on the VM in paused mode:
                 start_domain="--start-domain"
             fi
 
@@ -109,13 +109,13 @@ if [[ -n ${backups_list[@]} ]]; then
 
                 echo "WARNING: $domain: $backup_mode backup failed (status $virtnbdbackup_status)"
             fi
-        done
 
-    else
-        # Create a separated list of 'lost' VMs, and prompt about the unexpected error
-        backup_skipped_list+=($item)
-        echo "$domain: There is no VM to backup (skipped)"
-    fi
+        else
+            # Create a separated list of 'lost' VMs, and prompt about the unexpected error
+            backup_skipped_list+=($item)
+            echo "$domain: There is no VM to backup (skipped)"
+        fi
+    done
 
     if [[ -n ${backup_success_list[@]} && -n $RSYNC_BACKUP_PATH ]]; then
 
