@@ -3,6 +3,47 @@
 # Usage:
 # vm-backup [--run-schedule] [[--create-new] <vm-name1> [vm-name2]...]
 
+display_summary()
+{
+    echo "____________________________________________________________________________________________________________"
+    echo "$backup_action Backup Summary:"
+    echo ""
+    echo "Successful backups:    ${backup_success_list[@]:-"None"}"
+    echo "Failed backups:        ${backup_failed_list[@]:-"None"}"
+    echo "Skipped (missing VMs): ${backup_skipped_list[@]:-"None"}"
+
+    if [[ $rsync_mode == true ]]; then
+
+        # Only show remote stats when remote endppoint is set:
+        echo "____________________________________________________________________________________________________________"
+        echo "$backup_action Rsync summary:"
+        echo ""
+        echo "Successful syncs: ${rsync_success_list[@]:-"None"}"
+        echo "Failed to sync:   ${rsync_failed_list[@]:-"None"}"
+    fi
+
+    if [[ $(os_is_unraid) == yes ]]; then
+
+        # Notifies via Unraid about the results:
+        if [[ -z ${backup_failed_list[@]} \
+            && -z ${rsync_failed_list[@]} \
+            && -z ${backup_skipped_list[@]} ]]; then
+
+            unraid_notify "normal" "VM-Babysitter" "$backup_action Backup" "Finished Successfully"
+
+        else
+            [[ -n ${backup_skipped_list[@]} ]] \
+                && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup" "Unable to find VM(s): ${backup_skipped_list[@]} and therefore removed from schedule (maybe deleted by the user?) "
+
+            [[ -n ${backup_failed_list[@]} ]] \
+                && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup finished with errors" "Could not perform backup(s) for: ${backup_failed_list[@]}"
+
+            [[ -n ${rsync_failed_list[@]} ]] \
+                && unraid_notify "warning" "VM-Babysitter" "$backup_action Rsync finished with errors" "Could not sync backup chain(s) of: ${rsync_failed_list[@]}"
+        fi
+    fi
+}
+
 # Load common functions:
 source $functions_path
 
@@ -216,43 +257,3 @@ case $backup_action in
     ;;
 esac
 
-display_summary()
-{
-    echo "____________________________________________________________________________________________________________"
-    echo "$backup_action Backup Summary:"
-    echo ""
-    echo "Successful backups:    ${backup_success_list[@]:-"None"}"
-    echo "Failed backups:        ${backup_failed_list[@]:-"None"}"
-    echo "Skipped (missing VMs): ${backup_skipped_list[@]:-"None"}"
-
-    if [[ $rsync_mode == true ]]; then
-
-        # Only show remote stats when remote endppoint is set:
-        echo "____________________________________________________________________________________________________________"
-        echo "$backup_action Rsync summary:"
-        echo ""
-        echo "Successful syncs: ${rsync_success_list[@]:-"None"}"
-        echo "Failed to sync:   ${rsync_failed_list[@]:-"None"}"
-    fi
-
-    if [[ $(os_is_unraid) == yes ]]; then
-
-        # Notifies via Unraid about the results:
-        if [[ -z ${backup_failed_list[@]} \
-            && -z ${rsync_failed_list[@]} \
-            && -z ${backup_skipped_list[@]} ]]; then
-
-            unraid_notify "normal" "VM-Babysitter" "$backup_action Backup" "Finished Successfully"
-
-        else
-            [[ -n ${backup_skipped_list[@]} ]] \
-                && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup" "Unable to find VM(s): ${backup_skipped_list[@]} and therefore removed from schedule (maybe deleted by the user?) "
-
-            [[ -n ${backup_failed_list[@]} ]] \
-                && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup finished with errors" "Could not perform backup(s) for: ${backup_failed_list[@]}"
-
-            [[ -n ${rsync_failed_list[@]} ]] \
-                && unraid_notify "warning" "VM-Babysitter" "$backup_action Rsync finished with errors" "Could not sync backup chain(s) of: ${rsync_failed_list[@]}"
-        fi
-    fi
-}
