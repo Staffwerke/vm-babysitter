@@ -771,51 +771,6 @@ os_is_unraid()
 }
 
 # -----------------------------------------------------------------------------
-# Rsyncs a given local VM backup from one to another locaiton, using RSYNC_ARGS as arguments, and SSH_OPTIONS when destination it's a SSH reachable endpoint:
-# -----------------------------------------------------------------------------
-rsync_backup()
-{
-    # Source it's the 1st argument
-    local source=$1
-
-    # Destination it's the full second argument:
-    local destination=$2
-
-    # Get the VM name from
-    local domain=$(basename $destination)
-
-    local rsync_backup_status=""
-
-    echo "$domain: Syncing backup chain to $destination..."
-
-    if [[ $2 == *@*:/* ]]; then
-
-        # Run rsync with extra options for remote connection when detected:
-        rsync $RSYNC_ARGS -e "ssh $SSH_OPTIONS" $source/ $destination/
-
-        # Get last status for rsync:
-        rsync_backup_status=$?
-    else
-
-        # Run rsync with user defined arguments only:
-        rsync $RSYNC_ARGS $source/ $destination/
-
-        # Get last status for rsync:
-        rsync_backup_status=$?
-    fi
-
-    if [[ $rsync_backup_status -eq 0 ]]; then
-
-        echo "$domain: Backup chain synced successfully"
-
-    else
-        echo "$domain: Failed to sync backup chain to $destination (status $rsync_backup_status)"
-    fi
-
-    return $rsync_backup_status
-}
-
-# -----------------------------------------------------------------------------
 # From a given list, sorts unordered items lexicographically, with numbers naturally sorted:
 # -----------------------------------------------------------------------------
 

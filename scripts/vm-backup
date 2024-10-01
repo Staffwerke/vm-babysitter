@@ -165,14 +165,13 @@ if [[ -n ${backups_list[@]} ]]; then
 
         if [[ ${#backup_success_list[@]} -ge 2 ]]; then
 
-            echo "===========================================================================================================_"
+            echo "============================================================================================================"
             echo "Rsync of: ${backup_success_list[@]} in progress..."
         fi
 
         for domain in ${backup_success_list[@]}; do
 
             # Attempts to transfer changes via rsync:
-            #rsync_backup $LOCAL_BACKUP_PATH/$domain $RSYNC_BACKUP_PATH/$domain
             vm-rsync $domain
 
             # Get last status for rsync:
