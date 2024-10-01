@@ -79,8 +79,8 @@ if [[ -n ${backups_list[@]} ]]; then
 
         if [[ $(domain_exists $domain) == yes ]]; then
 
-            # Check and apply if necessary, retention policy prior to perform the backup:
-            vm-retention-policy $domain
+            # When backup chain exists, check and apply when necessary retention policy, prior to perform the backup operation:
+            if [[ $backup_action != "Initial" ]] && vm-retention-policy $domain
 
             if [[ ! -d $LOCAL_BACKUP_PATH/$domain || $(dir_is_empty $LOCAL_BACKUP_PATH/$domain) == yes ]] \
             && [[ $(domain_state $domain) == "shut off" && -z $(grep -o -e "-S" -e "--start-domain" <<< "$VIRTNBDBACKUP_ARGS") ]]; then
