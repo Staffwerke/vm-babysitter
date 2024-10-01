@@ -80,7 +80,7 @@ case $1 in
         backup_mode="auto"
 
         # On Scheduled mode, force '--no-color' for more clarity in log files:
-        [[ -z $(grep -o -e "--no-color" <<< "$VIRTNBDBACKUP_ARGS") ]] \
+        [[ -z $(grep -o -e "--nocolor" <<< "$VIRTNBDBACKUP_ARGS") ]] \
             && VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS --nocolor"
 
         # Display initial message to be appended into log file:
@@ -163,7 +163,7 @@ if [[ -n ${backups_list[@]} ]]; then
         # Activate rsync mode:
         rsync_mode=true
 
-        if [[ ${backup_success_list[@]} -ge 2 ]]; then
+        if [[ ${#backup_success_list[@]} -ge 2 ]]; then
 
             echo "===========================================================================================================_"
             echo "Rsync of: ${backup_success_list[@]} in progress..."
