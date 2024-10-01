@@ -171,7 +171,7 @@ case $backup_action in
         display_summary
     ;;
 
-    "Schedule")
+    "Scheduled")
 
         # VMs in backup_success_list are assumed to always exist in SCHEDULED_BACKUPS_LIST.
 
@@ -212,7 +212,7 @@ case $backup_action in
     "On-demand")
 
         # Report the script has ended:
-        echo "Finished"
+        echo "$(basename $0): Finished"
     ;;
 esac
 
