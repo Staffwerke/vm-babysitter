@@ -947,7 +947,7 @@ end_of_external_variables
             if [[ -n ${CREATE_BACKUP_CHAIN_LIST[@]} ]]; then
 
                 # Create new backup chains with backup script (on-demand mode):
-                vm-backup ${CREATE_BACKUP_CHAIN_LIST[@]}
+                vm-backup --create-new ${CREATE_BACKUP_CHAIN_LIST[@]}
 
                 # Reload external variables to gather changes on lists:
                 source $external_vars
