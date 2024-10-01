@@ -857,6 +857,9 @@ end_of_external_variables
     # 3. Begin monitorization for VMs in lists, performing operations as required:
     #------------------------------------------------------------------------------
 
+    # Creates DOMAINS_LIST, a list of non-transient domains that aren't into any of the queues from past iterations:
+    create_domains_list
+
     echo ""
     echo "############################################################################################################"
     echo "Monitoring mode started"
@@ -895,9 +898,6 @@ end_of_external_variables
                 fi
             done
         fi
-
-        # (Re)creates DOMAINS_LIST, a list of non-transient domains that aren't into any of the queues from past iterations:
-        create_domains_list
 
         if [[ -n ${DOMAINS_LIST[@]} || -n ${CHECK_BACKUPS_LIST[@]} ]]; then
 
