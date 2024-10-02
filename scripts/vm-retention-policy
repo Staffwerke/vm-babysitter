@@ -1,77 +1,106 @@
 #!/bin/bash
 
-# Usage:
-# vm-retention-policy <vm-name1> [vm-name2]...
-# - Checks backups lifecyle based MAX_BACKUPS_PER_CHAIN, archiving it when reaches that number of checkpoints
+# Usage: vm-retention-policy [--force] [domain1 domain2...]
+# - Checks backups lifecyle based on MAX_BACKUPS_PER_CHAIN, triggering its archiving when reaches that number of checkpoints
 # - Applies retention policy, based on LOCAL|RSYNC_BACKUP_CHAINS_TO_KEEP, keeping as many (and most recent) backup chains on each endpoint, deleting the older ones.
+#
+# When '--force'is passed as the first argument, overrides MAX_BACKUPS_PER_CHAIN and triggers its immediate archiving.
 
 # Load common functions:
 source $functions_path
+
+if [[ $1 == "--force" ]]; then
+
+    # Force the end of lifecycle:
+    retention_mode="Forced"
+    shift
+
+elif [[ -n $MAX_BACKUPS_PER_CHAIN && $MAX_BACKUPS_PER_CHAIN -gt 0 ]]; then
+
+    # Run normal checks and apply retention policy:
+    retention_mode="Normal"
+
+fi
 
 # Processes initial backups list from VMs (passed as arguments):
 retention_list=($@)
 
 if [[ -n ${retention_list[@]} ]]; then
 
-    # When processing batches, notify first which backups will be processed:
-    [[ ${#retention_list[@]} -ge 2 ]] \
-        && echo "Retention Policy of VMs backups: ${retention_list[@]} in progress..."
-
     for domain in ${retention_list[@]}; do
 
         # (Re)Initialize used variables:
-        end_of_lifecycle=""
-        additional_message=""
+        local_backup_not_found=0
+        end_of_lifecycle=0
 
-        if [[ -n $MAX_BACKUPS_PER_CHAIN && $MAX_BACKUPS_PER_CHAIN -gt 0 ]]; then
+        if [[ -d $LOCAL_BACKUP_PATH/$domain && -z $(dir_is_empty $LOCAL_BACKUP_PATH/$domain) ]]; then
 
-            # Retention policy is set (at least, partially) by the user.
-            if [[ -d $LOCAL_BACKUP_PATH/$domain ]]; then
+            case $retention_mode in
 
-                # Retrieve the number of existing checkpoints in the backup chain:
-                num_of_backup_checkpoints=$(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num)
+                Normal)
 
-                case $num_of_backup_checkpoints in
+                    # Retention policy is set (at least, partially) by the user. Retrieve the number of existing checkpoints in the backup chain:
+                    num_of_backup_checkpoints=$(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num)
 
-                    0)
-                        # '0' checkpoints means it's a 'copy' backup:
-                        end_of_lifecycle=true
-                        echo "$domain: Current backup was made in 'copy' mode and cannot be used for incremental backups. This backup chain will be archived"
-                    ;;
+                    case $num_of_backup_checkpoints in
 
-                    *)
-                        # Any other positive integer number it's the current number of checkpoints present into the backup chain.
-                        # Check if it has reached the maximum allowed:
-                        if [[ $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
+                        0)  # '0' checkpoints means it's a 'copy' backup:
 
-                            # Backup has reached the max allowed checkpoints and must be archived:
-                            end_of_lifecycle=true
-                            additional_message=". This backup chain will be archived"
-                        fi
+                            end_of_lifecycle=1
+                            echo "$domain: Current backup was made in 'copy' mode and cannot be used for incremental backups"
+                        ;;
 
-                        echo "$domain: Detected $num_of_backup_checkpoints of max allowed $MAX_BACKUPS_PER_CHAIN checkpoints$additional_message"
-                    ;;
-                esac
+                        *)  # Any other positive integer number it's the current number of checkpoints present into the backup chain.
 
-                if [[ $end_of_lifecycle == true ]]; then
+                            # Check if it has reached the maximum allowed:
+                            if [[ $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
 
-                    # Processes backup for being archived locally:
-                    archive_backup $LOCAL_BACKUP_PATH/$domain $LOCAL_BACKUP_CHAINS_TO_KEEP
+                                # Backup has reached the max allowed checkpoints and must be archived:
+                                end_of_lifecycle=1
+                            fi
 
-                    # And remotely, if set:
-                    [[ -n $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain $RSYNC_BACKUP_CHAINS_TO_KEEP
-                fi
+                            echo "$domain: Detected $num_of_backup_checkpoints of max allowed $MAX_BACKUPS_PER_CHAIN checkpoints"
+                        ;;
+                    esac
+                ;;
 
-            else
-                echo "$domain: No backup found at $LOCAL_BACKUP_PATH to apply"
+                Forced) # No checks will be performed:
+
+                    echo "$domain: Current backup chain will be forcibly archived"
+                    end_of_lifecycle=1
+                ;;
+
+                *)  # MAX_BACKUPS_PER_CHAIN is not set, or value is 0:
+
+                    echo "$domain: Retention policy is currently disabled by user"
+                ;;
+            esac
+
+            if [[ $end_of_lifecycle ]]; then
+
+                # Process local backup chain if it has reached its lifecycle (for whatever reason)
+                archive_backup $LOCAL_BACKUP_PATH/$domain $LOCAL_BACKUP_CHAINS_TO_KEEP
+
             fi
 
         else
-            echo "$domain: Retention policy is currently disabled by user"
+            echo "$domain: There is no current backup at $LOCAL_BACKUP_PATH to check/apply retention policy"
+            local_backup_not_found=1
         fi
 
-    done
+        if [[ -n $RSYNC_BACKUP_PATH ]] && [[ $end_of_lifecycle || $local_backup_not_found ]]; then
 
+            # Process rsync mirror, discerning if located at local or remote (SSH) path:
+            [[ $RSYNC_BACKUP_PATH == *@*:/* ]] && archive_command="archive_remote_backup" || archive_command="archive_backup"
+
+            # Also discerning if local backup wasn't found, in which case any remote mirror that exists will be archived,
+            # but no retention policy applied with old backup chains:
+            [[ $local_backup_not_found ]] && rsync_retention=$RSYNC_BACKUP_CHAINS_TO_KEEP || rsync_retention=""
+
+            # In order to archive and apply (or not) retention policy on the mirror:
+            $archive_command $RSYNC_BACKUP_PATH/$domain $rsync_retention
+        fi
+    done
 else
-    echo "No Virtual machines for Retention Policy to apply (exited)"
+    echo "At least one Virtual machine needs to be passed as argument in order to apply retention policy (exited)"
 fi
