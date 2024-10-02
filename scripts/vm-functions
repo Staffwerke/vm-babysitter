@@ -540,7 +540,7 @@ archive_backup()
 
 # -----------------------------------------------------------------------------
 # Similar to 'archive_backup' but operates on a remote endpoint via SSH,
-# returning SSH error status if it fails connect:
+# returning SSH error code if it fails to connect:
 # -----------------------------------------------------------------------------
 archive_remote_backup()
 {
@@ -558,16 +558,16 @@ archive_remote_backup()
 
     # Attempts to comunicate with the remote host:
     ssh $SSH_OPTIONS $remote_server "exit 0"
-    local remote_server_status=$?
+    local ssh_error_code=$?
 
-    if [[ $remote_server_status -eq 0 ]]; then
+    if [[ $ssh_error_code -eq 0 ]]; then
 
         # Remote Server is reachable.
 
         # Checks in advance if remote backup path exists or not:
-        local remote_backup_chain_exists=$(ssh $SSH_OPTIONS $remote_server "[[ -d $remote_backup_path/$domain ]] && echo \"yes\" || echo \"no\"")
+        local remote_backup_chain_exists=$(ssh $SSH_OPTIONS $remote_server "[[ -d $remote_backup_path/$domain && -n \$(ls -A $remote_backup_path/$domain) ]] && echo 1 || echo 0")
 
-        if [[ $remote_backup_chain_exists == "yes" ]]; then
+        if [[ $remote_backup_chain_exists ]]; then
 
             # Get the oldest modification time from remote files inside, to rename archived backups with historical timestamp:
             local timestamp=$(ssh $SSH_OPTIONS $remote_server "find $remote_backup_path/$domain -type f -printf '%T+ %p\n' | sort | head -n 1 | cut -d' ' -f1")
@@ -588,7 +588,7 @@ archive_remote_backup()
                 # Pattern is based upon a timestamp like '2023-11-08+06:19:36.1501949150':
                 local remote_old_backups_list=($(ssh $SSH_OPTIONS $remote_server "find $remote_backup_path -type d -name \"$domain.*\" | sort -r | grep -E \"^$remote_backup_path/$domain\.[0-9]{4}-[0-9]{2}-[0-9]{2}\+[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{10}$\" | tail -n +$index"))
 
-                if [[ ! -z ${remote_old_backups_list[@]} ]]; then
+                if [[ -n ${remote_old_backups_list[@]} ]]; then
 
                     # Deletes all folders in the above generated list:
                     echo "$domain: Deleting ${#remote_old_backups_list[@]} old backup chain(s)..."
@@ -599,16 +599,16 @@ archive_remote_backup()
                 fi
             fi
 
-        elif [[ $remote_backup_chain_exists == "no" ]]; then
-
-            echo "$domain: No current backup chain(s) found at $remote_server"
+        else
+            echo "$domain: No current backup chain found at $remote_server"
         fi
 
     else
-        # Returns status of failed connection:
-        echo "WARNING: Remote endpoint $remote_server is currently unreachable (status: $remote_server_status)"
-        return $remote_server_status
+        # SSH failed to establish connection:
+        echo "WARNING: Connection with remote endpoint $remote_server failed (SSH error code: $ssh_error_code)"
     fi
+
+    return $ssh_error_code
 }
 
 ###############################################################################
