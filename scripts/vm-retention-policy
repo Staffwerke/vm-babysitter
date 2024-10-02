@@ -19,7 +19,6 @@ elif [[ -n $MAX_BACKUPS_PER_CHAIN && $MAX_BACKUPS_PER_CHAIN -gt 0 ]]; then
 
     # Run normal checks and apply retention policy:
     retention_mode="Normal"
-
 fi
 
 # Processes initial backups list from VMs (passed as arguments):
@@ -36,12 +35,12 @@ if [[ -n ${retention_list[@]} ]]; then
         if [[ -d $LOCAL_BACKUP_PATH/$domain && -n $(ls -A $LOCAL_BACKUP_PATH/$domain) ]]; then
 
             # Backup path exists and is not empty. Proceed with check:
+            # Retention policy is set (at least, partially) by the user. Retrieve the number of existing checkpoints in the backup chain:
+            num_of_backup_checkpoints=$(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num)
+
             case $retention_mode in
 
                 Normal)
-
-                    # Retention policy is set (at least, partially) by the user. Retrieve the number of existing checkpoints in the backup chain:
-                    num_of_backup_checkpoints=$(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num)
 
                     case $num_of_backup_checkpoints in
 
@@ -67,13 +66,13 @@ if [[ -n ${retention_list[@]} ]]; then
 
                 Forced) # No checks will be performed:
 
-                    echo "$domain: Current backup chain will be forcibly archived"
+                    echo "$domain: Current backup chain will be forcibly archived ($num_of_backup_checkpoints of max allowed $MAX_BACKUPS_PER_CHAIN checkpoints)"
                     end_of_lifecycle=1
                 ;;
 
                 *)  # MAX_BACKUPS_PER_CHAIN is not set, or value is 0:
 
-                    echo "$domain: Retention policy is currently disabled by user"
+                    echo "$domain: Data retention policy is currently disabled by user ($num_of_backup_checkpoints checkpoints)"
                 ;;
             esac
 
@@ -81,11 +80,10 @@ if [[ -n ${retention_list[@]} ]]; then
 
                 # Process local backup chain if it has reached its lifecycle (for whatever reason)
                 archive_backup $LOCAL_BACKUP_PATH/$domain $LOCAL_BACKUP_CHAINS_TO_KEEP
-
             fi
 
         else
-            echo "$domain: There is no current backup at $LOCAL_BACKUP_PATH to check/apply retention policy"
+            echo "$domain: There is no current backup at $LOCAL_BACKUP_PATH to check/apply data retention policy"
 
             # Mark local backup as 'not found' (to perform tasks below):
             local_backup_not_found=1
@@ -105,5 +103,5 @@ if [[ -n ${retention_list[@]} ]]; then
         fi
     done
 else
-    echo "At least one Virtual machine needs to be passed as argument in order to apply retention policy (exited)"
+    echo "At least one Virtual machine needs to be passed as argument in order to check/apply data retention policy (exited)"
 fi
