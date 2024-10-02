@@ -94,7 +94,6 @@ check_variables()
             # Attempts to perform similar checks as with $LOCAL_BACKUP_PATH, but creating a remote backup directory if doesn't exists:
             local rsync_check_backup_path_status=$(ssh $SSH_OPTIONS $rsync_server "[[ -d $rsync_path && -r $rsync_path && -w $rsync_path ]] && echo 'found' || { mkdir -p $rsync_path; [[ -d $rsync_path ]] && echo 'created' || echo 'failed'; }")
 
-
             if [[ $rsync_check_backup_path_status != failed ]]; then
 
                 # Notifiy about good status of $rsync_path
@@ -170,7 +169,6 @@ check_domains()
     for domain in ${DOMAINS_LIST[@]}; do
 
         # Checks for virtual disks, if are reachable and possess both read/write permissions:
-
         if [[ -z $(domain_drives_list $domain) ]]; then
 
             # Non-transient VM without disks attached. Adds to failed list, notifies and aborts the check:
@@ -192,6 +190,7 @@ check_domains()
 
                     domain_failed_list+=($domain)
                     echo "ERROR: $domain's disk image: $image has permission issues (cannot be read or written)"
+
                 else
                     # Check passed:
                     domain_success_list+=($domain)
@@ -269,7 +268,6 @@ check_backups()
 
             # Look for all VMs and its checkpoints, stop if it finds at least one:
             [[ -n $(domain_checkpoint_list $domain) ]] && { local checkpoints_found="true"; break; }
-
         done
 
         for domain in ${CHECK_BACKUPS_LIST[@]}; do
@@ -550,7 +548,6 @@ check_backups()
             elif [[ $(domain_state $domain) == "running" && $unraid_scenario == true ]]; then
 
                 # unraid_scenario. Only does something if is allowed to perform a power cycle on VM:
-
                 if [[ -n $VM_ALLOW_POWERCYCLE ]]; then
 
                     domain_shutdown $domain --wait $VM_WAIT_TIME
