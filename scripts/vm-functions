@@ -515,9 +515,9 @@ archive_backup()
     mv $backup_path/$domain $backup_path/$domain.$timestamp
     echo "$domain: Current backup chain archived as $backup_path/$domain.$timestamp"
 
-    if [[ -n $backups_to_keep && $backups_to_keep -ge 1 ]]; then
+    if [[ -n $backups_to_keep && $backups_to_keep -gt 0 ]]; then
 
-    # Apply retention policy if backups_to_keep exists and is >= 1:
+    # Apply retention policy if backups_to_keep exists and is > 0:
     echo "Applying local retention policy..."
 
     # Position of the first folder to delete, ordered from most recent timestamp:
@@ -527,13 +527,11 @@ archive_backup()
     # Pattern is based upon a timestamp like '2023-11-08+06:19:36.1501949150':
     local old_backups_list=($(find $backup_path -type d -name "$domain.*" | sort -r | grep -E "^$backup_path/$domain\.[0-9]{4}-[0-9]{2}-[0-9]{2}\+[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{10}$" | tail -n +$index))
 
-        if [[ ! -z ${old_backups_list[@]} ]]; then
+        if [[ -n ${old_backups_list[@]} ]]; then
 
             # Deletes all folders in the above generated list:
             echo "$domain: Deleting ${#old_backups_list[@]} old backup chain(s)..."
             rm -rf ${old_backups_list[@]}
-        else
-            echo "$domain: No old backup chains to delete at this time"
         fi
     fi
 }
@@ -593,9 +591,6 @@ archive_remote_backup()
                     # Deletes all folders in the above generated list:
                     echo "$domain: Deleting ${#remote_old_backups_list[@]} old backup chain(s)..."
                     ssh $SSH_OPTIONS $remote_server "rm -rf ${remote_old_backups_list[@]}"
-
-                else
-                    echo "$domain: No old backup chains to delete by now"
                 fi
             fi
 
