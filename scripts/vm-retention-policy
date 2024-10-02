@@ -31,7 +31,11 @@ if [[ -n ${retention_list[@]} ]]; then
         # (Re)Initialize used variables:
         local_backup_not_found=0
         end_of_lifecycle=0
-        echo "____________________________________________________________________________________________________________"
+
+        # Display screen divider when processing several backup chains:
+        [[ ${#retention_list[@]} -gt 1 ]] \
+            && echo "____________________________________________________________________________________________________________"
+
         echo "$domain: Checking/applying data retention policy..."
 
         if [[ -d $LOCAL_BACKUP_PATH/$domain && -n $(ls -A $LOCAL_BACKUP_PATH/$domain) ]]; then

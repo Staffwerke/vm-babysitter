@@ -56,7 +56,10 @@ if [[ -n ${rsync_list[@]} ]]; then
             # Backup exists. Build rsync_destination directly from variables:
             rsync_destination=$RSYNC_BACKUP_PATH/$domain
 
-            echo "____________________________________________________________________________________________________________"
+            # Display screen divider when processing several backup chains:
+            [[ ${#rsync_list[@]} -gt 1 ]] \
+            && echo "____________________________________________________________________________________________________________"
+
             echo "$domain: Syncing backup chain to $rsync_destination ..."
 
             if [[ $rsync_destination == *@*:/* ]]; then

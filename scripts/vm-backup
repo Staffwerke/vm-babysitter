@@ -113,13 +113,11 @@ if [[ -n ${backups_list[@]} ]]; then
     [[ $(os_is_unraid) == yes ]] \
         && unraid_notify "normal" "VM-Babysitter" "$backup_action Backup" "In progress for ${backups_list[@]}. Avoid to stop/restart this container until further notice"
 
-    # When processing batches, notify first which VM(s) will be processed:
-    [[ ${#backups_list[@]} -ge 2 ]] \
-        && echo "$backup_action Backup of VMs: ${backups_list[@]} in progress..."
-
     for domain in ${backups_list[@]}; do
 
-        echo "____________________________________________________________________________________________________________"
+        # Display screen divider when processing several backup chains:
+        [[ ${#backups_list[@]} -gt 1 ]] \
+        && echo "____________________________________________________________________________________________________________"
 
         if [[ $(domain_exists $domain) == yes ]]; then
 
@@ -167,12 +165,6 @@ if [[ -n ${backups_list[@]} ]]; then
 
         # Activate rsync mode:
         rsync_mode=true
-
-        if [[ ${#backup_success_list[@]} -ge 2 ]]; then
-
-            echo "============================================================================================================"
-            echo "Rsync of: ${backup_success_list[@]} in progress..."
-        fi
 
         for domain in ${backup_success_list[@]}; do
 
