@@ -1,9 +1,11 @@
 #!/bin/bash
 
-# Runs rsync to synchronize backups of VMs from LOCAL_BACKUP_PATH to RSYNC_BACKUP_PATH, from either:
-# - A given list of domains (passed as arguments) or
-# - All VMs listed in SCHEDULED_BACKUPS_LIST if 'run-schedule' is passed as argument.
-# Can process backups individually or in a batch, but only returns rsync exit code during the individual scenario.
+# Usage: vm-rsync [--run-schedule] [domain1 domain2...]
+
+# Runs rsync to synchronize previously generated backups of of domains from LOCAL_BACKUP_PATH to RSYNC_BACKUP_PATH, from either:
+# - A given list of domains passed as arguments, or
+# - All domains currently scheduled for backups, if '--run-schedule' is passed as the only argument.
+# Only returns rsync exit code when a single domain is passed. However, failed status is prompted as per domain
 
 # Load common functions:
 source $functions_path
@@ -30,10 +32,7 @@ case $1 in
         rsync_action="On-demand"
 
         # Processes backup folders from LOCAL_BACKUP_PATH as main source path, and VMs (passed as arguments) as subfolders:
-        for item in $@; do
-            # Add the backup to the main list:
-            rsync_list+=($item)
-        done
+        rsync_list=($@)
     ;;
 esac
 
@@ -82,7 +81,7 @@ if [[ -n ${rsync_list[@]} ]]; then
 
             else
                 rsync_failed+=($domain)
-                echo "$domain: Failed to sync backup chain to $rsync_destination (status $rsync_backup_status)"
+                echo "$domain: Failed to sync backup chain to $rsync_destination (rsync status $rsync_backup_status)"
             fi
         else
             rsync_skipped+=($domain)
