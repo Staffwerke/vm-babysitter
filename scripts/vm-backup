@@ -123,8 +123,10 @@ if [[ -n ${backups_list[@]} ]]; then
 
         if [[ $(domain_exists $domain) == yes ]]; then
 
-            # When backup chain exists, check and apply when necessary retention policy, prior to perform the backup operation:
-            [[ $backup_action != "Initial" ]] && vm-retention-policy $domain
+            # When backup action is to create a new backup chain, force the application of retention policy, prior to perform the backup operation:
+            [[ $backup_action == "Initial" ]] && force_retention_policy="--force"
+
+            vm-retention-policy $force_retention_policy $domain
 
             # Under specific scenario of new backup chain and powered off VMs, force --start-server to turn on the VM in paused mode:
             if [[ ! -d $LOCAL_BACKUP_PATH/$domain || $(dir_is_empty $LOCAL_BACKUP_PATH/$domain) == yes ]] \
