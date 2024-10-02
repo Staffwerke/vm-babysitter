@@ -298,7 +298,6 @@ check_backups()
     echo "____________________________________________________________________________________________________________"
     echo "Checking backup chain ingtegrity on Virtual machines: ${CHECK_BACKUPS_LIST[@]}"
 
-    local i=0
     for domain in ${CHECK_BACKUPS_LIST[@]}; do
 
         backup_chain_integrity=""
@@ -441,6 +440,10 @@ check_backups()
                     echo "$domain: QEMU and Backup's checkpoint lists MISMATCH"
                 fi
             fi
+
+        else
+            # Delete non-recoverable backup folder:
+            rm -rf $LOCAL_BACKUP_PATH/$domain
         fi
 
         #------------------------------------------------------------------------------
@@ -641,28 +644,6 @@ check_backups()
                 ;;
             esac
         fi
-
-        #------------------------------------------------------------------------------
-        # Stage 4: Process backup folders that cannot be used anymore by archiving or deleting, accordingly:
-        #------------------------------------------------------------------------------
-        if [[ $backup_chain_integrity != true ]]; then
-
-            if [[ $backup_folder_integrity == false ]]; then
-
-                # Delete non-recoverable backup folder:
-                rm -rf $LOCAL_BACKUP_PATH/$domain
-
-            else
-                # Archive any total or partially restorable backup:
-                archive_backup $LOCAL_BACKUP_PATH/$domain
-            fi
-
-            # If a rsync path is set, archive any existing existing remote backup:
-            [[ -n $RSYNC_BACKUP_PATH ]] && archive_remote_backup $RSYNC_BACKUP_PATH/$domain
-        fi
-
-        # Increases the index to check the next VM:
-        ((i++))
     done
 
     # Cleanse CHECK_BACKUPS_LIST, since all VMs were processed, and copied into correspondent lists:
