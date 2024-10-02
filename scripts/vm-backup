@@ -1,7 +1,10 @@
 #!/bin/bash
 
-# Usage:
-# vm-backup [--run-schedule] [[--create-new] <vm-name1> [vm-name2]...]
+# Usage: vm-backup [--run-schedule] [--create-new] [domain1 domain2...]
+# Runs virtnbdbackup to create/update backup chains of domains to LOCAL_BACKUP_PATH, from either:
+# - A given list of domains passed as arguments,
+# - All domains currently scheduled for backups, if '--run-schedule' is passed as the only argument, or
+# - Creates new backup chains if '--create-new ' is passed as first argument, and then all domains as further arguments.
 
 display_summary()
 {
