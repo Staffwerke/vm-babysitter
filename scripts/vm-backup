@@ -248,8 +248,10 @@ case $backup_action in
 
     "On-demand")
 
-        # Report the script has ended:
-        echo "$(basename $0): Finished"
+        # When multiple backups chains were processed, display that the script has finished:
+        [[ ${#backups_list[@]} -gt 1 ]] \
+            && echo "$(basename $0): Finished"
+
     ;;
 esac
 

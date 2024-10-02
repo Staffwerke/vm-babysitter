@@ -101,7 +101,12 @@ case $rsync_action in
 
     "On-demand")
 
-        if [[ ${#rsync_list[@]} -eq 1 && -z ${rsync_skipped[@]} ]]; then
+        if [[ ${#rsync_list[@]} -gt 1 ]]; then
+
+            # When multiple backups chains were processed, display that the script has finished:
+            echo "$(basename $0): Finished"
+
+        elif [[ ${#rsync_list[@]} -eq 1 && -z ${rsync_skipped[@]} ]]; then
 
             # Only exits with rsync code when there was only one backup on the list and existed (not skipped):
             exit $rsync_backup_status

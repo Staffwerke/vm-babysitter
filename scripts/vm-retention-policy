@@ -108,6 +108,11 @@ if [[ -n ${retention_list[@]} ]]; then
             $archive_command $RSYNC_BACKUP_PATH/$domain $rsync_retention
         fi
     done
+
+    # When multiple backups chains were processed, display that the script has finished:
+    [[ ${#retention_list[@]} -gt 1 ]] \
+        && echo "$(basename $0): Finished"
+
 else
     echo "At least one Virtual machine needs to be passed as argument in order to check/apply data retention policy (exited)"
 fi
