@@ -4,7 +4,7 @@
 # Runs virtnbdbackup to create/update backup chains of domains to LOCAL_BACKUP_PATH, from either:
 # - A given list of domains passed as arguments,
 # - All domains currently scheduled for backups, if '--run-schedule' is passed as the only argument, or
-# - Creates new backup chains if '--create-new ' is passed as first argument, and then all domains as further arguments.
+# - Creates new backup chains if '--create-new ' is passed as first argument, and then all domains as further arguments (forcing retention policy appliance in the process)
 
 display_summary()
 {

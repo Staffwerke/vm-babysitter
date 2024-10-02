@@ -3,8 +3,7 @@
 # Usage: vm-retention-policy [--force] [domain1 domain2...]
 # - Checks backups lifecyle based on MAX_BACKUPS_PER_CHAIN, triggering its archiving when reaches that number of checkpoints
 # - Applies retention policy, based on LOCAL|RSYNC_BACKUP_CHAINS_TO_KEEP, keeping as many (and most recent) backup chains on each endpoint, deleting the older ones.
-#
-# When '--force'is passed as the first argument, overrides MAX_BACKUPS_PER_CHAIN and triggers its immediate archiving.
+# - When '--force'is passed as the first argument, overrides MAX_BACKUPS_PER_CHAIN and triggers its immediate archiving.
 
 # Load common functions:
 source $functions_path

@@ -1,11 +1,9 @@
 #!/bin/bash
 
 # Usage: vm-rsync [--run-schedule] [domain1 domain2...]
-
 # Runs rsync to synchronize previously generated backups of domains from LOCAL_BACKUP_PATH to RSYNC_BACKUP_PATH, from either:
 # - A given list of domains passed as arguments, or
 # - All domains currently scheduled for backups, if '--run-schedule' is passed as the only argument.
-#
 # Only returns rsync exit code when a single domain is passed. However, failed status is prompted as per domain.
 
 # Load common functions:
