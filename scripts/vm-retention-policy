@@ -33,8 +33,9 @@ if [[ -n ${retention_list[@]} ]]; then
         local_backup_not_found=0
         end_of_lifecycle=0
 
-        if [[ -d $LOCAL_BACKUP_PATH/$domain && -z $(dir_is_empty $LOCAL_BACKUP_PATH/$domain) ]]; then
+        if [[ -d $LOCAL_BACKUP_PATH/$domain && -n $(ls -A $LOCAL_BACKUP_PATH/$domain) ]]; then
 
+            # Backup path exists and is not empty. Proceed with check:
             case $retention_mode in
 
                 Normal)
@@ -85,6 +86,8 @@ if [[ -n ${retention_list[@]} ]]; then
 
         else
             echo "$domain: There is no current backup at $LOCAL_BACKUP_PATH to check/apply retention policy"
+
+            # Mark local backup as 'not found' (to perform tasks below):
             local_backup_not_found=1
         fi
 
@@ -93,8 +96,8 @@ if [[ -n ${retention_list[@]} ]]; then
             # Process rsync mirror, discerning if located at local or remote (SSH) path:
             [[ $RSYNC_BACKUP_PATH == *@*:/* ]] && archive_command="archive_remote_backup" || archive_command="archive_backup"
 
-            # Also discerning if local backup wasn't found, in which case any remote mirror that exists will be archived,
-            # but no retention policy applied with old backup chains:
+            # Also discerning if local backup was not found in first instance,
+            # in which case any remote mirror that exists will be archived, but no retention policy applied with old backup chains:
             [[ $local_backup_not_found ]] && rsync_retention=$RSYNC_BACKUP_CHAINS_TO_KEEP || rsync_retention=""
 
             # In order to archive and apply (or not) retention policy on the mirror:
