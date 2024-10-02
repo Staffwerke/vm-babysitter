@@ -32,6 +32,7 @@ if [[ -n ${retention_list[@]} ]]; then
         local_backup_not_found=0
         end_of_lifecycle=0
         echo "____________________________________________________________________________________________________________"
+        echo "$domain: Checking/applying data retention policy..."
 
         if [[ -d $LOCAL_BACKUP_PATH/$domain && -n $(ls -A $LOCAL_BACKUP_PATH/$domain) ]]; then
 
@@ -84,7 +85,7 @@ if [[ -n ${retention_list[@]} ]]; then
             fi
 
         else
-            echo "$domain: There is no current backup at $LOCAL_BACKUP_PATH to check/apply data retention policy"
+            echo "$domain: There is no current backup at $LOCAL_BACKUP_PATH in order to check/apply data retention policy"
 
             # Mark local backup as 'not found' (to perform tasks below):
             local_backup_not_found=1
