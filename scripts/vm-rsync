@@ -114,8 +114,7 @@ case $rsync_action in
 
         # Displays a brief summary:
         echo -e "\n____________________________________________________________________________________________________________"
-        echo "$rsync_action Rsync Summary:"
-        echo ""
+        echo -e "$rsync_action Rsync Summary:\n"
         echo "Successful syncs:    ${rsync_success[@]:-"None"}"
         echo "Failed to sync:      ${rsync_failed[@]:-"None"}"
         echo "Skipped (no backup): ${rsync_skipped[@]:-"None"}"
