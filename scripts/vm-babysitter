@@ -29,17 +29,18 @@ check_variables()
     local rsync_backup_path_exists
     local rsync_backup_path_ok
 
+    echo "Checking environment variables..."
     # Check $MAX_BACKUPS_PER_CHAIN
     #------------------------------------------------------------------------------
     if [[ $MAX_BACKUPS_PER_CHAIN =~ [0-9] && $MAX_BACKUPS_PER_CHAIN -ge 0 ]]; then
 
         # Is an integer number:
         max_backups_per_chain_ok=1
-        echo "Max backups to save per chain: $MAX_BACKUPS_PER_CHAIN"
+        echo "MAX_BACKUPS_PER_CHAIN set to: $MAX_BACKUPS_PER_CHAIN"
 
     else
         # Invalid value:
-        echo "ERROR: Incorrect value for environment variable MAX_BACKUPS_PER_CHAIN: '$MAX_BACKUPS_PER_CHAIN' <- It must be a natural integer and equal/greater than zero"
+        echo "ERROR: Incorrect value for MAX_BACKUPS_PER_CHAIN: '$MAX_BACKUPS_PER_CHAIN' <- It must be a natural integer >= 0"
     fi
 
     # Check LOCAL_BACKUP_PATH:
@@ -50,26 +51,26 @@ check_variables()
         if  [[ -r $LOCAL_BACKUP_PATH && -w $LOCAL_BACKUP_PATH ]]; then
 
             # $LOCAL_BACKUP_PATH has read/write permissions.
-            echo "Backups main path internally set to: $LOCAL_BACKUP_PATH"
+            echo "LOCAL_BACKUP_PATH set to: $LOCAL_BACKUP_PATH"
 
             # Check $LOCAL_BACKUP_CHAINS_TO_KEEP:
             if [[ $LOCAL_BACKUP_CHAINS_TO_KEEP =~ [0-9] && $LOCAL_BACKUP_CHAINS_TO_KEEP -ge 0 ]]; then
 
                 # Check passed:
                 local_backup_path_ok=1
-                echo "Max backup chains per VM to keep locally: $LOCAL_BACKUP_CHAINS_TO_KEEP"
+                echo "LOCAL_BACKUP_CHAINS_TO_KEEP set to: $LOCAL_BACKUP_CHAINS_TO_KEEP"
 
             else
                 # Invalid value:
-                echo "ERROR: Incorrect value for environment variable LOCAL_BACKUP_CHAINS_TO_KEEP: '$LOCAL_BACKUP_CHAINS_TO_KEEP' <- It must be a natural integer"
+                echo "ERROR: Incorrect value for LOCAL_BACKUP_CHAINS_TO_KEEP: '$LOCAL_BACKUP_CHAINS_TO_KEEP' <- It must be a natural integer >= 0"
             fi
 
         else
-            echo "ERROR: Backups main path: $LOCAL_BACKUP_PATH <- Permission issues (cannot be read or written)"
+            echo "ERROR: LOCAL_BACKUP_PATH: '$LOCAL_BACKUP_PATH' <- Cannot read or write onto the folder"
         fi
 
     else
-        echo "ERROR: Backups main path: $LOCAL_BACKUP_PATH  <- Not found inside the container. Ensure you mount this correctly (e.g. '-v /path/to/backups-main-path:/$LOCAL_BACKUP_PATH')"
+        echo "ERROR: LOCAL_BACKUP_PATH: '$LOCAL_BACKUP_PATH'  <- Path was not found inside the container. Ensure you mount this correctly (e.g. '-v /mnt/user/backups/vm-babysitter:/backups')"
     fi
 
     # Check RSYNC_BACKUP_PATH
@@ -80,8 +81,7 @@ check_variables()
         '') # Rsync path is not set:
 
             rsync_backup_path_ok=1
-            echo ""
-            echo "Environment variable RSYNC_BACKUP_PATH not set. No remote backup endpoint will be used"
+            echo "RSYNC_BACKUP_PATH is not set. No remote backup endpoint will be used"
         ;;
 
         [/]*) # Rsync path is an absolute path into root filesystem:
@@ -90,10 +90,10 @@ check_variables()
 
                 # Mark as found:
                 rsync_backup_path_exists=1
-                echo "Local RSYNC_BACKUP_PATH set to: $RSYNC_BACKUP_PATH"
+                echo "RSYNC_BACKUP_PATH is local, and set to: $RSYNC_BACKUP_PATH"
 
             else
-                echo "ERROR: Local RSYNC_BACKUP_PATH '$RSYNC_BACKUP_PATH' cannot be read and/or written (or is not a directory)"
+                echo "ERROR: RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH' <- Cannot read or write onto the local path (or is not a directory)"
             fi
         ;;
 
@@ -116,14 +116,14 @@ check_variables()
 
                     # Mark as found (also notifiy if it was created):
                     rsync_backup_path_exists=1
-                    echo "Remote RSYNC_BACKUP_PATH was $remote_backup_path_status and set at $rsync_path"
+                    echo "RSYNC_BACKUP_PATH is remote, was $remote_backup_path_status and set to: $RSYNC_BACKUP_PATH"
 
                 else
-                    echo "ERROR: Remote RSYNC_BACKUP_PATH '$RSYNC_BACKUP_PATH' cannot be read and/or written (or is not a directory)"
+                    echo "ERROR: Remote RSYNC_BACKUP_PATH '$RSYNC_BACKUP_PATH' <- Cannot read or write onto the remote path (or is not a directory)"
                 fi
 
             else
-                echo "ERROR: Connection with $rsync_server failed with status $ssh_server_exit_code"
+                echo "ERROR: Connection with remote endpoint $rsync_server failed (SSH exit code: $ssh_server_exit_code)"
             fi
         ;;
 
@@ -139,10 +139,10 @@ check_variables()
 
             # Check passed:
             rsync_backup_path_ok=1
-            echo "Max backup chains per VM to keep remotely: $RSYNC_BACKUP_CHAINS_TO_KEEP"
+            echo "RSYNC_BACKUP_CHAINS_TO_KEEP set to: $RSYNC_BACKUP_CHAINS_TO_KEEP"
 
         else
-            echo "ERROR: Incorrect value for environment variable RSYNC_BACKUP_CHAINS_TO_KEEP: '$RSYNC_BACKUP_CHAINS_TO_KEEP' it must be a positive integer and equal/greater than zero"
+            echo "ERROR: Incorrect value RSYNC_BACKUP_CHAINS_TO_KEEP: '$RSYNC_BACKUP_CHAINS_TO_KEEP' <- It must be a natural integer >= 0"
         fi
     fi
 
