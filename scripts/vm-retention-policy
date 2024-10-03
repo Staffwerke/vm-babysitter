@@ -33,7 +33,8 @@ if [[ -n ${retention_list[@]} ]]; then
 
         # Display screen divider when processing several backup chains:
         [[ ${#retention_list[@]} -gt 1 ]] \
-            && echo "____________________________________________________________________________________________________________"
+            && echo "____________________________________________________________________________________________________________" \
+            || echo ""
 
         echo "$domain: Checking/applying data retention policy..."
 
@@ -110,7 +111,8 @@ if [[ -n ${retention_list[@]} ]]; then
 
     # When multiple backups chains were processed, display that the script has finished:
     [[ ${#retention_list[@]} -gt 1 ]] \
-        && echo "$(basename $0): Finished"
+        && echo -e "\n$(basename $0): Finished" \
+        || echo ""
 
 else
     echo "At least one Virtual machine needs to be passed as argument in order to check/apply data retention policy (exited)"

@@ -8,19 +8,17 @@
 
 display_summary()
 {
-    echo "____________________________________________________________________________________________________________"
-    echo "$backup_action Backup Summary:"
-    echo ""
+    echo -e "\n____________________________________________________________________________________________________________"
+    echo -e "$backup_action Backup Summary:\n"
     echo "Successful backups:    ${backup_success_list[@]:-"None"}"
     echo "Failed backups:        ${backup_failed_list[@]:-"None"}"
     echo "Skipped (missing VMs): ${backup_skipped_list[@]:-"None"}"
 
-    if [[ $rsync_mode == true ]]; then
+    if [[ $on_demand_rsync ]]; then
 
         # Only show remote stats when remote endppoint is set:
-        echo "____________________________________________________________________________________________________________"
-        echo "$backup_action Rsync summary:"
-        echo ""
+        echo -e "\n____________________________________________________________________________________________________________"
+        echo -e "$backup_action Rsync summary:\n"
         echo "Successful syncs: ${rsync_success_list[@]:-"None"}"
         echo "Failed to sync:   ${rsync_failed_list[@]:-"None"}"
     fi
@@ -87,8 +85,7 @@ case $1 in
             && VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS --nocolor"
 
         # Display initial message to be appended into log file:
-        echo ""
-        echo "############################################################################################################"
+        echo -e "\n############################################################################################################"
         echo "$backup_action Backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
     ;;
 
@@ -117,7 +114,8 @@ if [[ -n ${backups_list[@]} ]]; then
 
         # Display screen divider when processing several backup chains:
         [[ ${#backups_list[@]} -gt 1 ]] \
-        && echo "____________________________________________________________________________________________________________"
+            && echo -e "\n____________________________________________________________________________________________________________" \
+            || echo ""
 
         if [[ $(domain_exists $domain) == yes ]]; then
 
@@ -133,9 +131,9 @@ if [[ -n ${backups_list[@]} ]]; then
                 start_domain="--start-domain"
             fi
 
-            echo "$domain: Running backup operation..."
 
             # Perform the backup operation:
+            echo ""
             virtnbdbackup $start_domain -d $domain -l $backup_mode -o $LOCAL_BACKUP_PATH/$domain $VIRTNBDBACKUP_ARGS
 
             # Get last status for virtnbdbackup:
@@ -164,9 +162,14 @@ if [[ -n ${backups_list[@]} ]]; then
     if [[ -n ${backup_success_list[@]} && -n $RSYNC_BACKUP_PATH ]]; then
 
         # Activate rsync mode:
-        rsync_mode=true
+        on_demand_rsync=1
 
         for domain in ${backup_success_list[@]}; do
+
+            # Display screen divider when processing several backup chains:
+            [[ ${#backup_success_list[@]} -gt 1 ]] \
+                && echo -e "\n____________________________________________________________________________________________________________"
+                || echo ""
 
             # Attempts to transfer changes via rsync:
             vm-rsync $domain
@@ -243,14 +246,14 @@ case $backup_action in
         display_summary
 
         # Append the ending date and time into log file:
-        echo "$backup_action Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
+        echo -e "\n$backup_action Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
     ;;
 
     "On-demand")
 
         # When multiple backups chains were processed, display that the script has finished:
         [[ ${#backups_list[@]} -gt 1 ]] \
-            && echo "$(basename $0): Finished"
+            && echo -e "\n$(basename $0): Finished"
 
     ;;
 esac

@@ -22,8 +22,7 @@ case $1 in
         rsync_list=(${SCHEDULED_BACKUPS_LIST[@]})
 
         # Display initial message to append at logfile:
-        echo ""
-        echo "############################################################################################################"
+        echo -e "\n############################################################################################################"
         echo "$rsync_action Rsync started at: $(date "+%Y-%m-%d %H:%M:%S")"
     ;;
 
@@ -56,7 +55,8 @@ if [[ -n ${rsync_list[@]} ]]; then
 
             # Display screen divider when processing several backup chains:
             [[ ${#rsync_list[@]} -gt 1 ]] \
-            && echo "____________________________________________________________________________________________________________"
+                && echo -e "\n____________________________________________________________________________________________________________" \
+                || echo ""
 
             echo "$domain: Syncing backup chain to $rsync_destination ..."
 
@@ -99,22 +99,21 @@ case $rsync_action in
 
     "On-demand")
 
-        if [[ ${#rsync_list[@]} -gt 1 ]]; then
+        # When multiple backups chains were processed, display that the script has finished:
+        [[ ${#rsync_list[@]} -gt 1 ]] \
+            && echo -e "\n$(basename $0): Finished" \
+            || echo ""
 
-            # When multiple backups chains were processed, display that the script has finished:
-            echo "$(basename $0): Finished"
-
-        elif [[ ${#rsync_list[@]} -eq 1 && -z ${rsync_skipped[@]} ]]; then
-
-            # Only exits with rsync code when there was only one backup on the list and existed (not skipped):
-            exit $rsync_exit_code
+        # Only exits with rsync code when there was only one backup on the list and existed (not skipped):
+        [[ ${#rsync_list[@]} -eq 1 && -z ${rsync_skipped[@]} ]] \
+            && exit $rsync_exit_code
         fi
     ;;
 
     "Scheduled")
 
         # Displays a brief summary:
-        echo "____________________________________________________________________________________________________________"
+        echo -e "\n____________________________________________________________________________________________________________"
         echo "$rsync_action Rsync Summary:"
         echo ""
         echo "Successful syncs:    ${rsync_success[@]:-"None"}"
@@ -129,6 +128,6 @@ case $rsync_action in
                 || unraid_notify "warning" "VM-Babysitter" "$backup_action Rsync finished with errors" "Could not sync backup chain(s) of: ${rsync_failed[@]}"
         fi
 
-        echo "$rsync_action Rsync ended at: $(date "+%Y-%m-%d %H:%M:%S")"
+        echo -e "\n$rsync_action Rsync ended at: $(date "+%Y-%m-%d %H:%M:%S")"
     ;;
 esac
