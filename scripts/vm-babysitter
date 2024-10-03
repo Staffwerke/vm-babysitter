@@ -11,7 +11,7 @@ stop_container()
 {
     echo "############################################################################################################"
     echo "SIGTERM signal received at: $(date "+%Y-%m-%d %H:%M:%S")"
-    # To DO: Terminate or kill background processes before to exit.
+    # TODO: Terminate or kill background processes before to exit.
     echo "Container Stopped."
     echo ""
     exit 0
@@ -26,6 +26,7 @@ check_variables()
     local variables_exit_code
     local local_backup_path_ok
     local max_backups_per_chain_ok
+    local rsync_backup_path_exists
     local rsync_backup_path_ok
 
     # Check $MAX_BACKUPS_PER_CHAIN
@@ -73,56 +74,79 @@ check_variables()
 
     # Check RSYNC_BACKUP_PATH
     #------------------------------------------------------------------------------
-    if [[ -z $RSYNC_BACKUP_PATH ]]; then
 
-        rsync_backup_path_ok=1
-        echo ""
-        echo "Environment variable RSYNC_BACKUP_PATH not set. No remote backup endpoint will be used"
+    case $RSYNC_BACKUP_PATH in
 
-    elif [[ $RSYNC_BACKUP_PATH == *@*:/* ]]; then
+        '') # Rsync path is not set:
 
-        # Apparently includes correct remote login and path. Separates ssh login from remote path:
-        local rsync_server=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f1)
-        local rsync_path=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f2)
+            rsync_backup_path_ok=1
+            echo ""
+            echo "Environment variable RSYNC_BACKUP_PATH not set. No remote backup endpoint will be used"
+        ;;
 
-        # Attempts to comunicate with the remote host:
-        ssh $SSH_OPTIONS $rsync_server "exit 0"
-        local ssh_server_exit_code=$?
+        [/]*) # Rsync path is an absolute path into root filesystem:
 
-        if [[ $ssh_server_exit_code == 0 ]]; then
+            if [[ -d $RSYNC_BACKUP_PATH && -r $RSYNC_BACKUP_PATH && -w $RSYNC_BACKUP_PATH ]]; then
 
-            # Attempts to perform similar checks as with $LOCAL_BACKUP_PATH, but creating a remote backup directory if doesn't exists:
-            local remote_backup_path_status=$(ssh $SSH_OPTIONS $rsync_server "[[ -d $rsync_path && -r $rsync_path && -w $rsync_path ]] && echo 'found' || { mkdir -p $rsync_path; [[ -d $rsync_path ]] && echo 'created' || echo 'failed'; }")
+                # Mark as found:
+                rsync_backup_path_exists=1
+                echo "Local RSYNC_BACKUP_PATH set to: $RSYNC_BACKUP_PATH"
 
-            if [[ $remote_backup_path_status != failed ]]; then
+            else
+                echo "ERROR: Local RSYNC_BACKUP_PATH '$RSYNC_BACKUP_PATH' cannot be read and/or written (or is not a directory)"
+            fi
+        ;;
 
-                # Notifiy about good status of $rsync_path
-                echo "$rsync_server: $rsync_path was $remote_backup_path_status sucessfully"
+        *[@]*[:/]*)  # Rsync path is at aremote host, pointing an absolute path into its root filesystem:
 
-                # Verify # of backup chains to keep:
-                if [[ $RSYNC_BACKUP_CHAINS_TO_KEEP =~ [0-9] && $RSYNC_BACKUP_CHAINS_TO_KEEP -ge 0 ]]; then
+            # Apparently includes correct remote login and path. Separates ssh login from remote path:
+            local rsync_server=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f1)
+            local rsync_path=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f2)
 
-                    # Check passed:
-                    rsync_backup_path_ok=1
-                    echo "Max backup chains per VM to keep remotely: $RSYNC_BACKUP_CHAINS_TO_KEEP"
+            # Attempts to comunicate with the remote host:
+            ssh $SSH_OPTIONS $rsync_server "exit 0"
+            local ssh_server_exit_code=$?
+
+            if [[ $ssh_server_exit_code == 0 ]]; then
+
+                # Attempts to perform similar checks as with $LOCAL_BACKUP_PATH, but creating a remote backup directory if doesn't exists:
+                local remote_backup_path_status=$(ssh $SSH_OPTIONS $rsync_server "[[ -d $rsync_path && -r $rsync_path && -w $rsync_path ]] && echo 'found' || { mkdir -p $rsync_path; [[ -d $rsync_path ]] && echo 'created' || echo 'failed'; }")
+
+                if [[ $remote_backup_path_status != failed ]]; then
+
+                    # Mark as found (also notifiy if it was created):
+                    rsync_backup_path_exists=1
+                    echo "Remote RSYNC_BACKUP_PATH was $remote_backup_path_status and set at $rsync_path"
 
                 else
-                    echo "ERROR: Incorrect value for environment variable RSYNC_BACKUP_CHAINS_TO_KEEP: '$RSYNC_BACKUP_CHAINS_TO_KEEP' it must be a positive integer and equal/greater than zero"
+                    echo "ERROR: Remote RSYNC_BACKUP_PATH '$RSYNC_BACKUP_PATH' cannot be read and/or written (or is not a directory)"
                 fi
 
             else
-                echo "ERROR: remote mirror $rsync_path cannot be read and/or written (or is not a directory)"
+                echo "ERROR: Connection with $rsync_server failed with status $ssh_server_exit_code"
             fi
+        ;;
+
+        *)  # Rsync path is anything else, and considered incorrect:
+            echo "ERROR: Incorrect syntax for RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH'. It must be either an absolute path, or an SSH-like endpoint that Rsync can understand (e.g. user@hostname:/path/to/rsync-backup)"
+        ;;
+    esac
+
+    if [[ $rsync_backup_path_exists ]]; then
+
+        # Verify # of backup chains to keep on Rsync endpoint:
+        if [[ $RSYNC_BACKUP_CHAINS_TO_KEEP =~ [0-9] && $RSYNC_BACKUP_CHAINS_TO_KEEP -ge 0 ]]; then
+
+            # Check passed:
+            rsync_backup_path_ok=1
+            echo "Max backup chains per VM to keep remotely: $RSYNC_BACKUP_CHAINS_TO_KEEP"
 
         else
-            echo "ERROR: Connection with $rsync_server failed with status $ssh_server_exit_code"
+            echo "ERROR: Incorrect value for environment variable RSYNC_BACKUP_CHAINS_TO_KEEP: '$RSYNC_BACKUP_CHAINS_TO_KEEP' it must be a positive integer and equal/greater than zero"
         fi
-
-    else
-        echo "ERROR: Incorrect syntax for RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH' it must be SSH-like absolute path (e.g. user@host:/path-to-mirror)"
     fi
 
-    # TO DO: Check other ENV variables, and SSH key:
+    # TODO: Check other ENV variables, and SSH key:
 
     # When all status variables passed the checks, return success:
     [[ $max_backups_per_chain_ok && $local_backup_path_ok && $rsync_backup_path_ok ]] \
