@@ -556,9 +556,9 @@ archive_remote_backup()
 
     # Attempts to comunicate with the remote host:
     ssh $SSH_OPTIONS $remote_server "exit 0"
-    local ssh_error_code=$?
+    local ssh_exit_code=$?
 
-    if [[ $ssh_error_code -eq 0 ]]; then
+    if [[ $ssh_exit_code -eq 0 ]]; then
 
         # Remote Server is reachable.
 
@@ -600,10 +600,10 @@ archive_remote_backup()
 
     else
         # SSH failed to establish connection:
-        echo "WARNING: Connection with remote endpoint $remote_server failed (SSH error code: $ssh_error_code)"
+        echo "WARNING: Connection with remote endpoint $remote_server failed (SSH error code: $ssh_exit_code)"
     fi
 
-    return $ssh_error_code
+    return $ssh_exit_code
 }
 
 ###############################################################################
