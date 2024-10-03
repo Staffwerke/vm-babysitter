@@ -38,7 +38,7 @@ esac
 if [[ -n ${rsync_list[@]} ]]; then
 
     # Notify via Unraid about the start of a scheduled process:
-    [[ $backup_action == "Scheduled" && $(os_is_unraid) == yes ]] \
+    [[ $backup_action == "Scheduled" && $(os_is_unraid) ]] \
         && unraid_notify "normal" "VM-Babysitter" "$rsync_action Rsync" "In progress for ${rsync_list[@]}. Avoid to stop/restart this container until further notice"
 
     for domain in ${rsync_list[@]}; do
@@ -121,7 +121,7 @@ case $rsync_action in
         echo "Failed to sync:      ${rsync_failed[@]:-"None"}"
         echo "Skipped (no backup): ${rsync_skipped[@]:-"None"}"
 
-        if [[ $(os_is_unraid) == yes ]]; then
+        if [[ $(os_is_unraid) ]]; then
 
             # Notifies via Unraid about the results:
             [[ -z ${rsync_failed[@]} ]] \
