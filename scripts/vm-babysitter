@@ -150,7 +150,7 @@ check_variables()
 
     # When all status variables passed the checks, return success:
     [[ $max_backups_per_chain_ok && $local_backup_path_ok && $rsync_backup_path_ok ]] \
-        && variables_exit_code=0
+        && variables_exit_code=0 \
         || variables_exit_code=1
 
     return $variables_exit_code
