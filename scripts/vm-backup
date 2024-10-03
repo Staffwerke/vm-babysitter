@@ -85,8 +85,9 @@ case $1 in
             && VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS --nocolor"
 
         # Display initial message to be appended into log file:
-        echo -e "\n############################################################################################################"
+        echo "############################################################################################################"
         echo "$backup_action Backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
+        echo "############################################################################################################"
     ;;
 
     *)
@@ -114,8 +115,7 @@ if [[ -n ${backups_list[@]} ]]; then
 
         # Display screen divider when processing several backup chains:
         [[ ${#backups_list[@]} -gt 1 ]] \
-            && echo -e "\n____________________________________________________________________________________________________________" \
-            || echo ""
+            && echo "____________________________________________________________________________________________________________"
 
         if [[ $(domain_exists $domain) == yes ]]; then
 
@@ -133,7 +133,6 @@ if [[ -n ${backups_list[@]} ]]; then
 
 
             # Perform the backup operation:
-            echo ""
             virtnbdbackup $start_domain -d $domain -l $backup_mode -o $LOCAL_BACKUP_PATH/$domain $VIRTNBDBACKUP_ARGS
 
             # Get last status for virtnbdbackup:
@@ -168,8 +167,7 @@ if [[ -n ${backups_list[@]} ]]; then
 
             # Display screen divider when processing several backup chains:
             [[ ${#backup_success_list[@]} -gt 1 ]] \
-                && echo -e "\n____________________________________________________________________________________________________________" \
-                || echo ""
+                && echo "____________________________________________________________________________________________________________"
 
             # Attempts to transfer changes via rsync:
             vm-rsync $domain

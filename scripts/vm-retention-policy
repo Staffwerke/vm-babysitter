@@ -33,8 +33,7 @@ if [[ -n ${retention_list[@]} ]]; then
 
         # Display screen divider when processing several backup chains:
         [[ ${#retention_list[@]} -gt 1 ]] \
-            && echo "____________________________________________________________________________________________________________" \
-            || echo ""
+            && echo "____________________________________________________________________________________________________________"
 
         echo "$domain: Checking/applying data retention policy..."
 
