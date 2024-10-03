@@ -28,8 +28,8 @@ if [[ -n ${retention_list[@]} ]]; then
     for domain in ${retention_list[@]}; do
 
         # (Re)Initialize used variables:
-        local_backup_not_found=0
-        end_of_lifecycle=0
+        local_backup_not_found=""
+        end_of_lifecycle=""
 
         # Display screen divider when processing several backup chains:
         [[ ${#retention_list[@]} -gt 1 ]] \
