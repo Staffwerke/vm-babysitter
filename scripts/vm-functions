@@ -757,12 +757,12 @@ last_modified()
 }
 
 # -----------------------------------------------------------------------------
-# Guess OS name by kernel and returns a string with 'yes' if OS is Unraid, and otherwise 'no':
+# Guess OS name by kernel and returns a boolean ('1' if OS is Unraid, and otherwise '0'):
 # -----------------------------------------------------------------------------
 os_is_unraid()
 {
     local is_unraid_status=1
-    [[ ! -z $(uname  -r | grep -e "-Unraid$") ]] && echo "yes" || echo "no"
+    [[ ! -z $(uname  -r | grep -e "-Unraid$") ]] && echo 1 || echo 0
 }
 
 # -----------------------------------------------------------------------------
