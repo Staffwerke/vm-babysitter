@@ -8,7 +8,7 @@
 
 display_summary()
 {
-    echo -e "\n____________________________________________________________________________________________________________"
+    echo "____________________________________________________________________________________________________________"
     echo -e "$backup_action Backup Summary:\n"
     echo "Successful backups:    ${backup_success_list[@]:-"None"}"
     echo "Failed backups:        ${backup_failed_list[@]:-"None"}"
@@ -17,7 +17,7 @@ display_summary()
     if [[ $on_demand_rsync ]]; then
 
         # Only show remote stats when remote endppoint is set:
-        echo -e "\n____________________________________________________________________________________________________________"
+        echo "____________________________________________________________________________________________________________"
         echo -e "$backup_action Rsync summary:\n"
         echo "Successful syncs: ${rsync_success_list[@]:-"None"}"
         echo "Failed to sync:   ${rsync_failed_list[@]:-"None"}"
@@ -91,17 +91,17 @@ case $1 in
     ;;
 
     *)
-            # Without flags, the script performs 'on-demand' backups of the VMs passed as arguments. No lists are updated or exported.
-            # Is mostly for test/debugging purposes, so use with care:
+        # Without flags, the script performs 'on-demand' backups of the VMs passed as arguments. No lists are updated or exported.
+        # Is mostly for test/debugging purposes, so use with care:
 
-            # TODO: Add user confirmation action.
-            backup_action="On-demand"
+        # TODO: Add user confirmation action.
+        backup_action="On-demand"
 
-            # Virtnbdbackup mode is set to 'auto':
-            backup_mode="auto"
+        # Virtnbdbackup mode is set to 'auto':
+        backup_mode="auto"
 
-            # Processes initial backups list from VMs (as arguments):
-            backups_list=($@)
+        # Processes initial backups list from VMs (as arguments):
+        backups_list=($@)
     ;;
 esac
 
@@ -131,7 +131,6 @@ if [[ -n ${backups_list[@]} ]]; then
                 start_domain="--start-domain"
             fi
 
-
             # Perform the backup operation:
             virtnbdbackup $start_domain -d $domain -l $backup_mode -o $LOCAL_BACKUP_PATH/$domain $VIRTNBDBACKUP_ARGS
 
@@ -142,13 +141,10 @@ if [[ -n ${backups_list[@]} ]]; then
 
                 # Backup chain creation was successful!
                 backup_success_list+=($domain)
-                echo "$domain: $backup_mode backup finished successfully"
 
             else
                 # Failed to create a new backup chain:
                 backup_failed_list+=($domain)
-
-                echo "WARNING: $domain: $backup_mode backup failed (Virtnbdbackup exit code: $virtnbdbackup_exit_code)"
             fi
 
         else
@@ -244,16 +240,14 @@ case $backup_action in
         display_summary
 
         # Append the ending date and time into log file:
-        echo -e "\n$backup_action Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")"
+        echo -e "\n$backup_action Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")\n"
     ;;
 
     "On-demand")
 
         # When multiple backups chains were processed, display that the script has finished:
         [[ ${#backups_list[@]} -gt 1 ]] \
-            && echo -e "\n$(basename $0): Finished" \
-            || echo ""
-
+            && echo -e "\n$(basename $0): Finished"
     ;;
 esac
 
