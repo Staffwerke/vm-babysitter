@@ -168,7 +168,7 @@ if [[ -n ${backups_list[@]} ]]; then
 
             # Display screen divider when processing several backup chains:
             [[ ${#backup_success_list[@]} -gt 1 ]] \
-                && echo -e "\n____________________________________________________________________________________________________________"
+                && echo -e "\n____________________________________________________________________________________________________________" \
                 || echo ""
 
             # Attempts to transfer changes via rsync:
@@ -253,7 +253,8 @@ case $backup_action in
 
         # When multiple backups chains were processed, display that the script has finished:
         [[ ${#backups_list[@]} -gt 1 ]] \
-            && echo -e "\n$(basename $0): Finished"
+            && echo -e "\n$(basename $0): Finished" \
+            || echo ""
 
     ;;
 esac
