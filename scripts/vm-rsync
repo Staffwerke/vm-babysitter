@@ -107,7 +107,6 @@ case $rsync_action in
         # Only exits with rsync code when there was only one backup on the list and existed (not skipped):
         [[ ${#rsync_list[@]} -eq 1 && -z ${rsync_skipped[@]} ]] \
             && exit $rsync_exit_code
-        fi
     ;;
 
     "Scheduled")
