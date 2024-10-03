@@ -139,9 +139,9 @@ if [[ -n ${backups_list[@]} ]]; then
             virtnbdbackup $start_domain -d $domain -l $backup_mode -o $LOCAL_BACKUP_PATH/$domain $VIRTNBDBACKUP_ARGS
 
             # Get last status for virtnbdbackup:
-            virtnbdbackup_status=$?
+            virtnbdbackup_exit_code=$?
 
-            if [[ $virtnbdbackup_status -eq 0 ]]; then
+            if [[ $virtnbdbackup_exit_code -eq 0 ]]; then
 
                 # Backup chain creation was successful!
                 backup_success_list+=($domain)
@@ -151,7 +151,7 @@ if [[ -n ${backups_list[@]} ]]; then
                 # Failed to create a new backup chain:
                 backup_failed_list+=($domain)
 
-                echo "WARNING: $domain: $backup_mode backup failed (status $virtnbdbackup_status)"
+                echo "WARNING: $domain: $backup_mode backup failed (status $virtnbdbackup_exit_code)"
             fi
 
         else
@@ -172,9 +172,9 @@ if [[ -n ${backups_list[@]} ]]; then
             vm-rsync $domain
 
             # Get last status for rsync:
-            rsync_status=$?
+            rsync_exit_code=$?
 
-            if [[ $rsync_status -eq 0 ]]; then
+            if [[ $rsync_exit_code -eq 0 ]]; then
 
                 # Rsync exited normally:
                 rsync_success_list+=($domain)

@@ -44,7 +44,7 @@ if [[ -n ${rsync_list[@]} ]]; then
     for domain in ${rsync_list[@]}; do
 
         # (Re)Initialize status variable:
-        rsync_backup_status=""
+        rsync_exit_code=""
 
         # Build rsync_source directly from variables:
         rsync_source=$LOCAL_BACKUP_PATH/$domain
@@ -66,24 +66,24 @@ if [[ -n ${rsync_list[@]} ]]; then
                 rsync $RSYNC_ARGS -e "ssh $SSH_OPTIONS" $rsync_source/ $rsync_destination/
 
                 # Get last status for rsync:
-                rsync_backup_status=$?
+                rsync_exit_code=$?
             else
 
                 # Locally reachable endpoint. Run rsync with user defined arguments only:
                 rsync $RSYNC_ARGS $rsync_source/ $rsync_destination/
 
                 # Get last status for rsync:
-                rsync_backup_status=$?
+                rsync_exit_code=$?
             fi
 
-            if [[ $rsync_backup_status -eq 0 ]]; then
+            if [[ $rsync_exit_code -eq 0 ]]; then
 
                 rsync_success+=($domain)
                 echo "$domain: Backup chain synced successfully"
 
             else
                 rsync_failed+=($domain)
-                echo "$domain: Failed to sync backup chain to $rsync_destination (rsync status $rsync_backup_status)"
+                echo "$domain: Failed to sync backup chain to $rsync_destination (rsync status $rsync_exit_code)"
             fi
         else
             rsync_skipped+=($domain)
@@ -107,7 +107,7 @@ case $rsync_action in
         elif [[ ${#rsync_list[@]} -eq 1 && -z ${rsync_skipped[@]} ]]; then
 
             # Only exits with rsync code when there was only one backup on the list and existed (not skipped):
-            exit $rsync_backup_status
+            exit $rsync_exit_code
         fi
     ;;
 
