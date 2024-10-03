@@ -151,7 +151,7 @@ if [[ -n ${backups_list[@]} ]]; then
                 # Failed to create a new backup chain:
                 backup_failed_list+=($domain)
 
-                echo "WARNING: $domain: $backup_mode backup failed (status $virtnbdbackup_exit_code)"
+                echo "WARNING: $domain: $backup_mode backup failed (Virtnbdbackup exit code: $virtnbdbackup_exit_code)"
             fi
 
         else

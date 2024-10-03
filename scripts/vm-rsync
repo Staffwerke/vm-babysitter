@@ -83,7 +83,7 @@ if [[ -n ${rsync_list[@]} ]]; then
 
             else
                 rsync_failed+=($domain)
-                echo "$domain: Failed to sync backup chain to $rsync_destination (rsync status $rsync_exit_code)"
+                echo "$domain: Failed to sync backup chain to $rsync_destination (Rsync exit code: $rsync_exit_code)"
             fi
         else
             rsync_skipped+=($domain)
