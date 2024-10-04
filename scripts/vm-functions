@@ -563,7 +563,7 @@ archive_remote_backup()
         # Remote Server is reachable.
 
         # Checks in advance if remote backup path exists or not:
-        local remote_backup_chain_exists=$(ssh $SSH_OPTIONS $remote_server "[[ -d $remote_backup_path/$domain && -n \$(ls -A $remote_backup_path/$domain) ]] && echo 1 || echo 0")
+        local remote_backup_chain_exists=$(ssh $SSH_OPTIONS $remote_server "[[ -d $remote_backup_path/$domain && -n \$(ls -A $remote_backup_path/$domain) ]] && echo true || echo false")
 
         if [[ $remote_backup_chain_exists ]]; then
 
