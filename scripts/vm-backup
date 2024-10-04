@@ -26,7 +26,7 @@ display_summary()
         echo "Failed to sync:   ${rsync_failed_list[@]:-"None"}"
     fi
 
-    if [[ $(os_is_unraid) ]]; then
+    if [[ $(os_is_unraid) == true ]]; then
 
         # Notifies via Unraid about the results:
         if [[ -z ${backup_failed_list[@]} \
@@ -108,7 +108,7 @@ esac
 if [[ -n ${backups_list[@]} ]]; then
 
     # Notify via Unraid about the start of a scheduled process:
-    [[ $(os_is_unraid) ]] \
+    [[ $(os_is_unraid) == true ]] \
         && unraid_notify "normal" "VM-Babysitter" "$backup_action Backup" "In progress for ${backups_list[@]}. Avoid to stop/restart this container until further notice"
 
     for domain in ${backups_list[@]}; do

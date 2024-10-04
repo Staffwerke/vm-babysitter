@@ -291,7 +291,7 @@ check_backups()
     local domain_shutdown_success_list
     local preserved_backup_chain_list
 
-    if [[ $(os_is_unraid) ]]; then
+    if [[ $(os_is_unraid) == true ]]; then
 
         # OS is Unraid. Check for unraid_scenario, when comes from a crash and VMs were running before this container started:
         for domain in $(domains_list); do
@@ -894,7 +894,7 @@ end_of_external_variables
                     # Rebuild indexes into the array:
                     SHUTDOWN_REQUIRED_VMS_LIST=(${SHUTDOWN_REQUIRED_VMS_LIST[@]})
 
-                    [[ $(os_is_unraid) ]] && unraid_notify "normal" "VM-Babysitter" "Required shut down detected" "Resuming check/backup for $domain"
+                    [[ $(os_is_unraid) == true ]] && unraid_notify "normal" "VM-Babysitter" "Required shut down detected" "Resuming check/backup for $domain"
                 fi
             done
         fi
@@ -982,7 +982,7 @@ end_of_external_variables
                     shutdown_required_message="As env variable 'VM_ALLOW_POWERCYCLE' is not set, a manual Shut Down is required for VM(s): ${SHUTDOWN_REQUIRED_VMS_LIST[@]} 'As Soon As Possible'. This is required prior to perform backup integrity checks and cannot procced without that. Once shut down, the program will perform the checks and will restart involved VM(s) automatically."
 
                     echo "WARNING: $shutdown_required_message"
-                    [[ $(os_is_unraid) ]] && unraid_notify "warning" "VM-Babysitter" "$user_action_message" "$shutdown_required_message"
+                    [[ $(os_is_unraid) == true ]] && unraid_notify "warning" "VM-Babysitter" "$user_action_message" "$shutdown_required_message"
                 fi
 
                 if [[ -n ${FAILED_VMS_LIST[@]} ]]; then
@@ -991,7 +991,7 @@ end_of_external_variables
 
 
                     echo  "ERROR: $failed_vms_message"
-                    [[ $(os_is_unraid) ]] && unraid_notify "alert" "VM-Babysitter" "$user_action_message" "$failed_vms_message"
+                    [[ $(os_is_unraid) == true ]] && unraid_notify "alert" "VM-Babysitter" "$user_action_message" "$failed_vms_message"
                 fi
             fi
 
@@ -1019,7 +1019,7 @@ else
     failed_initialize_message="Could not initialize due to errors! Check $(basename $LOGFILE_PATH) in this host for detailed logs."
 
     echo "ERROR: $failed_initialize_message"
-    [[ $(os_is_unraid) ]] && unraid_notify "alert" "VM-Babysitter" "Failed to start container" "$failed_initialize_message"
+    [[ $(os_is_unraid) == true ]] && unraid_notify "alert" "VM-Babysitter" "Failed to start container" "$failed_initialize_message"
 
     stop_container
 fi

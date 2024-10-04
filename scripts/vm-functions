@@ -565,7 +565,7 @@ archive_remote_backup()
         # Checks in advance if remote backup path exists or not:
         local remote_backup_chain_exists=$(ssh $SSH_OPTIONS $remote_server "[[ -d $remote_backup_path/$domain && -n \$(ls -A $remote_backup_path/$domain) ]] && echo true || echo false")
 
-        if [[ $remote_backup_chain_exists ]]; then
+        if [[ $remote_backup_chain_exists == true ]]; then
 
             # Get the oldest modification time from remote files inside, to rename archived backups with historical timestamp:
             local timestamp=$(ssh $SSH_OPTIONS $remote_server "find $remote_backup_path/$domain -type f -printf '%T+ %p\n' | sort | head -n 1 | cut -d' ' -f1")
