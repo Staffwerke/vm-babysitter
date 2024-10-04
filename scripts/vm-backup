@@ -111,9 +111,7 @@ if [[ -n ${backups_list[@]} ]]; then
 
     for domain in ${backups_list[@]}; do
 
-        # Display screen divider when processing several backup chains:
-        [[ ${#backups_list[@]} -gt 1 ]] \
-            && echo "____________________________________________________________________________________________________________"
+        echo "____________________________________________________________________________________________________________"
 
         if [[ $(domain_exists $domain) == yes ]]; then
 
@@ -160,9 +158,7 @@ if [[ -n ${backups_list[@]} ]]; then
 
         for domain in ${backup_success_list[@]}; do
 
-            # Display screen divider when processing several backup chains:
-            [[ ${#backup_success_list[@]} -gt 1 ]] \
-                && echo "____________________________________________________________________________________________________________"
+            echo "____________________________________________________________________________________________________________"
 
             # Attempts to transfer changes via rsync:
             vm-rsync $domain
@@ -242,11 +238,9 @@ case $backup_action in
         echo -e "\n$backup_action Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")\n"
     ;;
 
-    "On-demand")
+    "On-demand") # Display that the script has finished:
 
-        # When multiple backups chains were processed, display that the script has finished:
-        [[ ${#backups_list[@]} -gt 1 ]] \
-            && echo -e "\n$(basename $0): Finished\n"
+        echo -e "\n$(basename $0): Finished\n"
     ;;
 esac
 

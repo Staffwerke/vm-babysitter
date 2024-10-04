@@ -49,14 +49,14 @@ if [[ -n ${rsync_list[@]} ]]; then
         # Build rsync_source directly from variables:
         rsync_source=$LOCAL_BACKUP_PATH/$domain
 
+        # Display screen divider when processing several backup chains:
+        [[ ${#rsync_list[@]} -gt 1 ]] \
+            && echo "____________________________________________________________________________________________________________"
+
         if [[ -d $rsync_source && -n $(ls -A $rsync_source) ]]; then
 
             # Backup exists. Build rsync_destination directly from variables:
             rsync_destination=$RSYNC_BACKUP_PATH/$domain
-
-            # Display screen divider when processing several backup chains:
-            [[ ${#rsync_list[@]} -gt 1 ]] \
-                && echo "____________________________________________________________________________________________________________"
 
             echo "$domain: Syncing backup to $rsync_destination ..."
 
