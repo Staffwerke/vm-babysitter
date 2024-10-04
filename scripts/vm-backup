@@ -149,8 +149,8 @@ if [[ -n ${backups_list[@]} ]]; then
 
         else
             # Create a separated list of 'lost' VMs, and prompt about the unexpected error
-            backup_skipped_list+=($item)
-            echo "$domain: There is no VM to backup (skipped)"
+            backup_skipped_list+=($domain)
+            echo "WARNING: There is no such VM '$domain' to backup"
         fi
     done
 
