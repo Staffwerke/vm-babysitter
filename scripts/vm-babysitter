@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Load functions:
+source /usr/local/bin/vm-functions
+
 ###############################################################################
 # Specific procedures:
 ###############################################################################
@@ -739,24 +742,17 @@ crontab_file="/tmp/crontab"
 # Storing file for bash like lists shared between this script and the scheduler:
 external_vars="/tmp/vm-babysit-vars"
 
-# Main library where common functions and some variables are loaded:
-functions_path="/usr/local/bin/vm-functions"
-
 # Path of the scheduler script (run by cron):
 backup_script_path="/usr/local/bin/vm-backup"
 
 # Export variables used by children processes:
 export external_vars
-export functions_path
 
 # Main execution:
 ###############################################################################
 
 # Redirect system stdout and stderr to $LOGFILE_PATH. Note this applies to all other commands and scripts run from this script:
 exec &> >(tee -a $LOGFILE_PATH)
-
-# Load functions:
-source $functions_path
 
 # Create internal folders in case don't exist:
 [[ ! -d $( dirname $LOGFILE_PATH) ]] && mkdir -p $(dirname $LOGFILE_PATH)
@@ -832,7 +828,6 @@ VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS"
 UNRAID_NOTIFY_HOST="$UNRAID_NOTIFY_HOST"
 
 # Paths for functions and (shared) dynamic variables:
-functions_path="$functions_path"
 external_vars="$external_vars"
 
 # Schedule for $(basename $backup_script_path):

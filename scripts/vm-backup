@@ -6,6 +6,9 @@
 # - All domains currently scheduled for backups, if '--run-schedule' is passed as the only argument, or
 # - Creates new backup chains if '--create-new ' is passed as first argument, and then all domains as further arguments (forcing retention policy appliance in the process)
 
+# Load common functions:
+source /usr/local/bin/vm-functions
+
 display_summary()
 {
     echo "____________________________________________________________________________________________________________"
@@ -44,9 +47,6 @@ display_summary()
         fi
     fi
 }
-
-# Load common functions:
-source $functions_path
 
 case $1 in
 

@@ -6,7 +6,7 @@
 # - When '--force'is passed as the first argument, overrides MAX_BACKUPS_PER_CHAIN and triggers its immediate archiving.
 
 # Load common functions:
-source $functions_path
+source /usr/local/bin/vm-functions
 
 if [[ $1 == "--force" ]]; then
 

@@ -7,7 +7,7 @@
 # Only returns rsync exit code when a single domain is passed. However, failed status is prompted as per domain.
 
 # Load common functions:
-source $functions_path
+source /usr/local/bin/vm-functions
 
 case $1 in
 
