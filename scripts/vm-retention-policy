@@ -97,7 +97,7 @@ if [[ -n ${retention_list[@]} ]]; then
 
             # Also discerning if local backup was not found in first instance,
             # in which case any remote mirror that exists will be archived, but no retention policy applied with old backup chains:
-            [[ $local_backup_not_found ]] && rsync_retention=$RSYNC_BACKUP_CHAINS_TO_KEEP || rsync_retention=""
+            [[ $local_backup_not_found == true ]] && rsync_retention="" || rsync_retention=$RSYNC_BACKUP_CHAINS_TO_KEEP
 
             # In order to archive and apply (or not) retention policy on the mirror:
             $archive_command $RSYNC_BACKUP_PATH/$domain $rsync_retention
