@@ -84,7 +84,7 @@ if [[ -n ${retention_list[@]} ]]; then
             fi
 
         else
-            echo "$domain: No backup was found at $LOCAL_BACKUP_PATH"
+            echo "$domain: No backup found at $LOCAL_BACKUP_PATH"
 
             # Mark local backup as 'not found' (to perform tasks below):
             local_backup_not_found=true
