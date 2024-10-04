@@ -52,7 +52,7 @@ if [[ -n ${retention_list[@]} ]]; then
 
                         # '0' checkpoints means it's a 'copy' backup:
                         end_of_lifecycle=true
-                        echo "$domain: Not a backup chain but made using 'copy' mode, and cannot be used to store incremental backups"
+                        echo "$domain: Chainless backup made using 'copy' mode. It cannot be used to store incremental backups"
 
                     elif [[ $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
 
@@ -61,7 +61,7 @@ if [[ -n ${retention_list[@]} ]]; then
 
                     else
                         end_of_lifecycle=false
-                        echo "$domain: Backup chain contains $num_of_backup_checkpoints/$MAX_BACKUPS_PER_CHAIN checkpoints"
+                        echo "$domain: Backup chain currently contains $num_of_backup_checkpoints of $MAX_BACKUPS_PER_CHAIN allowed checkpoints"
                     fi
                 ;;
 
@@ -73,7 +73,7 @@ if [[ -n ${retention_list[@]} ]]; then
 
                 *)  # MAX_BACKUPS_PER_CHAIN is not set, or value is 0:
 
-                    echo "$domain: Data retention policy is disabled ($num_of_backup_checkpoints checkpoints)"
+                    echo "WARNING: $domain: Data retention policy is disabled (current # of checkpoints: $num_of_backup_checkpoints)"
                 ;;
             esac
 
@@ -106,8 +106,8 @@ if [[ -n ${retention_list[@]} ]]; then
 
     # When multiple backups chains were processed, display that the script has finished:
     [[ ${#retention_list[@]} -gt 1 ]] \
-        && echo -e "\n$(basename $0): Finished"
+        && echo -e "\n$(basename $0): Finished\n"
 
 else
-    echo "At least one virtual machine needs to be passed as argument to check/apply data retention policy"
+    echo "No argument(s) passed to check backup lifecycle or apply data retention policy"
 fi

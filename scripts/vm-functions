@@ -520,7 +520,7 @@ archive_backup()
         if [[ -n $backups_to_keep && $backups_to_keep -gt 0 ]]; then
 
         # Apply retention policy if backups_to_keep exists and is > 0:
-        echo "$domain: Applying retention policy on local filesystem..."
+        echo "$domain: Applying data retention policy on local filesystem..."
 
         # Position of the first folder to delete, ordered from most recent timestamp:
         local index=$( expr $backups_to_keep + 1 )
@@ -581,7 +581,7 @@ archive_remote_backup()
             if [[ -n $remote_backups_to_keep && $remote_backups_to_keep -gt 0 ]]; then
 
                 # Apply retention policy if backups_to_keep exists and is > 0:
-                echo "$domain: Applying retention policy (on server $remote_server)..."
+                echo "$domain: Applying data retention policy (on server $remote_server)..."
 
                 # Position of the first folder to delete, ordered from most recent timestamp
                 local index=$( expr $remote_backups_to_keep + 1 )

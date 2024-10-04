@@ -13,9 +13,9 @@ display_summary()
 {
     echo "____________________________________________________________________________________________________________"
     echo -e "$backup_action Backup Summary:\n"
-    echo "Successful backups:    ${backup_success_list[@]:-"None"}"
-    echo "Failed backups:        ${backup_failed_list[@]:-"None"}"
-    echo "Skipped (missing VMs): ${backup_skipped_list[@]:-"None"}"
+    echo "Successful backups: ${backup_success_list[@]:-"None"}"
+    echo "Failed backups:     ${backup_failed_list[@]:-"None"}"
+    echo "Missing VMs:        ${backup_skipped_list[@]:-"None"}"
 
     if [[ $on_demand_rsync ]]; then
 
@@ -23,15 +23,13 @@ display_summary()
         echo "____________________________________________________________________________________________________________"
         echo -e "$backup_action Rsync summary:\n"
         echo "Successful syncs: ${rsync_success_list[@]:-"None"}"
-        echo "Failed to sync:   ${rsync_failed_list[@]:-"None"}"
+        echo "Failed syncs:     ${rsync_failed_list[@]:-"None"}"
     fi
 
     if [[ $(os_is_unraid) == true ]]; then
 
         # Notifies via Unraid about the results:
-        if [[ -z ${backup_failed_list[@]} \
-            && -z ${rsync_failed_list[@]} \
-            && -z ${backup_skipped_list[@]} ]]; then
+        if [[ -z ${backup_failed_list[@]} && -z ${rsync_failed_list[@]} && -z ${backup_skipped_list[@]} ]]; then
 
             unraid_notify "normal" "VM-Babysitter" "$backup_action Backup" "Finished Successfully"
 
@@ -132,6 +130,7 @@ if [[ -n ${backups_list[@]} ]]; then
             fi
 
             # Perform the backup operation:
+            echo ""
             virtnbdbackup $start_domain -d $domain -l $backup_mode -o $LOCAL_BACKUP_PATH/$domain $VIRTNBDBACKUP_ARGS
 
             # Get last status for virtnbdbackup:
@@ -183,7 +182,7 @@ if [[ -n ${backups_list[@]} ]]; then
     fi
 
 else
-    echo "No Virtual machines for $backup_action Backup to process (exited)"
+    echo "No Virtual machine(s) for $backup_action Backup to process"
 fi
 
 case $backup_action in
@@ -247,7 +246,7 @@ case $backup_action in
 
         # When multiple backups chains were processed, display that the script has finished:
         [[ ${#backups_list[@]} -gt 1 ]] \
-            && echo -e "\n$(basename $0): Finished"
+            && echo -e "\n$(basename $0): Finished\n"
     ;;
 esac
 

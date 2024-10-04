@@ -58,7 +58,7 @@ if [[ -n ${rsync_list[@]} ]]; then
             [[ ${#rsync_list[@]} -gt 1 ]] \
                 && echo "____________________________________________________________________________________________________________"
 
-            echo "$domain: Syncing backup chain to $rsync_destination ..."
+            echo "$domain: Syncing backup to $rsync_destination ..."
 
             if [[ $rsync_destination == *@*:/* ]]; then
 
@@ -79,20 +79,20 @@ if [[ -n ${rsync_list[@]} ]]; then
             if [[ $rsync_exit_code -eq 0 ]]; then
 
                 rsync_success+=($domain)
-                echo "$domain: Backup chain synced successfully"
+                echo "$domain: Backup synced successfully"
 
             else
                 rsync_failed+=($domain)
-                echo "$domain: Failed to sync backup chain to $rsync_destination (Rsync exit code: $rsync_exit_code)"
+                echo "$domain: Failed to sync backup to $rsync_destination (Rsync exit code: $rsync_exit_code)"
             fi
         else
             rsync_skipped+=($domain)
-            echo "$domain: There is no backup folder to sync (skipped)"
+            echo "WARNING: There is no such backup '$rsync_source' to sync"
         fi
     done
 
 else
-    echo "No path(s) were found for $rsync_action Rsync to process (exited)"
+    echo "No backup path(s) $rsync_action Rsync to process"
 fi
 
 case $rsync_action in
@@ -101,7 +101,7 @@ case $rsync_action in
 
         # When multiple backups chains were processed, display that the script has finished:
         [[ ${#rsync_list[@]} -gt 1 ]] \
-            && echo -e "\n$(basename $0): Finished"
+            && echo -e "\n$(basename $0): Finished\n"
 
         # Only exits with rsync code when there was only one backup on the list and existed (not skipped):
         [[ ${#rsync_list[@]} -eq 1 && -z ${rsync_skipped[@]} ]] \
@@ -113,9 +113,9 @@ case $rsync_action in
         # Displays a brief summary:
         echo "____________________________________________________________________________________________________________"
         echo -e "$rsync_action Rsync Summary:\n"
-        echo "Successful syncs:    ${rsync_success[@]:-"None"}"
-        echo "Failed to sync:      ${rsync_failed[@]:-"None"}"
-        echo "Skipped (no backup): ${rsync_skipped[@]:-"None"}"
+        echo "Successful syncs: ${rsync_success[@]:-"None"}"
+        echo "Failed syncs:     ${rsync_failed[@]:-"None"}"
+        echo "Missing backups:  ${rsync_skipped[@]:-"None"}"
 
         if [[ $(os_is_unraid) == true ]]; then
 
