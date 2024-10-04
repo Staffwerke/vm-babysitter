@@ -515,12 +515,12 @@ archive_backup()
 
         # Archives the current backup chain, by renaming it with time stamp:
         mv $backup_path/$domain $backup_path/$domain.$timestamp
-        echo "$domain: Backup was archived as $backup_path/$domain.$timestamp"
+        echo "$domain: Local backup archived as > $backup_path/$domain.$timestamp"
 
         if [[ -n $backups_to_keep && $backups_to_keep -gt 0 ]]; then
 
         # Apply retention policy if backups_to_keep exists and is > 0:
-        echo "$domain: Applying data retention policy on local filesystem..."
+        echo "$domain: Applying data retention policy on local path $backup_path..."
 
         # Position of the first folder to delete, ordered from most recent timestamp:
         local index=$( expr $backups_to_keep + 1 )
@@ -538,7 +538,7 @@ archive_backup()
         fi
 
     else
-        echo "$domain: No backup was found at $backup_path"
+        echo "$domain: No backup found at $backup_path"
     fi
 }
 
@@ -549,7 +549,7 @@ archive_backup()
 archive_remote_backup()
 {
     # Remote server (user@host format):
-    local remote_server=$(echo $1 | cut -d':' -f1)
+    local ssh_login=$(echo $1 | cut -d':' -f1)
 
     # Remote folder to be manipulated:
     local remote_backup_path=$(dirname $(echo $1 | cut -d':' -f2))
@@ -561,50 +561,50 @@ archive_remote_backup()
     local remote_backups_to_keep=$2
 
     # Attempts to comunicate with the remote host:
-    ssh $SSH_OPTIONS $remote_server "exit 0"
+    ssh $SSH_OPTIONS $ssh_login "exit 0"
     local ssh_exit_code=$?
 
     if [[ $ssh_exit_code -eq 0 ]]; then
 
         # Remote Server is reachable. Checks in advance if remote backup path exists or not:
-        local remote_backup_chain_exists=$(ssh $SSH_OPTIONS $remote_server "[[ -d $remote_backup_path/$domain && -n \$(ls -A $remote_backup_path/$domain) ]] && echo true || echo false")
+        local remote_backup_chain_exists=$(ssh $SSH_OPTIONS $ssh_login "[[ -d $remote_backup_path/$domain && -n \$(ls -A $remote_backup_path/$domain) ]] && echo true || echo false")
 
         if [[ $remote_backup_chain_exists == true ]]; then
 
             # Get the oldest modification time from remote files inside, to rename archived backups with historical timestamp:
-            local timestamp=$(ssh $SSH_OPTIONS $remote_server "find $remote_backup_path/$domain -type f -printf '%T+ %p\n' | sort | head -n 1 | cut -d' ' -f1")
+            local timestamp=$(ssh $SSH_OPTIONS $ssh_login "find $remote_backup_path/$domain -type f -printf '%T+ %p\n' | sort | head -n 1 | cut -d' ' -f1")
 
             # Archive remote backup chain:
-            ssh $SSH_OPTIONS $remote_server "mv $remote_backup_path/$domain $remote_backup_path/$domain.$timestamp"
-            echo "$domain: Backup at $remote_server archived as $remote_backup_path/$domain.$timestamp"
+            ssh $SSH_OPTIONS $ssh_login "mv $remote_backup_path/$domain $remote_backup_path/$domain.$timestamp"
+            echo "$domain: Remote backup copy archived as > $remote_backup_path/$domain.$timestamp"
 
             if [[ -n $remote_backups_to_keep && $remote_backups_to_keep -gt 0 ]]; then
 
                 # Apply retention policy if backups_to_keep exists and is > 0:
-                echo "$domain: Applying data retention policy (on server $remote_server)..."
+                echo "$domain: Applying data retention policy on remote path $remote_backup_path..."
 
                 # Position of the first folder to delete, ordered from most recent timestamp
                 local index=$( expr $remote_backups_to_keep + 1 )
 
                 # Creates a list with EXACT match of archived folder(s) to delete.
                 # Pattern is based upon a timestamp like '2023-11-08+06:19:36.1501949150':
-                local remote_old_backups_list=($(ssh $SSH_OPTIONS $remote_server "find $remote_backup_path -type d -name \"$domain.*\" | sort -r | grep -E \"^$remote_backup_path/$domain\.[0-9]{4}-[0-9]{2}-[0-9]{2}\+[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{10}$\" | tail -n +$index"))
+                local remote_old_backups_list=($(ssh $SSH_OPTIONS $ssh_login "find $remote_backup_path -type d -name \"$domain.*\" | sort -r | grep -E \"^$remote_backup_path/$domain\.[0-9]{4}-[0-9]{2}-[0-9]{2}\+[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{10}$\" | tail -n +$index"))
 
                 if [[ -n ${remote_old_backups_list[@]} ]]; then
 
                     # Deletes all folders in the above generated list:
                     echo "$domain: Deleting ${#remote_old_backups_list[@]} old backup(s)..."
-                    ssh $SSH_OPTIONS $remote_server "rm -rf ${remote_old_backups_list[@]}"
+                    ssh $SSH_OPTIONS $ssh_login "rm -rf ${remote_old_backups_list[@]}"
                 fi
             fi
 
         else
-            echo "$domain: No backup was found at $remote_server:$remote_backup_path"
+            echo "$domain: No backup found at remote path $remote_backup_path"
         fi
 
     else
         # SSH failed to establish connection:
-        echo "WARNING: Connection with remote endpoint $remote_server failed (SSH error code: $ssh_exit_code)"
+        echo "WARNING: Remote connection to $ssh_login failed (SSH exit code: $ssh_exit_code)"
     fi
 
     return $ssh_exit_code
