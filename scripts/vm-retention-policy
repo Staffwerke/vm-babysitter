@@ -27,7 +27,7 @@ if [[ -n ${retention_list[@]} ]]; then
 
     for domain in ${retention_list[@]}; do
 
-        # (Re)Initialize used variables:
+        # (Re)Initialize boolean variables:
         local_backup_not_found=""
         end_of_lifecycle=""
 
@@ -35,9 +35,10 @@ if [[ -n ${retention_list[@]} ]]; then
         [[ ${#retention_list[@]} -gt 1 ]] \
             && echo "____________________________________________________________________________________________________________"
 
-        echo "$domain: Checking/applying data retention policy..."
 
         if [[ -d $LOCAL_BACKUP_PATH/$domain && -n $(ls -A $LOCAL_BACKUP_PATH/$domain) ]]; then
+
+            echo "$domain: Checking backup lifecycle..."
 
             # Backup path exists and is not empty. Proceed with check:
             # Retention policy is set (at least, partially) by the user. Retrieve the number of existing checkpoints in the backup chain:
@@ -45,56 +46,51 @@ if [[ -n ${retention_list[@]} ]]; then
 
             case $retention_mode in
 
-                Normal)
+                Normal) # Will check how many checkpoints will have, marking the end of its lifecycle if cannot be used
 
-                    case $num_of_backup_checkpoints in
+                    if [[ $num_of_backup_checkpoints -eq 0 ]]; then
 
-                        0)  # '0' checkpoints means it's a 'copy' backup:
+                        # '0' checkpoints means it's a 'copy' backup:
+                        end_of_lifecycle=true
+                        echo "$domain: Not a backup chain but made using 'copy' mode, and cannot be used to store incremental backups"
 
-                            end_of_lifecycle=1
-                            echo "$domain: Current backup was made in 'copy' mode and cannot be used for incremental backups"
-                        ;;
+                    elif [[ $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
 
-                        *)  # Any other positive integer number it's the current number of checkpoints present into the backup chain.
+                        end_of_lifecycle=true
+                        echo "$domain: Backup chain has reached the end of its lifecycle and must be archived ($num_of_backup_checkpoints of $MAX_BACKUPS_PER_CHAIN allowed checkpoints)"
 
-                            # Check if it has reached the maximum allowed:
-                            if [[ $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
-
-                                # Backup has reached the max allowed checkpoints and must be archived:
-                                end_of_lifecycle=1
-                            fi
-
-                            echo "$domain: Detected $num_of_backup_checkpoints of max allowed $MAX_BACKUPS_PER_CHAIN checkpoints"
-                        ;;
-                    esac
+                    else
+                        end_of_lifecycle=false
+                        echo "$domain: Backup chain contains $num_of_backup_checkpoints/$MAX_BACKUPS_PER_CHAIN checkpoints"
+                    fi
                 ;;
 
-                Forced) # No checks will be performed:
+                Forced) # No checks will be performed. Directly end its lifecycle
 
-                    echo "$domain: Current backup chain will be forcibly archived ($num_of_backup_checkpoints of max allowed $MAX_BACKUPS_PER_CHAIN checkpoints)"
-                    end_of_lifecycle=1
+                    echo "$domain: Backup chain has been forcibly set to end its lifecycle ($num_of_backup_checkpoints of $MAX_BACKUPS_PER_CHAIN allowed checkpoints)"
+                    end_of_lifecycle=true
                 ;;
 
                 *)  # MAX_BACKUPS_PER_CHAIN is not set, or value is 0:
 
-                    echo "$domain: Data retention policy is currently disabled by user ($num_of_backup_checkpoints checkpoints)"
+                    echo "$domain: Data retention policy is disabled ($num_of_backup_checkpoints checkpoints)"
                 ;;
             esac
 
-            if [[ $end_of_lifecycle ]]; then
+            if [[ $end_of_lifecycle == true ]]; then
 
-                # Process local backup chain if it has reached its lifecycle (for whatever reason)
+                # Process local backup chain if it has reached its lifecycle (for whatever reason):
                 archive_backup $LOCAL_BACKUP_PATH/$domain $LOCAL_BACKUP_CHAINS_TO_KEEP
             fi
 
         else
-            echo "$domain: There is no current backup at $LOCAL_BACKUP_PATH in order to check/apply data retention policy"
+            echo "$domain: No backup was found at $LOCAL_BACKUP_PATH"
 
             # Mark local backup as 'not found' (to perform tasks below):
-            local_backup_not_found=1
+            local_backup_not_found=true
         fi
 
-        if [[ -n $RSYNC_BACKUP_PATH ]] && [[ $end_of_lifecycle || $local_backup_not_found ]]; then
+        if [[ -n $RSYNC_BACKUP_PATH ]] && [[ $end_of_lifecycle == true || $local_backup_not_found == true ]]; then
 
             # Process rsync mirror, discerning if located at local or remote (SSH) path:
             [[ $RSYNC_BACKUP_PATH == *@*:/* ]] && archive_command="archive_remote_backup" || archive_command="archive_backup"
@@ -110,9 +106,8 @@ if [[ -n ${retention_list[@]} ]]; then
 
     # When multiple backups chains were processed, display that the script has finished:
     [[ ${#retention_list[@]} -gt 1 ]] \
-        && echo -e "\n$(basename $0): Finished" \
-        || echo ""
+        && echo -e "\n$(basename $0): Finished"
 
 else
-    echo "At least one Virtual machine needs to be passed as argument in order to check/apply data retention policy (exited)"
+    echo "At least one virtual machine needs to be passed as argument to check/apply data retention policy"
 fi
