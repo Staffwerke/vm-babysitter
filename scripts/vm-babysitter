@@ -84,7 +84,7 @@ check_variables()
         '') # Rsync path is not set:
 
             rsync_backup_path_ok=true
-            echo "RSYNC_BACKUP_PATH is not set. No remote backup endpoint will be used"
+            echo "RSYNC_BACKUP_PATH is not set"
         ;;
 
         [/]*) # Rsync path is an absolute path into root filesystem:
@@ -191,7 +191,6 @@ create_domains_list()
 #------------------------------------------------------------------------------
 check_domains()
 {
-
     local domain_autostart_list=()
     local domain_failed_list=()
     local domain_success_list=()
@@ -263,7 +262,7 @@ check_domains()
     echo "Set for Autostart (after checks):" ${domain_autostart_list[@]:-"None"}
     echo ""
     [[ -z ${domain_failed_list[@]} ]] && \
-    echo "All Backup Chains Checked!" \ ||
+    echo "All Virtual Machines Checked!" \ ||
     echo "Missing/issues on virtual disks:"  ${domain_failed_list[@]:-"None"}
 }
 
