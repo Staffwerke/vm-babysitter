@@ -69,11 +69,11 @@ check_variables()
             fi
 
         else
-            echo "ERROR: LOCAL_BACKUP_PATH: '$LOCAL_BACKUP_PATH' <- Cannot read or write onto the folder"
+            echo "ERROR: LOCAL_BACKUP_PATH: '$LOCAL_BACKUP_PATH' <- Insufficient filesystem permissions to work into this path"
         fi
 
     else
-        echo "ERROR: LOCAL_BACKUP_PATH: '$LOCAL_BACKUP_PATH'  <- Path was not found inside the container. Ensure you mount this correctly (e.g. '-v /mnt/user/backups/vm-babysitter:/backups')"
+        echo "ERROR: LOCAL_BACKUP_PATH: '$LOCAL_BACKUP_PATH'  <- Path was not found inside the container. Ensure you mount this correctly (e.g. '-v /mnt/user/backups/vm-backups:/backups')"
     fi
 
     # Check RSYNC_BACKUP_PATH:
@@ -103,18 +103,7 @@ check_variables()
                 fi
 
             else
-                # Attempt to create RSYNC_BACKUP_PATH:
-                mkdir -p $RSYNC_BACKUP_PATH
-
-                if [[ $? -eq 0 ]]; then
-
-                    # Success:
-                    rsync_backup_path_exists=1
-                    echo "RSYNC_BACKUP_PATH was created locally, and set to: $RSYNC_BACKUP_PATH"
-
-                else
-                    echo "ERROR: RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH' <- Insufficient filesystem permissions to create this path, or is not a directory"
-                fi
+                echo "ERROR: RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH'  <- Path was not found inside the container. Ensure you mount this correctly (e.g. '-v /mnt/remotes/hostname/vm-backups-mirror:/backups-mirror')"
             fi
         ;;
 
