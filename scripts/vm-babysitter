@@ -304,16 +304,16 @@ check_backups()
         for domain in $(domains_list); do
 
             # Look for all VMs and its checkpoints, stop if it finds at least one:
-            [[ -n $(domain_checkpoint_list $domain) ]] && { checkpoints_found=true; break; }
+            [[ -n $(domain_checkpoint_list $domain) ]] && { checkpoints_found=true; break; } || checkpoints_found=false
         done
 
         for domain in ${CHECK_BACKUPS_LIST[@]}; do
 
             # Look for all VMs to be checked, stop if any of them is running:
-            [[ $(domain_state $domain) == "running" ]] && { some_vm_is_running=true; break; }
+            [[ $(domain_state $domain) == "running" ]] && { some_vm_is_running=true; break; } || some_vm_is_running=false
         done
 
-        if [[ $checkpoints_found && $some_vm_is_running ]]; then
+        if [[ $checkpoints_found == false && $some_vm_is_running == true ]]; then
 
             # If no checkpoints were found across the server and at least one of the VMs to be checked is running, set unraid_scenario flag:
             unraid_scenario=true
