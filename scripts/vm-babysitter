@@ -33,7 +33,7 @@ check_variables()
     local rsync_backup_path_ok
 
     echo "Checking environment variables..."
-    # Check $MAX_BACKUPS_PER_CHAIN
+    # Check MAX_BACKUPS_PER_CHAIN
     #------------------------------------------------------------------------------
     if [[ $MAX_BACKUPS_PER_CHAIN =~ [0-9] && $MAX_BACKUPS_PER_CHAIN -ge 0 ]]; then
 
@@ -50,13 +50,13 @@ check_variables()
     #------------------------------------------------------------------------------
     if  [[ -d $LOCAL_BACKUP_PATH ]]; then
 
-        # $LOCAL_BACKUP_PATH found
+        # LOCAL_BACKUP_PATH exists. Check for filesystem permissions:
         if  [[ -r $LOCAL_BACKUP_PATH && -w $LOCAL_BACKUP_PATH ]]; then
 
-            # $LOCAL_BACKUP_PATH has read/write permissions.
+            # LOCAL_BACKUP_PATH has read/write permissions.
             echo "LOCAL_BACKUP_PATH set to: $LOCAL_BACKUP_PATH"
 
-            # Check $LOCAL_BACKUP_CHAINS_TO_KEEP:
+            # Check LOCAL_BACKUP_CHAINS_TO_KEEP:
             if [[ $LOCAL_BACKUP_CHAINS_TO_KEEP =~ [0-9] && $LOCAL_BACKUP_CHAINS_TO_KEEP -ge 0 ]]; then
 
                 # Check passed:
@@ -76,7 +76,7 @@ check_variables()
         echo "ERROR: LOCAL_BACKUP_PATH: '$LOCAL_BACKUP_PATH'  <- Path was not found inside the container. Ensure you mount this correctly (e.g. '-v /mnt/user/backups/vm-babysitter:/backups')"
     fi
 
-    # Check RSYNC_BACKUP_PATH
+    # Check RSYNC_BACKUP_PATH:
     #------------------------------------------------------------------------------
 
     case $RSYNC_BACKUP_PATH in
@@ -89,31 +89,49 @@ check_variables()
 
         [/]*) # Rsync path is an absolute path into root filesystem:
 
-            if [[ -d $RSYNC_BACKUP_PATH && -r $RSYNC_BACKUP_PATH && -w $RSYNC_BACKUP_PATH ]]; then
+            # RSYNC_BACKUP_PATH exists. Check for filesystem permissions:
+            if [[ -d $RSYNC_BACKUP_PATH ]]; then
 
-                # Mark as found:
-                rsync_backup_path_exists=1
-                echo "RSYNC_BACKUP_PATH is local, and set to: $RSYNC_BACKUP_PATH"
+                if [[ -r $RSYNC_BACKUP_PATH && -w $RSYNC_BACKUP_PATH ]]; then
+
+                    # RSYNC_BACKUP_PATH has read/write permissions:
+                    rsync_backup_path_exists=1
+                    echo "RSYNC_BACKUP_PATH is local, and set to: $RSYNC_BACKUP_PATH"
+
+                else
+                    echo "ERROR: RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH' <- Insufficient filesystem permissions to work into this path"
+                fi
 
             else
-                echo "ERROR: RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH' <- Cannot read or write onto the local path (or is not a directory)"
+                # Attempt to create RSYNC_BACKUP_PATH:
+                mkdir -p $RSYNC_BACKUP_PATH
+
+                if [[ $? -eq 0 ]]; then
+
+                    # Success:
+                    rsync_backup_path_exists=1
+                    echo "RSYNC_BACKUP_PATH was created locally, and set to: $RSYNC_BACKUP_PATH"
+
+                else
+                    echo "ERROR: RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH' <- Insufficient filesystem permissions to create this path, or is not a directory"
+                fi
             fi
         ;;
 
         *[@]*[:/]*)  # Rsync path is at aremote host, pointing an absolute path into its root filesystem:
 
             # Apparently includes correct remote login and path. Separates ssh login from remote path:
-            local rsync_server=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f1)
+            local ssh_login=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f1)
             local rsync_path=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f2)
 
             # Attempts to comunicate with the remote host:
-            ssh $SSH_OPTIONS $rsync_server "exit 0"
+            ssh $SSH_OPTIONS $ssh_login "exit 0"
             local ssh_server_exit_code=$?
 
             if [[ $ssh_server_exit_code == 0 ]]; then
 
                 # Attempts to perform similar checks as with $LOCAL_BACKUP_PATH, but creating a remote backup directory if doesn't exists:
-                local remote_backup_path_status=$(ssh $SSH_OPTIONS $rsync_server "[[ -d $rsync_path && -r $rsync_path && -w $rsync_path ]] && echo 'found' || { mkdir -p $rsync_path; [[ -d $rsync_path ]] && echo 'created' || echo 'failed'; }")
+                local remote_backup_path_status=$(ssh $SSH_OPTIONS $ssh_login "[[ -d $rsync_path && -r $rsync_path && -w $rsync_path ]] && echo 'found' || { mkdir -p $rsync_path; [[ -d $rsync_path ]] && echo 'created' || echo 'failed'; }")
 
                 if [[ $remote_backup_path_status != failed ]]; then
 
@@ -122,16 +140,16 @@ check_variables()
                     echo "RSYNC_BACKUP_PATH is remote, was $remote_backup_path_status and set to: $RSYNC_BACKUP_PATH"
 
                 else
-                    echo "ERROR: Remote RSYNC_BACKUP_PATH '$RSYNC_BACKUP_PATH' <- Cannot read or write onto the remote path (or is not a directory)"
+                    echo "ERROR: Remote RSYNC_BACKUP_PATH '$RSYNC_BACKUP_PATH' <- Insufficient filesystem permissions to create or work into this path, or is not a directory"
                 fi
 
             else
-                echo "ERROR: Connection with remote endpoint $rsync_server failed (SSH exit code: $ssh_server_exit_code)"
+                echo "WARNING: Connection to $ssh_login failed (SSH exit code: $ssh_exit_code)"
             fi
         ;;
 
         *)  # Rsync path is anything else, and considered incorrect:
-            echo "ERROR: Incorrect syntax for RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH'. It must be either an absolute path, or an SSH-like endpoint that Rsync can understand (e.g. user@hostname:/path/to/rsync-backup)"
+            echo "ERROR: Incorrect syntax for RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH'. It must be either an absolute path, or an SSH-like endpoint that Rsync can understand (e.g. root@hostname:/path/to/rsync-backup)"
         ;;
     esac
 
