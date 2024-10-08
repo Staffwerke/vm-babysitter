@@ -4,12 +4,6 @@
 # THIS SCIPT HOLDS ALL THE FUNCTIONS AND GLOBAL VARIABLES USED BY SCRIPTS
 
 ###############################################################################
-# Common Variables:
-###############################################################################
-# Base MAC address used on the qemu/kvm implementation:
-base_mac_addr="52:54:00"
-
-###############################################################################
 # Libvirt Related Functions:
 ###############################################################################
 
@@ -642,14 +636,6 @@ backup_restorable_drives_list()
 }
 
 # -----------------------------------------------------------------------------
-# Looks for a given directory and returns 'yes' if empty:
-# -----------------------------------------------------------------------------
-dir_is_empty()
-{
-    find $1 -maxdepth 0 -empty -exec echo {} yes \;
-}
-
-# -----------------------------------------------------------------------------
 # Returns a list of (ordered) bitmaps present into a given disk image:
 # -----------------------------------------------------------------------------
 disk_image_bitmap_list()
@@ -730,6 +716,9 @@ disk_image_bitmap_delete()
 # -----------------------------------------------------------------------------
 gen_random_macaddr()
 {
+    # Base MAC address used on the qemu/kvm implementation:
+    local base_mac_addr="52:54:00"
+
     local seed=$1
 
     # If no base pattern is provided, will use a fixed parameter
