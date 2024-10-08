@@ -84,7 +84,7 @@ if [[ -n ${backups_list[@]} ]]; then
             vm-retention-policy $force_retention_policy $domain
 
             # Under specific scenario of new backup chain and powered off VMs, force --start-server to turn on the VM in paused mode:
-            if [[ ! -d $LOCAL_BACKUP_PATH/$domain || -z $(ls -A $LOCAL_BACKUP_PATH/$domain) == yes ]] \
+            if [[ ! -d $LOCAL_BACKUP_PATH/$domain || -z $(ls -A $LOCAL_BACKUP_PATH/$domain) ]] \
             && [[ $(domain_state $domain) == "shut off" && -z $(grep -o -e "-S" -e "--start-domain" <<< "$VIRTNBDBACKUP_ARGS") ]]; then
 
                 start_domain="--start-domain"
