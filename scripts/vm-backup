@@ -175,10 +175,14 @@ if [[ -n ${backups_list[@]} ]]; then
             # Append failed VMs to its correspondent list to be exported:
             FAILED_VMS_LIST+=(${backup_failed_list[@]})
 
-            # Export all variables:
+            # Sed can't expand arrays correctly. Convert variables to be exported into strings.
+            FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
+            SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
+
+            # Export the variables:
             sed -i \
-            -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=(${FAILED_VMS_LIST[@]})/" \
-            -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=(${SCHEDULED_BACKUPS_LIST[@]})/" \
+            -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
+            -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
             $external_vars
 
             # Show a final summary:
