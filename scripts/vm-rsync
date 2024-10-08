@@ -92,7 +92,7 @@ if [[ -n ${rsync_list[@]} ]]; then
     done
 
 else
-    echo "No backup path(s) $rsync_action Rsync to process"
+    echo "No backup path(s) for $rsync_action Rsync to process"
 fi
 
 case $rsync_action in

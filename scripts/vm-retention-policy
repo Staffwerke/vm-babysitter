@@ -73,7 +73,7 @@ if [[ -n ${retention_list[@]} ]]; then
 
                 *)  # MAX_BACKUPS_PER_CHAIN is not set, or value is 0:
 
-                    echo "WARNING: $domain: Data retention policy is disabled (current # of checkpoints: $num_of_backup_checkpoints)"
+                    echo "WARNING: $domain: Data retention policy is disabled ($num_of_backup_checkpoints) checkpoints so far)"
                 ;;
             esac
 
@@ -109,5 +109,5 @@ if [[ -n ${retention_list[@]} ]]; then
         && echo -e "\n$(basename $0): Finished\n"
 
 else
-    echo "No argument(s) passed to check backup lifecycle or apply data retention policy"
+    echo "No flags or VM(s) passed as arguments to check backup lifecycle or apply data retention policy"
 fi

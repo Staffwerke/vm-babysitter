@@ -17,7 +17,7 @@ display_summary()
     echo "Failed backups:     ${backup_failed_list[@]:-"None"}"
     echo "Missing VMs:        ${backup_skipped_list[@]:-"None"}"
 
-    if [[ $on_demand_rsync ]]; then
+    if [[ $on_demand_rsync == true ]]; then
 
         # Only show remote stats when remote endppoint is set:
         echo "____________________________________________________________________________________________________________"
@@ -121,7 +121,7 @@ if [[ -n ${backups_list[@]} ]]; then
             vm-retention-policy $force_retention_policy $domain
 
             # Under specific scenario of new backup chain and powered off VMs, force --start-server to turn on the VM in paused mode:
-            if [[ ! -d $LOCAL_BACKUP_PATH/$domain || $(dir_is_empty $LOCAL_BACKUP_PATH/$domain) == yes ]] \
+            if [[ ! -d $LOCAL_BACKUP_PATH/$domain || -z $(ls -A $LOCAL_BACKUP_PATH/$domain) == yes ]] \
             && [[ $(domain_state $domain) == "shut off" && -z $(grep -o -e "-S" -e "--start-domain" <<< "$VIRTNBDBACKUP_ARGS") ]]; then
 
                 start_domain="--start-domain"
@@ -154,7 +154,7 @@ if [[ -n ${backups_list[@]} ]]; then
     if [[ -n ${backup_success_list[@]} && -n $RSYNC_BACKUP_PATH ]]; then
 
         # Activate rsync mode:
-        on_demand_rsync=1
+        on_demand_rsync=true
 
         for domain in ${backup_success_list[@]}; do
 
