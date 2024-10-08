@@ -9,43 +9,6 @@
 # Load common functions:
 source /usr/local/bin/vm-functions
 
-display_summary()
-{
-    echo "____________________________________________________________________________________________________________"
-    echo -e "$backup_action Backup Summary:\n"
-    echo "Successful backups: ${backup_success_list[@]:-"None"}"
-    echo "Failed backups:     ${backup_failed_list[@]:-"None"}"
-    echo "Missing VMs:        ${backup_skipped_list[@]:-"None"}"
-
-    if [[ $on_demand_rsync == true ]]; then
-
-        # Only show remote stats when remote endppoint is set:
-        echo "____________________________________________________________________________________________________________"
-        echo -e "$backup_action Rsync summary:\n"
-        echo "Successful syncs: ${rsync_success_list[@]:-"None"}"
-        echo "Failed syncs:     ${rsync_failed_list[@]:-"None"}"
-    fi
-
-    if [[ $(os_is_unraid) == true ]]; then
-
-        # Notifies via Unraid about the results:
-        if [[ -z ${backup_failed_list[@]} && -z ${rsync_failed_list[@]} && -z ${backup_skipped_list[@]} ]]; then
-
-            unraid_notify "normal" "VM-Babysitter" "$backup_action Backup" "Finished Successfully"
-
-        else
-            [[ -n ${backup_skipped_list[@]} ]] \
-                && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup" "Unable to find VM(s): ${backup_skipped_list[@]} and therefore removed from schedule (maybe deleted by the user?) "
-
-            [[ -n ${backup_failed_list[@]} ]] \
-                && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup finished with errors" "Could not perform backup(s) for: ${backup_failed_list[@]}"
-
-            [[ -n ${rsync_failed_list[@]} ]] \
-                && unraid_notify "warning" "VM-Babysitter" "$backup_action Rsync finished with errors" "Could not sync backup chain(s) of: ${rsync_failed_list[@]}"
-        fi
-    fi
-}
-
 case $1 in
 
     --create-new)
@@ -177,48 +140,36 @@ if [[ -n ${backups_list[@]} ]]; then
         done
     fi
 
-else
-    echo "No Virtual machine(s) for $backup_action Backup to process"
-fi
+    case $backup_action in
 
-case $backup_action in
+        "On-demand") # Display that the script has finished:
 
-    "Initial")
+            echo -e "\n$(basename $0): Finished\n"
+        ;;
 
-        # Append VM(s) to the correspondent lists to be exported.
-        # (is assumed that VM(s) still don't exist into any list):
-        FAILED_VMS_LIST+=(${backup_failed_list[@]})
-        SCHEDULED_BACKUPS_LIST+=(${backup_success_list[@]})
+        *) # All other backup scenarios:
 
-        # Export all variables:
-        sed -i \
-        -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=(${FAILED_VMS_LIST[@]})/" \
-        -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=(${SCHEDULED_BACKUPS_LIST[@]})/" \
-        $external_vars
-
-        # Show results on screen and log file:
-        display_summary
-    ;;
-
-    "Scheduled")
-
-        # VMs in backup_success_list are assumed to always exist in SCHEDULED_BACKUPS_LIST.
-
-        if [[ -n ${backup_failed_list[@]} || -n ${backup_skipped_list[@]} ]]; then
-
-            # When some VM is into one of these lists, it must be removed from SCHEDULED_BACKUPS_LIST,
-            # appended to FAILED_VMS_LIST if failed.
-
-            # Load SCHEDULED_BACKUPS_LIST FAILED_VMS_LIST again, in case other VMs were appended somewhere during this run:
+            # Reload SCHEDULED_BACKUPS_LIST and FAILED_VMS_LIST again, since other VMs could have been processed during this run:
             source $external_vars
+
+            for vm in ${backup_success_list[@]}; do
+
+                # Add any successfully backed up VM into SCHEDULED_BACKUPS_LIST that is not currently present into this list:
+                [[ -z $(item_position $vm "SCHEDULED_BACKUPS_LIST") ]] && SCHEDULED_BACKUPS_LIST+=($vm)
+            done
 
             for vm in ${backup_failed_list[@]} ${backup_skipped_list[@]}; do
 
-                # If any, delete each failed or skipped VM from the list:
-                unset SCHEDULED_BACKUPS_LIST[$(item_position $vm "SCHEDULED_BACKUPS_LIST")]
+                failed_vm_index=$(item_position $vm "SCHEDULED_BACKUPS_LIST")
 
-                # Rebuild the array upon each iteration:
-                SCHEDULED_BACKUPS_LIST=(${SCHEDULED_BACKUPS_LIST[@]})
+                if [[ -n $($failed_vm_index) ]]; then
+
+                    # Delete each failed or skipped VM found into SCHEDULED_BACKUPS_LIST:
+                    unset SCHEDULED_BACKUPS_LIST[$failed_vm_index]
+
+                    # Rebuild the array upon each iteration:
+                    SCHEDULED_BACKUPS_LIST=(${SCHEDULED_BACKUPS_LIST[@]})
+                fi
             done
 
             # Append failed VMs to its correspondent list to be exported:
@@ -229,18 +180,47 @@ case $backup_action in
             -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=(${FAILED_VMS_LIST[@]})/" \
             -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=(${SCHEDULED_BACKUPS_LIST[@]})/" \
             $external_vars
-        fi
 
-        # Show results into log file:
-        display_summary
+            # Show a final summary:
+            echo "____________________________________________________________________________________________________________"
+            echo -e "$backup_action Backup Summary:\n"
+            echo "Successful backups: ${backup_success_list[@]:-"None"}"
+            echo "Failed backups:     ${backup_failed_list[@]:-"None"}"
+            echo "Missing VMs:        ${backup_skipped_list[@]:-"None"}"
 
-        # Append the ending date and time into log file:
-        echo -e "\n$backup_action Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")\n"
-    ;;
+            if [[ $on_demand_rsync == true ]]; then
 
-    "On-demand") # Display that the script has finished:
+                # Only show remote stats when remote endppoint is set:
+                echo "____________________________________________________________________________________________________________"
+                echo -e "$backup_action Rsync summary:\n"
+                echo "Successful syncs: ${rsync_success_list[@]:-"None"}"
+                echo "Failed syncs:     ${rsync_failed_list[@]:-"None"}"
+            fi
 
-        echo -e "\n$(basename $0): Finished\n"
-    ;;
-esac
+            if [[ $(os_is_unraid) == true ]]; then
 
+                # Notifies via Unraid about the results:
+                if [[ -z ${backup_failed_list[@]} && -z ${rsync_failed_list[@]} && -z ${backup_skipped_list[@]} ]]; then
+
+                    unraid_notify "normal" "VM-Babysitter" "$backup_action Backup" "Finished Successfully"
+
+                else
+                    [[ -n ${backup_skipped_list[@]} ]] \
+                        && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup" "Unable to find VM(s): ${backup_skipped_list[@]} and therefore removed from schedule (maybe deleted by the user?) "
+
+                    [[ -n ${backup_failed_list[@]} ]] \
+                        && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup finished with errors" "Could not perform backup(s) for: ${backup_failed_list[@]}"
+
+                    [[ -n ${rsync_failed_list[@]} ]] \
+                        && unraid_notify "warning" "VM-Babysitter" "$backup_action Rsync finished with errors" "Could not sync backup chain(s) of: ${rsync_failed_list[@]}"
+                fi
+            fi
+
+            # Append the ending date and time into log file:
+            echo -e "\n$backup_action Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")\n"
+        ;;
+    esac
+
+else
+    echo "No Virtual machine(s) for $backup_action Backup to process"
+fi
