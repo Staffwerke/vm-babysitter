@@ -36,6 +36,7 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime:
 |`RSYNC_ARGS`|Extra arguments for rsync when sends successful backups to `RSYNC_BACKUP_PATH`, e.g. `-aP --bwlimit=1179648`|`-a`|
 |`RSYNC_BACKUP_CHAINS_TO_KEEP`|Same functioning as `LOCAL_BACKUP_CHAINS_TO_KEEP` (default is no limit)||
 |`RSYNC_BACKUP_PATH`|SSH syntax of remote absolute path, e.g. `user@host:/absolute/path/to/folder` to rsync successful backup chain tasks (requires r/w permissions)||
+|`RSYNC_SCHEDULE`|Optional Cron-like string to run Rsync at a different schedule of backups. (Default action is to run immediately after all backups has been performed)||
 |`SCHEDULE_LOGFILE_PATH`|Container path for the schedule log file|`/logs/scheduled-tasks.log`|
 |`SSH_OPTIONS`|SSH options for communications with involved hosts, including rsync, and Unraid notifications to localhost|`-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10`|
 |`TZ`|Local timezone. Most likely the same on the server running docker (default is container's time)||
