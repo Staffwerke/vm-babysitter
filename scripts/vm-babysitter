@@ -729,6 +729,7 @@ MAX_BACKUPS_PER_CHAIN=${MAX_BACKUPS_PER_CHAIN:-"30"}
 RSYNC_ARGS=${RSYNC_ARGS:-"-a"}
 RSYNC_BACKUP_CHAINS_TO_KEEP=${RSYNC_BACKUP_CHAINS_TO_KEEP:-"2"}
 RSYNC_BACKUP_PATH=${RSYNC_BACKUP_PATH:-""}
+RSYNC_SCHEDULE=${RSYNC_SCHEDULE:-""}
 SSH_OPTIONS=${SSH_OPTIONS:-"-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"}
 [[ -f /usr/share/zoneinfo/$TZ ]] && local_timezone_file="/usr/share/zoneinfo/$TZ"
 UNRAID_NOTIFY_HOST=${UNRAID_NOTIFY_HOST:-"localhost"}
@@ -747,9 +748,6 @@ crontab_file="/tmp/crontab"
 
 # Storing file for bash like lists shared between this script and the scheduler:
 external_vars="/tmp/vm-babysit-vars"
-
-# Path of the scheduler script (run by cron):
-backup_script_path="/usr/local/bin/vm-backup"
 
 # Export variables used by children processes:
 export external_vars
@@ -806,7 +804,7 @@ if [[ $check_variables_exit_code -eq 0 ]]; then
     # Create/update Cron task for VMs to be (progressively) included in $scheduled_backups_list:
     #------------------------------------------------------------------------------
 
-    echo "Configuring $(basename $backup_script_path)..."
+    echo "Configuring scheduled tasks..."
 
     # Silently deletes any previous cron task:
     &> /dev/null crontab -r
@@ -836,8 +834,8 @@ UNRAID_NOTIFY_HOST="$UNRAID_NOTIFY_HOST"
 # Paths for functions and (shared) dynamic variables:
 external_vars="$external_vars"
 
-# Schedule for $(basename $backup_script_path):
-$BACKUP_SCHEDULE $backup_script_path --run-schedule >> $SCHEDULE_LOGFILE_PATH 2>&1
+# Schedule for VM backups:
+$BACKUP_SCHEDULE /usr/local/bin/vm-backup --run-schedule >> $SCHEDULE_LOGFILE_PATH 2>&1
 
 # Schedule for logrotate:
 $LOGROTATE_SCHEDULE /usr/sbin/logrotate $LOGROTATE_CONFIG_PATH >> $SCHEDULE_LOGFILE_PATH 2>&1
@@ -853,7 +851,7 @@ end_of_crontab
     # 2.3 Initializes a file with variables externally stored, to be shared with the scheduler:
     #------------------------------------------------------------------------------
     cat << end_of_external_variables > $external_vars
-# Shared values between $(basename $0) and $backup_script_path. DO NOT EDIT!:
+# Shared values between scripts. DO NOT EDIT!:
 
 # Dynamic arrays:
 FAILED_VMS_LIST=()
@@ -876,7 +874,7 @@ end_of_external_variables
         # because it could ignore SIGTERM from Docker, thus being killed with SIGKILL:
         sleep 1
 
-        # (Re)reads all external variables (presumably modified by $backup_script_path):
+        # (Re)reads all external variables:
         #------------------------------------------------------------------------------
         source $external_vars
 
