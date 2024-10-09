@@ -114,9 +114,9 @@ if [[ -n ${backups_list[@]} ]]; then
         fi
     done
 
-    if [[ -n ${backup_success_list[@]} && -n $RSYNC_BACKUP_PATH ]]; then
+    if [[ -n $RSYNC_BACKUP_PATH && -z $RSYNC_SCHEDULE  && -n ${backup_success_list[@]} ]]; then
 
-        # Activate rsync mode:
+        # When Rsync is enabled and a schedule was not set, activate rsync mode:
         on_demand_rsync=true
 
         for domain in ${backup_success_list[@]}; do

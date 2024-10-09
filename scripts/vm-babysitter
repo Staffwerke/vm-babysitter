@@ -790,6 +790,14 @@ check_variables_exit_code=$?
 
 if [[ $check_variables_exit_code -eq 0 ]]; then
 
+    # Initializes a file with variables externally stored, to be shared with the scheduler:
+    #------------------------------------------------------------------------------
+    cat << end_of_external_variables > $external_vars
+# Shared values between scripts. DO NOT EDIT!:
+FAILED_VMS_LIST=()
+SCHEDULED_BACKUPS_LIST=()
+end_of_external_variables
+
     # Create logrotate config:
     #------------------------------------------------------------------------------
 
@@ -811,7 +819,7 @@ if [[ $check_variables_exit_code -eq 0 ]]; then
 
     # Parses the actual cron task needed to run to $crontab_file
     # (Including ENV vars not being read from cron's environment):
-    cat << end_of_crontab > $crontab_file
+    cat << base_crontab > $crontab_file
 # Values below are refreshed upon container (re)start:
 
 # Main environment is bash:
@@ -834,12 +842,22 @@ UNRAID_NOTIFY_HOST="$UNRAID_NOTIFY_HOST"
 # Paths for functions and (shared) dynamic variables:
 external_vars="$external_vars"
 
-# Schedule for VM backups:
-$BACKUP_SCHEDULE /usr/local/bin/vm-backup --run-schedule >> $SCHEDULE_LOGFILE_PATH 2>&1
-
 # Schedule for logrotate:
 $LOGROTATE_SCHEDULE /usr/sbin/logrotate $LOGROTATE_CONFIG_PATH >> $SCHEDULE_LOGFILE_PATH 2>&1
-end_of_crontab
+
+# Schedule for VM backups:
+$BACKUP_SCHEDULE /usr/local/bin/vm-backup --run-schedule >> $SCHEDULE_LOGFILE_PATH 2>&1
+base_crontab
+
+    if [[ -n $RSYNC_BACKUP_PATH && -n $RSYNC_SCHEDULE ]]; then
+
+    # Append additional task to run Rsync on a defined schedule:
+        cat << optional_crontab >> $crontab_file
+
+# Schedule for Rsync:
+$RSYNC_SCHEDULE /usr/local/bin/vm-rsync --run-schedule >> $SCHEDULE_LOGFILE_PATH 2>&1
+optional_crontab
+    fi
 
     # Sets the cron task:
     crontab $crontab_file
@@ -847,16 +865,6 @@ end_of_crontab
     # Finally, runs cron and sends to background:
     echo "Starting Cron..."
     cron -f -l -L2 &
-
-    # 2.3 Initializes a file with variables externally stored, to be shared with the scheduler:
-    #------------------------------------------------------------------------------
-    cat << end_of_external_variables > $external_vars
-# Shared values between scripts. DO NOT EDIT!:
-
-# Dynamic arrays:
-FAILED_VMS_LIST=()
-SCHEDULED_BACKUPS_LIST=()
-end_of_external_variables
 
     # 3. Begin monitorization for VMs in lists, performing operations as required:
     #------------------------------------------------------------------------------
