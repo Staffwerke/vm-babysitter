@@ -14,7 +14,7 @@
 #------------------------------------------------------------------------------
 domain_agent_connected()
 {
-    local domain =$1
+    local domain=$1
     local wait_time
     [[ -n $2 ]] && wait_time=$2 || wait_time=1
 

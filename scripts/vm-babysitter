@@ -464,12 +464,12 @@ check_backups()
 
                     # Backup chain integrity is OK:
                     backup_chain_integrity=true
-                    echo "$domain: QEMU and backup checkpoints lists match (${qemu_checkpoints_list[@]}:${folder_checkpoints_list[@]})"
+                    echo "$domain: QEMU and backup checkpoints lists match (${#qemu_checkpoints_list[@]}:${#folder_checkpoints_list[@]})"
 
                 else
                     # Mark the backup chain status as broken:
                     backup_chain_integrity=false
-                    echo "$domain: QEMU and Backup checkpoints lists do not match! ${qemu_checkpoints_list[@]}:${folder_checkpoints_list[@]}"
+                    echo "$domain: QEMU and Backup checkpoints lists do not match! ${#qemu_checkpoints_list[@]}:${#folder_checkpoints_list[@]}"
                 fi
             fi
 
