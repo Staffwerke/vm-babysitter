@@ -105,6 +105,7 @@ if [[ -n ${backups_list[@]} ]]; then
             else
                 # Failed to create a new backup chain:
                 backup_failed_list+=($domain)
+                echo "WARNING: $backup_action Backup of $domain finished with errors (Virtnbdbackup exit code: $virtnbdbackup_exit_code)"
             fi
 
         else
@@ -162,7 +163,7 @@ if [[ -n ${backups_list[@]} ]]; then
 
                 failed_vm_index=$(item_position $vm "SCHEDULED_BACKUPS_LIST")
 
-                if [[ -n $($failed_vm_index) ]]; then
+                if [[ -n $failed_vm_index ]]; then
 
                     # Delete each failed or skipped VM found into SCHEDULED_BACKUPS_LIST:
                     unset SCHEDULED_BACKUPS_LIST[$failed_vm_index]
