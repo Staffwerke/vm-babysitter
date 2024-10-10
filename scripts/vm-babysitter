@@ -826,16 +826,17 @@ SHELL=/bin/bash
 # Search paths for binaries and scripts:
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# Environment variables passed through Docker:
+# Environment variables used by scheduled tasks:
 LOCAL_BACKUP_CHAINS_TO_KEEP="$LOCAL_BACKUP_CHAINS_TO_KEEP"
 LOCAL_BACKUP_PATH="$LOCAL_BACKUP_PATH"
 MAX_BACKUPS_PER_CHAIN="$MAX_BACKUPS_PER_CHAIN"
+RSYNC_ARGS="$RSYNC_ARGS"
 RSYNC_BACKUP_CHAINS_TO_KEEP="$RSYNC_BACKUP_CHAINS_TO_KEEP"
 RSYNC_BACKUP_PATH="$RSYNC_BACKUP_PATH"
-RSYNC_ARGS="$RSYNC_ARGS"
+RSYNC_SCHEDULE=$RSYNC_SCHEDULE
 SSH_OPTIONS="$SSH_OPTIONS"
-VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS"
 UNRAID_NOTIFY_HOST="$UNRAID_NOTIFY_HOST"
+VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS"
 
 # Paths for functions and (shared) dynamic variables:
 external_vars="$external_vars"
