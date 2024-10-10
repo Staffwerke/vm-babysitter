@@ -509,7 +509,7 @@ archive_backup()
 
         # Archives the current backup chain, by renaming it with time stamp:
         mv $backup_path/$domain $backup_path/$domain.$timestamp
-        echo "$domain: Local backup archived as > $backup_path/$domain.$timestamp"
+        echo "$domain: Local backup archived as: '$backup_path/$domain.$timestamp'"
 
         if [[ -n $backups_to_keep && $backups_to_keep -gt 0 ]]; then
 
@@ -570,7 +570,7 @@ archive_remote_backup()
 
             # Archive remote backup chain:
             ssh $SSH_OPTIONS $ssh_login "mv $remote_backup_path/$domain $remote_backup_path/$domain.$timestamp"
-            echo "$domain: Remote backup copy archived as > $remote_backup_path/$domain.$timestamp"
+            echo "$domain: Remote backup copy archived as: '$remote_backup_path/$domain.$timestamp'"
 
             if [[ -n $remote_backups_to_keep && $remote_backups_to_keep -gt 0 ]]; then
 
