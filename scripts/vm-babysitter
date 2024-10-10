@@ -477,7 +477,7 @@ check_backups()
                 fi
             fi
 
-        if [[ $backup_folder_integrity == false ]]; then
+        elif [[ $backup_folder_integrity == false ]]; then
 
             # Delete non-recoverable backup folder:
             rm -rf $LOCAL_BACKUP_PATH/$domain
