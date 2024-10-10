@@ -47,7 +47,7 @@ case $1 in
 
         # Display initial message to be appended into log file:
         echo "############################################################################################################"
-        echo "$backup_action Backup started at: $(date "+%Y-%m-%d %H:%M:%S")"
+        echo "$backup_action Backup started at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
         echo "############################################################################################################"
     ;;
 
@@ -222,7 +222,7 @@ if [[ -n ${backups_list[@]} ]]; then
             fi
 
             # Append the ending date and time into log file:
-            echo -e "\n$backup_action Backup ended at: $(date "+%Y-%m-%d %H:%M:%S")\n"
+            echo -e "\n$backup_action Backup ended at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))\n"
         ;;
     esac
 

@@ -13,7 +13,7 @@ source /usr/local/bin/vm-functions
 stop_container()
 {
     echo "############################################################################################################"
-    echo "SIGTERM signal received at: $(date "+%Y-%m-%d %H:%M:%S")"
+    echo "SIGTERM signal received at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
     # TODO: Terminate or kill background processes before to exit.
     echo "Container Stopped."
     echo ""

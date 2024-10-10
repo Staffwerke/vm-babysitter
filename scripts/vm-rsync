@@ -23,7 +23,7 @@ case $1 in
 
         # Display initial message to append at logfile:
         echo "############################################################################################################"
-        echo "$rsync_action Rsync started at: $(date "+%Y-%m-%d %H:%M:%S")"
+        echo "$rsync_action Rsync started at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
         echo "############################################################################################################"
     ;;
 
@@ -121,7 +121,7 @@ if [[ -n ${rsync_list[@]} ]]; then
                     || unraid_notify "warning" "VM-Babysitter" "$rsync_action Rsync finished with errors" "Could not sync backup chain(s) of: ${rsync_failed[@]}"
             fi
 
-            echo -e "\n$rsync_action Rsync ended at: $(date "+%Y-%m-%d %H:%M:%S")\n"
+            echo -e "\n$rsync_action Rsync ended at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))\n"
         ;;
     esac
 
