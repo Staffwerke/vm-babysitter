@@ -943,7 +943,7 @@ optional_crontab
                         domain_start $domain --nowait
 
                         # Add any VM failed to start to FAILED_VMS_LIST:
-                        [[ $? -ne 0 ]] FAILED_VMS_LIST+=($domain)
+                        [[ $? -ne 0 ]] && FAILED_VMS_LIST+=($domain)
                     fi
 
                     # Remove the VM from the list is being read:
