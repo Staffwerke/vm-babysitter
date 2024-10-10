@@ -326,6 +326,10 @@ check_backups()
             echo
             echo "Due to the possibility of a crash scenario, running VMs need to be checked differently than under normal operation"
             echo "Depending on your env variables, user intervention may be required, such as shutting down VMs or restarting this container manually."
+
+        else
+            # No unraid_scenario to mind about:
+            unraid_scenario=false
         fi
     fi
 
