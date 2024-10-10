@@ -21,36 +21,163 @@
   <DonateText/>
   <DonateLink/>
   <Requires/>
-  <Config Name="Backup schedule" Target="BACKUP_SCHEDULE" Default="@daily" Mode="" Description="Cron-like string for incremental backups (e.g. '0 2 * * *' triggers everyday at 2 am local time)" Type="Variable" Display="always" Required="false" Mask="false">0 2 * * *</Config>
-  <Config Name="Local backup path" Target="/backups" Default="/mnt/user/backups/vm-backups" Mode="rw" Description="User share path to store backups (must be r/w)" Type="Path" Display="always" Required="true" Mask="false"/>
-  <Config Name="Max # of backups per chain" Target="MAX_BACKUPS_PER_CHAIN" Default="13" Mode="" Description="Number of backups to save within a single backup chain. A null value unleashes the limit and the backup chain will grow permanently (not recommended)" Type="Variable" Display="always" Required="false" Mask="false"/>
-  <Config Name="Local backup chains to keep" Target="LOCAL_BACKUP_CHAINS_TO_KEEP" Default="2" Mode="" Description="How many old backup chains to keep archived locally under 'LOCAL_BACKUP_PATH'. '0' disable backups archiving (default is no limit)" Type="Variable" Display="always" Required="false" Mask="false"/>
-  <Config Name="Check backups data integrity" Target="CHECK_BACKUPS_INTEGRITY" Default="" Mode="" Description="Verify data integrity of backups when checksums are available. This operation takes long time, delaying container's initialization. Use it only under suspect of data corruption. (Disabled by default)" Type="Variable" Display="always" Required="false" Mask="false"/>
-  <Config Name="Logfile path" Target="/logs" Default="/mnt/user/docker/apps/vm-babysitter" Mode="rw" Description="Persistent bind mount for LOGFILE_PATH" Type="Path" Display="always" Required="false" Mask="false"/>
-  <Config Name="Logrotate schedule" Target="LOGROTATE_SCHEDULE" Default="@daily" Mode="" Description="Same functioning as 'BACKUP_SCHEDULE' but for trigger log rotation (ideally, both variables should run on different schedules)" Type="Variable" Display="always" Required="false" Mask="false"/>
-  <Config Name="QEMU disk images path" Target="/mnt/user/vms" Default="/mnt/user/vms" Mode="rw" Description="Edit this config accordingly with your actual path to QEMU images" Type="Path" Display="always" Required="true" Mask="false"/>
-  <Config Name="Rsync backup path" Target="RSYNC_BACKUP_PATH" Default="" Mode="" Description="SSH syntax of remote absolute path, e.g. 'user@host:/absolute/path/to/folder' to rsync successful backup chain tasks (requires r/w permissions)" Type="Variable" Display="always" Required="false" Mask="false">root@192.168.65.2:/mnt/user/vm-backups-mirror</Config>
-  <Config Name="Rsync backup chains to keep" Target="RSYNC_BACKUP_CHAINS_TO_KEEP" Default="2" Mode="" Description="Same functioning as 'LOCAL_BACKUP_CHAINS_TO_KEEP' (default is no limit)" Type="Variable" Display="always" Required="false" Mask="false"/>
-  <Config Name="Rsync schedule" Target="RSYNC_SCHEDULE" Default="" Mode="" Description="Optional Cron-like string to run Rsync at a different schedule of backups. (Default action is to run immediately after all backups has been performed)" Type="Variable" Display="always" Required="false" Mask="false"></Config>
-  <Config Name="Rsync arguments" Target="RSYNC_ARGS" Default="-a" Mode="" Description="Extra arguments for rsync when sends successful backups to 'RSYNC_BACKUP_PATH', e.g. '-aP --bwlimit=625000' (5 Gbps)" Type="Variable" Display="always" Required="false" Mask="false"/>
-  <Config Name="SSH Key path" Target="/private/hostname.key" Default="/root/.ssh/hostname.key" Mode="ro" Description="Folder with SSH key (file permissions must be '0600' and belong to user 'root')" Type="Path" Display="always" Required="true" Mask="false"/>
-  <Config Name="Time Zone" Target="TZ" Default="" Mode="" Description="Local timezone. Most likely the same on the server running docker (default is container's time)" Type="Variable" Display="always" Required="false" Mask="false">Europe/Berlin</Config>
-  <Config Name="Virtnbdbackup arguments" Target="VIRTNBDBACKUP_ARGS" Default="--compress" Mode="" Description="Extra arguments passed to virtnbdbackup, in both full and inc backup, e.g. '--compress'" Type="Variable" Display="always" Required="false" Mask="false"/>
-  <Config Name="Allow backup chain fixing" Target="VM_ALLOW_BACKUP_CHAIN_FIX" Default="" Mode="" Description="When enabled, attempts to fix previously cancelled backup chains operations by removing partial backups and last checkpoints/bitmaps, trying thus to keep using the current backup folder for more checkpoints. (Default is disabled)" Type="Variable" Display="always" Required="false" Mask="false"/>
-  <Config Name="Allow Powercycle of VMs" Target="VM_ALLOW_POWERCYCLE" Default="" Mode="" Description="When enabled, performs a controlled powercycle of VMs when this is needed in order to apply changes, such after fix backup chains or start new ones. (Default is disabled, user must shut down VMs manually, whenever asked)" Type="Variable" Display="always" Required="false" Mask="false"/>
-  <Config Name="VMs Autostart List" Target="VM_AUTOSTART_LIST" Default="" Mode="" Description="Case Sensitive space separated list of VMs that will be started along with the container" Type="Variable" Display="always" Required="false" Mask="false"/>
-  <Config Name="VMs Ignored List" Target="VM_IGNORED_LIST" Default="" Mode="" Description="Case Sensitive space separated list of VMs to ignore, so won't be checked or backed up" Type="Variable" Display="always" Required="false" Mask="false"/>
-  <Config Name="Unraid Notify Host" Target="UNRAID_NOTIFY_HOST" Default="localhost" Mode="" Description="Host or IP to send Unraid notifications. Change it when '--network=host' is not possible, or when notifications aren't working (e.g. this same host IP. Default is 'localhost')" Type="Variable" Display="always" Required="false" Mask="false"/>
-  <Config Name="Local backup path (container)" Target="LOCAL_BACKUP_PATH" Default="/backups" Mode="" Description="Container path where vm-babysitter will search for, and save backup chains of all VMs. The container will fail if does not exist, or r/w permission issues are found" Type="Variable" Display="advanced" Required="false" Mask="false"/>
-  <Config Name="Logfile path (container)" Target="LOGFILE_PATH" Default="/logs/vm-babysitter.log" Mode="" Description="Container path for the main log file" Type="Variable" Display="advanced" Required="false" Mask="false"/>
-  <Config Name="Schedule logfile path (container)" Target="SCHEDULE_LOGFILE_PATH" Default="/logs/scheduled-tasks.log" Mode="" Description="Container path for the schedule log file" Type="Variable" Display="advanced" Required="false" Mask="false"/>
-  <Config Name="Logrotate config path" Target="LOGROTATE_CONFIG_PATH" Default="/tmp/logrotate.d/vm-babysitter" Mode="" Description="Container path to place and read log rotation config" Type="Variable" Display="advanced" Required="false" Mask="false"/>
-  <Config Name="Logrotate settings" Target="LOGROTATE_SETTINGS" Default="  compress\n  copytruncate\n  daily\n  dateext\n  dateformat .%Y-%m-%d.%H:%M:%S\n  missingok\n  notifempty\n  rotate 30" Mode="" Description="Parsed string with *escaped* logrotate config, written in 'LOGROTATE_CONFIG_PATH' on startup" Type="Variable" Display="advanced" Required="false" Mask="false"/>
-  <Config Name="SSH options" Target="SSH_OPTIONS" Default="-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10" Mode="" Description="SSH options for communications with involved hosts, including rsync, and Unraid notifications to localhost" Type="Variable" Display="advanced" Required="false" Mask="false">-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10</Config>
-  <Config Name="VM Wait time" Target="VM_WAIT_TIME" Default="60" Mode="" Description="Maximum time in seconds to await for VMs to confirm it has reached on/off states in certain scenarios" Type="Variable" Display="advanced" Required="false" Mask="false"/>
-  <Config Name="Virtnbdbackup socket" Target="/var/tmp" Default="/var/tmp" Mode="rw" Description="" Type="Path" Display="advanced" Required="true" Mask="false"/>
-  <Config Name="Libvirt socket API" Target="/run/libvirt" Default="/var/run/libvirt" Mode="rw" Description="" Type="Path" Display="advanced" Required="true" Mask="false"/>
-  <Config Name="Lock folder" Target="/run/lock" Default="/var/run/lock" Mode="rw" Description="" Type="Path" Display="advanced" Required="true" Mask="false"/>
-  <Config Name="VMs nvram path" Target="/etc/libvirt/qemu/nvram" Default="/etc/libvirt/qemu/nvram" Mode="rw" Description="Path VMs nvram files" Type="Path" Display="advanced" Required="true" Mask="false"/>
-  <Config Name="Ovmf binaries path" Target="/usr/share/qemu/ovmf-x64" Default="/usr/share/qemu/ovmf-x64" Mode="ro" Description="Required when VMs are in need of a new nvram" Type="Path" Display="advanced" Required="true" Mask="false"/>
+
+  <Config Name="Backup schedule"
+          Target="BACKUP_SCHEDULE" Default="@daily"
+          Description="Cron-like string for incremental backups (e.g. '0 2 * * *' triggers everyday at 2 am local time)"
+          Type="Variable" Display="always" Required="false" Mask="false">0 2 * * * </Config>
+
+  <Config Name="Local backup path"
+          Target="/backups" Default="/mnt/user/backups/vm-backups" Mode="rw"
+          Description="User share path to store backups (must be r/w)"
+          Type="Path" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Max # of backups per chain"
+          Target="MAX_BACKUPS_PER_CHAIN" Default="13"
+          Description="Number of backups to save within a single backup chain. A null value unleashes the limit and the backup chain will grow permanently (not recommended)"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Local backup chains to keep"
+          Target="LOCAL_BACKUP_CHAINS_TO_KEEP" Default="2"
+          Description="How many old backup chains to keep archived locally under 'LOCAL_BACKUP_PATH'. '0' disable backups archiving (default is no limit)"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Check backups data integrity"
+          Target="CHECK_BACKUPS_INTEGRITY" Default=""
+          Description="Verify data integrity of backups when checksums are available. This operation takes long time, delaying container's initialization. Use it only under suspect of data corruption. (Disabled by default)"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Logfile path"
+          Target="/logs" Default="/mnt/user/docker/apps/vm-babysitter" Mode="rw"
+          Description="Persistent bind mount for LOGFILE_PATH"
+          Type="Path" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Logrotate schedule"
+          Target="LOGROTATE_SCHEDULE" Default="@daily"
+          Description="Same functioning as 'BACKUP_SCHEDULE' but for trigger log rotation (ideally, both variables should run on different schedules)"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="QEMU disk images path"
+          Target="/mnt/user/vms" Default="/mnt/user/vms" Mode="rw"
+          Description="Edit this config accordingly with your actual path to QEMU images"
+          Type="Path" Display="always" Required="true" Mask="false"/>
+
+  <Config Name="Rsync backup path"
+          Target="RSYNC_BACKUP_PATH" Default=""
+          Description="SSH syntax of remote absolute path, e.g. 'user@host:/absolute/path/to/folder' to rsync successful backup chain tasks (requires r/w permissions)"
+          Type="Variable" Display="always" Required="false" Mask="false">root@192.168.65.2:/mnt/user/vm-backups-mirror</Config>
+
+  <Config Name="Rsync backup chains to keep"
+          Target="RSYNC_BACKUP_CHAINS_TO_KEEP" Default="2"
+          Description="Same functioning as 'LOCAL_BACKUP_CHAINS_TO_KEEP' (default is no limit)"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Rsync schedule"
+          Target="RSYNC_SCHEDULE" Default=""
+          Description="Optional Cron-like string to run Rsync at a different schedule of backups. (Default action is to run immediately after all backups has been performed)"
+          Type="Variable" Display="always" Required="false" Mask="false"></Config>
+
+  <Config Name="Rsync arguments"
+          Target="RSYNC_ARGS" Default="-a"
+          Description="Extra arguments for rsync when sends successful backups to 'RSYNC_BACKUP_PATH', e.g. '-aP --bwlimit=625000' (5 Gbps)"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="SSH Key path"
+          Target="/private/hostname.key" Default="/root/.ssh/hostname.key" Mode="ro"
+          Description="Folder with SSH key (file permissions must be '0600' and belong to user 'root')"
+          Type="Path" Display="always" Required="true" Mask="false"/>
+
+  <Config Name="Time Zone"
+          Target="TZ" Default=""
+          Description="Local timezone. Most likely the same on the server running docker (default is container's time)"
+          Type="Variable" Display="always" Required="false" Mask="false">Europe/Berlin</Config>
+
+  <Config Name="Virtnbdbackup arguments"
+          Description="Extra arguments passed to virtnbdbackup, in both full and inc backup, e.g. '--compress'"
+          Target="VIRTNBDBACKUP_ARGS" Default="--compress"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Allow backup chain fixing"
+          Target="VM_ALLOW_BACKUP_CHAIN_FIX" Default=""
+          Description="When enabled, attempts to fix previously cancelled backup chains operations by removing partial backups and last checkpoints/bitmaps, trying thus to keep using the current backup folder for more checkpoints. (Default is disabled)"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Allow Powercycle of VMs"
+          Target="VM_ALLOW_POWERCYCLE" Default=""
+          Description="When enabled, performs a controlled powercycle of VMs when this is needed in order to apply changes, such after fix backup chains or start new ones. (Default is disabled, user must shut down VMs manually, whenever asked)"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="VMs Autostart List"
+          Target="VM_AUTOSTART_LIST" Default=""
+          Description="Case Sensitive space separated list of VMs that will be started along with the container"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="VMs Ignored List"
+          Target="VM_IGNORED_LIST" Default="" Description="Case Sensitive space separated list of VMs to ignore, so won't be checked or backed up"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Unraid Notify Host"
+          Target="UNRAID_NOTIFY_HOST" Default="localhost"
+          Description="Host or IP to send Unraid notifications. Change it when '--network=host' is not possible, or when notifications aren't working (e.g. this same host IP. Default is 'localhost')"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Local backup path (container)"
+          Target="LOCAL_BACKUP_PATH" Default="/backups"
+          Description="Container path where vm-babysitter will search for, and save backup chains of all VMs. The container will fail if does not exist, or r/w permission issues are found"
+          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="Logfile path (container)"
+          Target="LOGFILE_PATH" Default="/logs/vm-babysitter.log"
+          Description="Container path for the main log file"
+          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="Schedule logfile path (container)"
+          Target="SCHEDULE_LOGFILE_PATH" Default="/logs/scheduled-tasks.log"
+          Description="Container path for the schedule log file"
+          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="Logrotate config path"
+          Target="LOGROTATE_CONFIG_PATH" Default="/tmp/logrotate.d/vm-babysitter"
+          Description="Container path to place and read log rotation config"
+          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="Logrotate settings"
+          Target="LOGROTATE_SETTINGS" Default="  compress\n  copytruncate\n  daily\n  dateext\n  dateformat .%Y-%m-%d.%H:%M:%S\n  missingok\n  notifempty\n  rotate 30"
+          Description="Parsed string with *escaped* logrotate config, written in 'LOGROTATE_CONFIG_PATH' on startup"
+          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="SSH options"
+          Target="SSH_OPTIONS" Default="-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
+          Description="SSH options for communications with involved hosts, including rsync, and Unraid notifications to localhost"
+          Type="Variable" Display="advanced" Required="false" Mask="false">-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10</Config>
+
+  <Config Name="VM Wait time"
+          Target="VM_WAIT_TIME" Default="60"
+          Description="Maximum time in seconds to await for VMs to confirm it has reached on/off states in certain scenarios"
+          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="Virtnbdbackup socket"
+          Target="/var/tmp" Default="/var/tmp" Mode="rw"
+          Description=""
+          Type="Path" Display="advanced" Required="true" Mask="false"/>
+
+  <Config Name="Libvirt socket API"
+          Target="/run/libvirt" Default="/var/run/libvirt" Mode="rw"
+          Description=""
+          Type="Path" Display="advanced" Required="true" Mask="false"/>
+
+  <Config Name="Lock folder"
+          Target="/run/lock" Default="/var/run/lock" Mode="rw"
+          Description=""
+          Type="Path" Display="advanced" Required="true" Mask="false"/>
+
+  <Config Name="VMs nvram path"
+          Target="/etc/libvirt/qemu/nvram" Default="/etc/libvirt/qemu/nvram" Mode="rw"
+          Description="Path VMs nvram files"
+          Type="Path" Display="advanced" Required="true" Mask="false"/>
+
+  <Config Name="Ovmf binaries path"
+          Target="/usr/share/qemu/ovmf-x64" Default="/usr/share/qemu/ovmf-x64" Mode="ro"
+          Description="Required when VMs are in need of a new nvram"
+          Type="Path" Display="advanced" Required="true" Mask="false"/>
 </Container>
