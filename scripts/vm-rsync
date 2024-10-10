@@ -126,5 +126,5 @@ if [[ -n ${rsync_list[@]} ]]; then
     esac
 
 else
-    echo "No backup path(s) for $rsync_action Rsync to process"
+    echo -e "No backup path(s) for $rsync_action Rsync to process\n"
 fi

@@ -237,5 +237,5 @@ if [[ -n ${backups_list[@]} ]]; then
     esac
 
 else
-    echo "No Virtual machine(s) for $backup_action Backup to process"
+    echo -e "No Virtual machine(s) for $backup_action Backup to process\n"
 fi
