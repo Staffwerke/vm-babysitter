@@ -837,6 +837,7 @@ RSYNC_SCHEDULE=$RSYNC_SCHEDULE
 SSH_OPTIONS="$SSH_OPTIONS"
 UNRAID_NOTIFY_HOST="$UNRAID_NOTIFY_HOST"
 VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS"
+VM_WAIT_TIME=$VM_WAIT_TIME
 
 # Paths for functions and (shared) dynamic variables:
 external_vars="$external_vars"
@@ -888,7 +889,7 @@ optional_crontab
         if [[ -n ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
 
             # Check for VMs which are in need of shutdown.
-            # (This normally happens when the user took the action, or when a VM took more than $VM_WAIT_TIME secs to shutdown):
+            # (This normally happens when the user took the action, or when a VM took more than VM_WAIT_TIME secs to shutdown):
             #------------------------------------------------------------------------------
             i=0
             for domain in ${SHUTDOWN_REQUIRED_VMS_LIST[@]}; do

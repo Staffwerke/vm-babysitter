@@ -83,11 +83,21 @@ if [[ -n ${backups_list[@]} ]]; then
 
             vm-retention-policy $force_retention_policy $domain
 
-            # Under specific scenario of new backup chain and powered off VMs, force --start-server to turn on the VM in paused mode:
             if [[ ! -d $LOCAL_BACKUP_PATH/$domain || -z $(ls -A $LOCAL_BACKUP_PATH/$domain) ]] \
             && [[ $(domain_state $domain) == "shut off" && -z $(grep -o -e "-S" -e "--start-domain" <<< "$VIRTNBDBACKUP_ARGS") ]]; then
 
+                # Under specific scenario of new backup chain and powered off VMs,
+                # force --start-server to turn on the VM in paused mode:
                 start_domain="--start-domain"
+
+            elif [[ $(domain_state $domain) == running ]]; then
+
+                echo "$domain: Checking QEMU guest agent..."
+                agent_is_connected=$(domain_agent_connected $domain $VM_WAIT_TIME)
+
+                [[ $agent_is_connected ==  true ]] \
+                    && echo -"$domain: Success"
+                    || echo "WARNING: Timed out awaiting for $domain's QEMU guest agent. Backup may not be concurrent (not installed onto guest OS?)"
             fi
 
             # Perform the backup operation:

@@ -7,6 +7,42 @@
 # Libvirt Related Functions:
 ###############################################################################
 
+#------------------------------------------------------------------------------
+# From a given domain, checks if its qemu guest agent is connected, returning 'true' or 'false' as string.
+# Also returns exit code 0 for success and 1 for failed.
+# Second argument when passed, is the max value in seconds to await for the agent before to give up.
+#------------------------------------------------------------------------------
+domain_agent_connected()
+{
+    local domain =$1
+    local wait_time
+    [[ -n $2 ]] && wait_time=$2 || wait_time=1
+
+    local qemu_agent_exit_code
+    local agent_is_connected
+
+    local counter=0
+    while (( $counter < $wait_time )); do
+
+        ((counter++))
+
+        # (Silently) Gets VM output about its qemu agent:
+        &> /dev/null virsh guestinfo $domain
+        qemu_agent_exit_code=$?
+
+        if [[ $qemu_agent_exit_code -eq 0 ]]; then
+
+            agent_is_connected=true
+            break
+        else
+            agent_is_connected=false
+            sleep 1
+        fi
+    done
+
+    echo $agent_is_connected
+}
+
 # -----------------------------------------------------------------------------
 # Returns a list with existing checkpoints for a given VM according with libvirt.
 # -----------------------------------------------------------------------------
