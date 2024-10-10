@@ -96,7 +96,7 @@ if [[ -n ${backups_list[@]} ]]; then
                 agent_is_connected=$(domain_agent_connected $domain $VM_WAIT_TIME)
 
                 [[ $agent_is_connected ==  true ]] \
-                    && echo -"$domain: Success" \
+                    && echo "$domain: Success" \
                     || echo "WARNING: Timed out awaiting for $domain's QEMU guest agent. Backup may not be concurrent (not installed onto guest OS?)"
             fi
 
