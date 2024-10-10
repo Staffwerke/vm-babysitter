@@ -281,6 +281,7 @@ check_backups()
     local delete_bitmap_exit_code
     local delete_checkpoint_exit_code
     local existing_bitmaps_list
+    local existing_images_list
     local folder_checkpoints_list
     local no_backup_chain
     local shutdown_exit_code
@@ -338,6 +339,7 @@ check_backups()
         backup_folder_integrity=""
         delete_bitmap_exit_code=""
         delete_checkpoint_exit_code=""
+        existing_images_list=""
         folder_checkpoints_list=()
         no_backup_chain=""
         shutdown_exit_code=""
@@ -426,30 +428,26 @@ check_backups()
                     && echo "$domain: Is running (Unraid OS scenario). $backup_check_message" \
                     || echo "$domain: Is shut down. $backup_check_message"
 
-                for image in $(domain_img_paths_list $domain); do
+                # Acquire the list of disk image path(s) contained for this VM:
+                existing_images_list=($(domain_img_paths_list $domain))
+
+                for image in ${existing_images_list[@]}; do
 
                     # Read bitmaps in each virtual image:
                     existing_bitmaps_list=($(disk_image_bitmap_list $image))
 
-                    if [[ ${existing_bitmaps_list[@]} != ${folder_checkpoints_list[@]} ]]; then
-
-                        backup_chain_integrity=false
-                        echo "$domain: Checkpoints and bitmaps lists on disk $image MISMATCH"
-
-                        # Interrupt the current operation. Nothing else to do:
-                        break
-
-                    elif [[ -n ${existing_bitmaps_list[@]} ]]; then
-
-                        # It is assumed bitmaps = checkpoints, and none is a empty list.
+                    if [[ ${existing_bitmaps_list[@]} == ${folder_checkpoints_list[@]} ]]; then
 
                         # Backup chain is OK, mark as preserved:
                         backup_chain_integrity=true
-                        echo "$domain: Checkpoints and bitmaps lists on disk $image MATCH"
+                        echo "$domain: Checkpoints in backup and bitmaps lists on disk $image match (${#existing_bitmaps_list[@]}:${#folder_checkpoints_list[@]})"
 
                     else
                         backup_chain_integrity=false
-                        echo "$domain: ${#folder_checkpoints_list[@]} checkpoints found, and ${#existing_bitmaps_list[@]} bitmaps found on disk $image (backup chain is broken)"
+                        echo "$domain: Checkpoints in backup and bitmaps lists on disk $image do not match! (${#existing_bitmaps_list[@]}:${#folder_checkpoints_list[@]})"
+
+                        # When more than one disk image to check, notify the check has been cancelled:
+                        [[ ${#existing_images_list[@]} -gt 1 ]] && echo "$domain: Full check operation has been cancelled"
 
                         # Interrupt the current operation. Nothing else to do:
                         break
