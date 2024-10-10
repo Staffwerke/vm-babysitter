@@ -91,40 +91,40 @@ if [[ -n ${rsync_list[@]} ]]; then
         fi
     done
 
+    case $rsync_action in
+
+        "On-demand")
+
+            # When multiple backups chains were processed, display that the script has finished:
+            [[ ${#rsync_list[@]} -gt 1 ]] \
+                && echo -e "\n$(basename $0): Finished\n"
+
+            # Only exits with rsync code when there was only one backup on the list and existed (not skipped):
+            [[ ${#rsync_list[@]} -eq 1 && -z ${rsync_skipped[@]} ]] \
+                && exit $rsync_exit_code
+        ;;
+
+        "Scheduled")
+
+            # Displays a brief summary:
+            echo "____________________________________________________________________________________________________________"
+            echo -e "$rsync_action Rsync Summary:\n"
+            echo "Successful syncs: ${rsync_success[@]:-"None"}"
+            echo "Failed syncs:     ${rsync_failed[@]:-"None"}"
+            echo "Missing backups:  ${rsync_skipped[@]:-"None"}"
+
+            if [[ $(os_is_unraid) == true ]]; then
+
+                # Notifies via Unraid about the results:
+                [[ -z ${rsync_failed[@]} ]] \
+                    && unraid_notify "normal" "VM-Babysitter" "$rsync_action Rsync" "Success" \
+                    || unraid_notify "warning" "VM-Babysitter" "$rsync_action Rsync finished with errors" "Could not sync backup chain(s) of: ${rsync_failed[@]}"
+            fi
+
+            echo -e "\n$rsync_action Rsync ended at: $(date "+%Y-%m-%d %H:%M:%S")\n"
+        ;;
+    esac
+
 else
     echo "No backup path(s) for $rsync_action Rsync to process"
 fi
-
-case $rsync_action in
-
-    "On-demand")
-
-        # When multiple backups chains were processed, display that the script has finished:
-        [[ ${#rsync_list[@]} -gt 1 ]] \
-            && echo -e "\n$(basename $0): Finished\n"
-
-        # Only exits with rsync code when there was only one backup on the list and existed (not skipped):
-        [[ ${#rsync_list[@]} -eq 1 && -z ${rsync_skipped[@]} ]] \
-            && exit $rsync_exit_code
-    ;;
-
-    "Scheduled")
-
-        # Displays a brief summary:
-        echo "____________________________________________________________________________________________________________"
-        echo -e "$rsync_action Rsync Summary:\n"
-        echo "Successful syncs: ${rsync_success[@]:-"None"}"
-        echo "Failed syncs:     ${rsync_failed[@]:-"None"}"
-        echo "Missing backups:  ${rsync_skipped[@]:-"None"}"
-
-        if [[ $(os_is_unraid) == true ]]; then
-
-            # Notifies via Unraid about the results:
-            [[ -z ${rsync_failed[@]} ]] \
-                && unraid_notify "normal" "VM-Babysitter" "$rsync_action Rsync" "Success" \
-                || unraid_notify "warning" "VM-Babysitter" "$rsync_action Rsync finished with errors" "Could not sync backup chain(s) of: ${rsync_failed[@]}"
-        fi
-
-        echo -e "\n$rsync_action Rsync ended at: $(date "+%Y-%m-%d %H:%M:%S")\n"
-    ;;
-esac
