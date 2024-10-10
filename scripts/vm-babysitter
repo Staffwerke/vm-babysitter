@@ -304,7 +304,7 @@ check_backups()
         for domain in $(domains_list); do
 
             # Look for all VMs and its checkpoints, stop if it finds at least one:
-            [[ -n $(domain_checkpoint_list $domain) ]] && { checkpoints_found=true; break; } || checkpoints_found=false
+            [[ -n $(domain_checkpoints_list $domain) ]] && { checkpoints_found=true; break; } || checkpoints_found=false
         done
 
         for domain in ${CHECK_BACKUPS_LIST[@]}; do
@@ -367,7 +367,7 @@ check_backups()
         #------------------------------------------------------------------------------
         elif [[ -n $(find $LOCAL_BACKUP_PATH/$domain -type f -name "*.partial") ]]; then
 
-            folder_checkpoints_list=($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain))
+            folder_checkpoints_list=($(backup_checkpoints_list $LOCAL_BACKUP_PATH/$domain))
 
             if [[ ${#folder_checkpoints_list[@]} -le 1 ]]; then
 
@@ -390,7 +390,7 @@ check_backups()
         # If backup was made in 'copy' mode, there are no checkpoints or bitmaps in this VM to delete (and no checkpoints can be added anyway):
         #------------------------------------------------------------------------------
         elif [[ ! -f $LOCAL_BACKUP_PATH/$domain/$domain.cpt \
-        && $(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain --num) -eq 0 \
+        && $(backup_checkpoints_list $LOCAL_BACKUP_PATH/$domain --num) -eq 0 \
         && -n $(find $LOCAL_BACKUP_PATH/$domain -type f -name "*.copy.data") ]]; then
 
             no_backup_chain=true
@@ -417,10 +417,10 @@ check_backups()
         if [[ $backup_folder_integrity == true ]]; then
 
             # Read qemu checkpoints:
-            qemu_checkpoints_list=($(domain_checkpoint_list $domain))
+            qemu_checkpoints_list=($(domain_checkpoints_list $domain))
 
             # Read backup checkpoints:
-            folder_checkpoints_list=($(backup_checkpoint_list $LOCAL_BACKUP_PATH/$domain))
+            folder_checkpoints_list=($(backup_checkpoints_list $LOCAL_BACKUP_PATH/$domain))
 
             if [[ $(domain_state $domain) == "shut off" || $unraid_scenario == true ]]; then
 
@@ -438,7 +438,7 @@ check_backups()
                 for image in ${existing_images_list[@]}; do
 
                     # Read bitmaps in each virtual image:
-                    existing_bitmaps_list=($(disk_image_bitmap_list $image))
+                    existing_bitmaps_list=($(disk_image_bitmaps_list $image))
 
                     if [[ ${existing_bitmaps_list[@]} == ${folder_checkpoints_list[@]} ]]; then
 
@@ -513,21 +513,21 @@ check_backups()
             if [[ $(domain_state $domain) == "shut off" ]]; then
 
                 echo "$domain: Removing damaged checkpoint metadata: ${qemu_checkpoints_list[-1]} ..."
-                domain_delete_checkpoint $domain ${qemu_checkpoints_list[-1]} --metadata
+                domain_delete_checkpoints $domain ${qemu_checkpoints_list[-1]} --metadata
 
                 for image in $(domain_img_paths_list $domain); do
 
                     # Read bitmaps in each virtual image:
-                    existing_bitmaps_list=($(disk_image_bitmap_list $image))
+                    existing_bitmaps_list=($(disk_image_bitmaps_list $image))
 
                     echo "$domain: Deleting insecure bitmap ${existing_bitmaps_list[-1]} on disk image $image..."
-                    disk_image_bitmap_delete $image ${existing_bitmaps_list[-1]}
+                    disk_image_bitmaps_delete $image ${existing_bitmaps_list[-1]}
                 done
 
             elif [[ $(domain_state $domain) == "running" ]]; then
 
                 echo "$domain: Removing damaged checkpoint: ${qemu_checkpoints_list[-1]} ..."
-                domain_delete_checkpoint $domain ${qemu_checkpoints_list[-1]}
+                domain_delete_checkpoints $domain ${qemu_checkpoints_list[-1]}
             fi
 
             echo "$domain: Fixing backup chain data in $LOCAL_BACKUP_PATH/$domain ..."
@@ -561,7 +561,7 @@ check_backups()
 
                 # Deletes checkpoints metadata, if any detected:
                 echo "$domain: Pruning any existing checkpoints metadata..."
-                domain_delete_checkpoint $domain --all --metadata
+                domain_delete_checkpoints $domain --all --metadata
                 delete_checkpoint_exit_code=$?
 
                 for image in $(domain_img_paths_list $domain); do
@@ -569,7 +569,7 @@ check_backups()
                     # Then deletes all bitmaps, in all image disks:
                     echo "$domain: Pruning any existing bitmaps on disk image $image..."
 
-                    disk_image_bitmap_delete $image --all
+                    disk_image_bitmaps_delete $image --all
                     delete_bitmap_exit_code=$?
 
                     # When issues are found deleting bitmaps, cancel the entire operation:
@@ -580,7 +580,7 @@ check_backups()
 
                 # Deletes checkpoints (and bitmaps) if any detected:
                 echo "$domain: Pruning any existing checkpoints..."
-                domain_delete_checkpoint $domain --all
+                domain_delete_checkpoints $domain --all
                 delete_checkpoint_exit_code=$?
 
             elif [[ $(domain_state $domain) == "running" && $unraid_scenario == true ]]; then
@@ -600,7 +600,7 @@ check_backups()
                             # Then deletes all bitmaps, in all image disks:
                             echo "$domain: Pruning any existing bitmaps on disk image $image..."
 
-                            disk_image_bitmap_delete $image --all
+                            disk_image_bitmaps_delete $image --all
                             delete_bitmap_exit_code=$?
 
                             # When issues are found deleting bitmaps, cancel the entire operation:

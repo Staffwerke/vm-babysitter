@@ -46,7 +46,7 @@ domain_agent_connected()
 # -----------------------------------------------------------------------------
 # Returns a list with existing checkpoints for a given VM according with libvirt.
 # -----------------------------------------------------------------------------
-domain_checkpoint_list()
+domain_checkpoints_list()
 {
     echo $(virsh checkpoint-list $1 --name --topological)
 }
@@ -55,7 +55,7 @@ domain_checkpoint_list()
 # Deletes specific checkpoints of a given VM, or all if '--all' argument is passed instead.
 # 'virsh checkpoint-delete' arguments are also processed:
 # -----------------------------------------------------------------------------
-domain_delete_checkpoint()
+domain_delete_checkpoints()
 {
     local domain
     local checkpoints_list
@@ -92,7 +92,7 @@ domain_delete_checkpoint()
     done
 
     # '--all' argument was passed. Search for all checkpoints in this VM:
-    [[ ! -z $delete_all_checkpoints ]] && checkpoints_list=($(domain_checkpoint_list $domain))
+    [[ ! -z $delete_all_checkpoints ]] && checkpoints_list=($(domain_checkpoints_list $domain))
 
     if [[ ! -z ${checkpoints_list[@]} ]]; then
 
@@ -649,7 +649,7 @@ archive_remote_backup()
 # when second argument is '--num', retrieves the number of checkpoints instead of a list.
 # On copy mode backups, returns nothing, or '0' if --num is requested:
 # -----------------------------------------------------------------------------
-backup_checkpoint_list()
+backup_checkpoints_list()
 {
     local checkpoint_list=""
     local main_path=$1
@@ -674,7 +674,7 @@ backup_restorable_drives_list()
 # -----------------------------------------------------------------------------
 # Returns a list of (ordered) bitmaps present into a given disk image:
 # -----------------------------------------------------------------------------
-disk_image_bitmap_list()
+disk_image_bitmaps_list()
 {
     echo $(sort_items $(qemu-img info $1 |  grep "name:" | rev | cut -d' ' -f1 | rev))
 }
@@ -684,7 +684,7 @@ disk_image_bitmap_list()
 # Deletes specific bitmaps of a given virtual disk, or all if '--all' argument is passed instead.
 # Returns '0' if ended successfully, '1' if ended with errors and '2' if no bitmaps were found.
 # -----------------------------------------------------------------------------
-disk_image_bitmap_delete()
+disk_image_bitmaps_delete()
 {
 
     local bitmaps_list
@@ -701,7 +701,7 @@ disk_image_bitmap_delete()
 
             # Indicates to delete all bitmaps found, instead of processing bitmaps_list:
             --all)
-                bitmaps_list=($(disk_image_bitmap_list $virtual_disk_path))
+                bitmaps_list=($(disk_image_bitmaps_list $virtual_disk_path))
                 break
             ;;
             # Any other value is taken as a bitmap name, therefore added in bitmap_list:
