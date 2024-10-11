@@ -172,7 +172,7 @@ check_variables()
 create_domains_list()
 {
     local domains_all_list=($(domains_list))
-    local domains_skipped_list=(${VM_IGNORED_LIST[@]} ${FAILED_VMS_LIST[@]} ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ${POWEREDOFF_VMS_LIST[@]} ${CHECK_BACKUPS_LIST[@]} ${CREATE_BACKUP_CHAIN_LIST[@]} ${SCHEDULED_BACKUPS_LIST[@]})
+    local domains_skipped_list=(${VM_IGNORED_LIST[@]} ${FAILED_VMS_LIST[@]} ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ${POWERON_REQUIRED_VMS_LIST[@]} ${CHECK_BACKUPS_LIST[@]} ${CREATE_BACKUP_CHAIN_LIST[@]} ${SCHEDULED_BACKUPS_LIST[@]})
 
     for domain in ${domains_all_list[@]}; do
 
@@ -273,7 +273,7 @@ check_domains()
     FAILED_VMS_LIST+=(${domain_failed_list[@]})
 
     # Appends successfully checked VMs marked for automatic start into the global list:
-    POWEREDOFF_VMS_LIST+=(${domain_autostart_list[@]})
+    POWERON_REQUIRED_VMS_LIST+=(${domain_autostart_list[@]})
 
     [[ -n ${domain_failed_list[@]} ]] \
         && echo -e "\nWARNING: Issues found with at least one disk image paths of VM(s): ${domain_failed_list[@]}, and therefore such VMs will be ignored. To solve this, take in mind that:\n - $(basename $0) cannot work with VMs without virtual disks (e.g. transient VMs)\n - Paths including virtual disks must be mounted equally at both host and container (e.g. '/mnt/user/vms:/mnt/user/vms')\n - If additional disks are under different paths, they must be mounted alike, in similar way as the above example\n - All paths and virtual disks must have read/write permissions\n"
@@ -698,7 +698,7 @@ check_backups()
     CREATE_BACKUP_CHAIN_LIST+=(${broken_backup_chain_list[@]})
 
     # Appends successfully shut down VMs to the global list in need to be started:
-    POWEREDOFF_VMS_LIST+=(${domain_shutdown_success_list[@]})
+    POWERON_REQUIRED_VMS_LIST+=(${domain_shutdown_success_list[@]})
 
     # Appends preserved backup chains to scheduled backups directly:
     SCHEDULED_BACKUPS_LIST+=(${preserved_backup_chain_list[@]})
@@ -876,12 +876,12 @@ optional_crontab
     crontab $crontab_file
 
     # Finally, runs cron and sends to background:
-    echo -e "Starting Cron...\n"
+    echo -e "Starting Cron..."
     cron -f -l -L2 &
 
     # 3. Begin monitorization for VMs in lists, performing operations as required:
     #------------------------------------------------------------------------------
-    echo -e "Entered into Babysitter mode\n"
+    echo -e "Babysitter mode started...\n"
 
     # Creates DOMAINS_LIST, a list of non-transient domains that aren't into any of the queues from past iterations:
     create_domains_list
@@ -907,7 +907,7 @@ optional_crontab
                 if [[ $(domain_state $domain) == "shut off" ]]; then
 
                     # Add VM to the same list of VMs to be powered on when monitor starts:
-                    POWEREDOFF_VMS_LIST+=($domain)
+                    POWERON_REQUIRED_VMS_LIST+=($domain)
 
                     # Move to main queue for check:
                     CHECK_BACKUPS_LIST+=($domain)
@@ -937,11 +937,11 @@ optional_crontab
 
             # Turns on all VMs that was, either declared in VM_AUTOSTART_LIST or previously shutdown for checks:
             #------------------------------------------------------------------------------
-            if [[ -n ${POWEREDOFF_VMS_LIST[@]} ]]; then
+            if [[ -n ${POWERON_REQUIRED_VMS_LIST[@]} ]]; then
 
                 echo ""
                 i=0
-                for domain in ${POWEREDOFF_VMS_LIST[@]}; do
+                for domain in ${POWERON_REQUIRED_VMS_LIST[@]}; do
 
                     if [[ $(domain_state $domain) != running ]]; then
 
@@ -953,10 +953,10 @@ optional_crontab
                     fi
 
                     # Remove the VM from the list is being read:
-                    unset POWEREDOFF_VMS_LIST[$i]
+                    unset POWERON_REQUIRED_VMS_LIST[$i]
 
                     # Rebuild indexes into the array:
-                    POWEREDOFF_VMS_LIST=(${POWEREDOFF_VMS_LIST[@]})
+                    POWERON_REQUIRED_VMS_LIST=(${POWERON_REQUIRED_VMS_LIST[@]})
 
                     # Increases the counter:
                     ((i++))
