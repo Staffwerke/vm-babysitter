@@ -32,7 +32,8 @@ check_variables()
     local rsync_backup_path_exists
     local rsync_backup_path_ok
 
-    echo -e "\nChecking environment variables...\n"
+    echo "____________________________________________________________________________________________________________"
+    echo -e "Checking environment variables...\n"
 
     # Check MAX_BACKUPS_PER_CHAIN
     #------------------------------------------------------------------------------
@@ -193,50 +194,62 @@ check_domains()
     local domain_autostart_list=()
     local domain_failed_list=()
     local domain_success_list=()
+    local vm_autostart_message
 
-    echo ""
     echo "____________________________________________________________________________________________________________"
-    echo "Checking for Virtual machines: ${DOMAINS_LIST[@]}"
+    echo -e "Checking virtual disks..."
 
     for domain in ${DOMAINS_LIST[@]}; do
+
+        # (Re)initialize used variables:
+        vm_autostart_message=""
+
+        echo ""
 
         # Checks for virtual disks, if are reachable and possess both read/write permissions:
         if [[ -z $(domain_drives_list $domain) ]]; then
 
             # Non-transient VM without disks attached. Adds to failed list, notifies and aborts the check:
             domain_failed_list+=($domain)
-            echo "WARNING: VM $domain has no drives that can be backed up, therefore will be ignored"
+            echo "$domain: Has no virtual disks that can be backed up"
             break
 
         else
             # Does have drives able to be backed up. Checks if such disk images are reachable inside the container:
             local images_list=($(domain_img_paths_list $domain))
+
             for image in ${images_list[@]}; do
 
                 if [[ ! -f $image ]]; then
 
                     domain_failed_list+=($domain)
-                    echo "ERROR: $domain's disk image: $image not found. Ensure you mount -and mirror- this correctly inside the container (e.g. '-v /common/path/to/vms/disks:/common/path/to/vms/disks')"
+                    echo "$domain: Disk image '$image' not found inside the container"
 
                 elif [[ ! -r $image || ! -w $image ]]; then
 
                     domain_failed_list+=($domain)
-                    echo "ERROR: $domain's disk image: $image has permission issues (cannot be read or written)"
+                    echo "$domain: Insufficient filesystem permissions for disk image '$image'"
 
                 else
-                    # Check passed:
+                    # Check passed. Add into correspondent list:
                     domain_success_list+=($domain)
 
                     for autostart_vm in $VM_AUTOSTART_LIST; do
 
                         if [[ $domain == $autostart_vm ]]; then
 
-                            # If the VM is in VM_AUTOSTART_LIST, requires to be started as soon as possible:
+                            # If the VM is in VM_AUTOSTART_LIST, requires to be started:
                             domain_autostart_list+=($domain)
-                            echo "$domain: Into VM_AUTOSTART_LIST, therefore will be started, (after initial check)"
+
+                            # Append a informative message:
+                            vm_autostart_message=", and scheduled for being started automatically"
+
+                            # And stop searching:
                             break
                         fi
                     done
+
+                    echo "$domain: Virtual disk(s) accessible and correct filesystem permissions$vm_autostart_message"
                 fi
             done
         fi
@@ -254,6 +267,10 @@ check_domains()
     # Appends successfully checked VMs to the global list in need to be started:
     POWEREDOFF_VMS_LIST+=(${domain_autostart_list[@]})
 
+    [[ -n ${domain_failed_list[@]} ]] \
+        && echo -e "\nWARNING: Disk image paths of VM(s): ${domain_failed_list[@]} are showing issues, and therefore will be ignored. To solve this, take in mind that:\n - $(basename $0) cannot work with VMs without virtual disks (e.g. transient VMs)\n - Paths including virtual disks must be mounted equally at both host and container (e.g. '/mnt/user/vms:/mnt/user/vms')\n - If additional disks are under different paths, they must be mounted alike, in similar way as the above example\n - All paths and virtual disks must have read and write permissions\n"
+
+: << 'disabled_code'
     echo ""
     echo "Virtual Machines Check Summary:"
     echo ""
@@ -263,6 +280,7 @@ check_domains()
     [[ -z ${domain_failed_list[@]} ]] && \
     echo "All Virtual Machines Checked!" \ ||
     echo "Missing/issues on virtual disks:"  ${domain_failed_list[@]:-"None"}
+disabled_code
 }
 
 #------------------------------------------------------------------------------
@@ -296,6 +314,9 @@ check_backups()
     local domain_shutdown_needed_list
     local domain_shutdown_success_list
     local preserved_backup_chain_list
+
+   echo "____________________________________________________________________________________________________________"
+   echo -e "Checking backup chains integrity..."
 
     if [[ $(os_is_unraid) == true ]]; then
 
@@ -338,14 +359,12 @@ check_backups()
         recoverable_backup_chain=""
         verify_integrity_exit_code=""
 
-        # Display screen divider when processing several backup chains:
-        [[ ${#CHECK_BACKUPS_LIST[@]} -gt 1 ]] \
-            && echo "____________________________________________________________________________________________________________"
+        echo ""
 
         #------------------------------------------------------------------------------
         # Stage 1: Check backup integrity:
         #------------------------------------------------------------------------------
-        echo "$domain: Checking backup chain integrity..."
+
 
         # Discard non-existing, and empty folders:
         #------------------------------------------------------------------------------
@@ -694,6 +713,7 @@ check_backups()
     # Appends failed to shut down VMs to failed VMs list:
     FAILED_VMS_LIST+=(${domain_failed_list[@]})
 
+: << 'disabled_code'
     # Show a final summary:
     echo "____________________________________________________________________________________________________________"
     echo -e "Automatic Backup Chain Verification Summary:\n"
@@ -703,6 +723,7 @@ check_backups()
     echo "VMs into auto powercycle:     ${domain_shutdown_success_list[@]:-"None"}" || \
     echo "VMs needing manual shut down: ${domain_shutdown_needed_list[@]:-"None"}"
     echo "VMs that failed during check: ${domain_failed_list[@]:-"None"}"
+disabled_code
 }
 
 ###############################################################################
@@ -795,7 +816,7 @@ end_of_external_variables
     # Create logrotate config:
     #------------------------------------------------------------------------------
 
-    echo "Configuring logrotate..."
+    echo -e "\nConfiguring logrotate..."
 
     # Create directory if doesn't exist:
     mkdir -p $(dirname $LOGROTATE_CONFIG_PATH)
@@ -806,7 +827,7 @@ end_of_external_variables
     # Create/update Cron task for VMs to be (progressively) included in $scheduled_backups_list:
     #------------------------------------------------------------------------------
 
-    echo "Configuring scheduled tasks..."
+    echo -e "Configuring scheduled tasks..."
 
     # Silently deletes any previous cron task:
     &> /dev/null crontab -r
@@ -859,18 +880,15 @@ optional_crontab
     crontab $crontab_file
 
     # Finally, runs cron and sends to background:
-    echo "Starting Cron..."
+    echo -e "Starting Cron...\n"
     cron -f -l -L2 &
 
     # 3. Begin monitorization for VMs in lists, performing operations as required:
     #------------------------------------------------------------------------------
+    echo -e "Entered into Babysitter mode\n"
 
     # Creates DOMAINS_LIST, a list of non-transient domains that aren't into any of the queues from past iterations:
     create_domains_list
-
-    echo ""
-    echo "############################################################################################################"
-    echo "Monitoring mode started"
 
     while true; do
 
@@ -909,12 +927,8 @@ optional_crontab
 
         if [[ -n ${DOMAINS_LIST[@]} || -n ${CHECK_BACKUPS_LIST[@]} ]]; then
 
-            # Create the global list of VMs to be displayed:
-            ONGOING_CHECK_LIST=(${DOMAINS_LIST[@]} ${CHECK_BACKUPS_LIST[@]})
-
-            echo ""
-            echo "____________________________________________________________________________________________________________"
-            echo "Automatic check for VM(s) ${ONGOING_CHECK_LIST[@]} in progress..."
+            echo "============================================================================================================"
+            echo -e "Changes detected at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))\n"
 
 
             # Check for virtual drives status on detected VMs:
@@ -964,17 +978,14 @@ optional_crontab
                 source $external_vars
             fi
 
-            # 3.4 Show status report and notify about user actions, if required:
+            # Show a final summary and notify about user actions, if required:
             #------------------------------------------------------------------------------
-            echo ""
-            echo "############################################################################################################"
-            echo "All VMs with status changed finished to be processed at $(date "+%Y-%m-%d %H:%M:%S")"
-            echo ""
-            echo "VM-Babysitter Global Summary:"
-            echo ""
-            echo "Current Scheduled Backups:    ${SCHEDULED_BACKUPS_LIST[@]:-"None"}"
-            echo "Manual Shut Down Required:    ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
-            echo "Misbehaving Virtual Machines: ${FAILED_VMS_LIST[@]:-"None"}"
+            echo "============================================================================================================"
+            echo -e "Babysitter Global Summary:\n"
+            echo "Running fine, under scheduled backups: ${SCHEDULED_BACKUPS_LIST[@]:-"None"}"
+            echo "Misbehaving, failed during some check: ${FAILED_VMS_LIST[@]:-"None"}"
+            echo "Manual shut down is required to check: ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
+
 
             if [[ -n ${SCHEDULED_BACKUPS_LIST[@]} && -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} && -z ${FAILED_VMS_LIST[@]} ]]; then
 
@@ -1006,7 +1017,9 @@ optional_crontab
                 fi
             fi
 
-            # 3.5 Marks ongoing check as finished and exports variables to be used on scheduled backups (entering in 'silent' mode):
+            echo -e "\nAll changes ended to be processed at $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))\n"
+
+            # Export variables to be used on scheduled backups:
             #------------------------------------------------------------------------------
 
             # Sed can't expand arrays correctly. Convert variables to be exported into strings.
