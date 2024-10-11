@@ -288,7 +288,7 @@ check_backups()
     local some_vm_is_running
     local qemu_checkpoints_list
     local recoverable_backup_chain
-    local unraid_scenario
+    local crashed_unraid_scenario
     local verify_integrity_exit_code
 
     # Lists to add VMs (and summarize at the end):
@@ -300,7 +300,7 @@ check_backups()
 
     if [[ $(os_is_unraid) == true ]]; then
 
-        # OS is Unraid. Check for unraid_scenario, when comes from a crash and VMs were running before this container started:
+        # OS is Unraid. Check for crashed_unraid_scenario, when comes from a crash and VMs were running before this container started:
         for domain in $(domains_list); do
 
             # Look for all VMs and its checkpoints, stop if it finds at least one:
@@ -315,27 +315,16 @@ check_backups()
 
         if [[ $checkpoints_found == false && $some_vm_is_running == true ]]; then
 
-            # If no checkpoints were found across the server and at least one of the VMs to be checked is running, set unraid_scenario flag:
-            unraid_scenario=true
+            # If no checkpoints were found across the server and at least one of the VMs to be checked is running, set crashed_unraid_scenario flag:
+            crashed_unraid_scenario=true
 
-            echo ""
-            echo "NOTICE: Unraid OS detected, no VM in this server has QEMU checkpoints at all, and at least one VM to be checked is running"
-            echo
-            echo "  - This is the first run of this program after the last server restart"
-            echo "  - This Unraid server crashed before this container runs"
-            echo
-            echo "Due to the possibility of a crash scenario, running VMs need to be checked differently than under normal operation"
-            echo "Depending on your env variables, user intervention may be required, such as shutting down VMs or restarting this container manually."
+            echo -e "\nNOTICE: Unraid OS detected, no VM has QEMU checkpoints at all, and at least one VM which backup chain needs to be checked is running\nTo prevent the need of user intervention when Unraid comes from a server crash scenario you can, according with your needs, either:\n - Set VM_ALLOW_POWERCYCLE to 'Y', allowing to shut down / power on VMs with issues into backup chains; or\n - Disable autostart of VMs you intend to backup automatically with $(basename $0), then use VM_AUTOSTART_LIST (and/or VM_IGNORED_LIST) instead\n"
 
         else
-            # No unraid_scenario to mind about:
-            unraid_scenario=false
+            # No crashed_unraid_scenario to mind about:
+            crashed_unraid_scenario=false
         fi
     fi
-
-    echo ""
-    echo "____________________________________________________________________________________________________________"
-    echo "Checking backup chain ingtegrity on Virtual machines: ${CHECK_BACKUPS_LIST[@]}"
 
     for domain in ${CHECK_BACKUPS_LIST[@]}; do
 
@@ -350,18 +339,21 @@ check_backups()
         recoverable_backup_chain=""
         verify_integrity_exit_code=""
 
-        echo ""
+        # Display screen divider when processing several backup chains:
+        [[ ${#CHECK_BACKUPS_LIST[@]} -gt 1 ]] \
+            && echo "____________________________________________________________________________________________________________"
 
         #------------------------------------------------------------------------------
         # Stage 1: Check backup integrity:
         #------------------------------------------------------------------------------
+        echo "$domain: Checking backup chain integrity..."
 
         # Discard non-existing, and empty folders:
         #------------------------------------------------------------------------------
         if [[ ! -d $LOCAL_BACKUP_PATH/$domain || -z $(ls -A $LOCAL_BACKUP_PATH/$domain) ]]; then
 
             backup_folder_integrity=false
-            echo "$domain: Unexistent or empty backup chain folder"
+            echo "$domain: Unexistent or empty backup chain folder '$LOCAL_BACKUP_PATH/$domain'"
 
         # Interrupted operations (may recover backup chains when has more than one checkpoint):
         #------------------------------------------------------------------------------
@@ -375,9 +367,9 @@ check_backups()
                 backup_folder_integrity=false
                 echo "$domain: A full/copy backup operation was previously cancelled. This backup is unrecoverable, therefore will be removed"
 
-            elif [[ -z $VM_ALLOW_BACKUP_CHAIN_FIX || $unraid_scenario == true ]]; then
+            elif [[ -z $VM_ALLOW_BACKUP_CHAIN_FIX || $crashed_unraid_scenario == true ]]; then
 
-                # Backup chain may be recoverable, but either user didn't allow to check, or it's unraid_scenario:
+                # Backup chain may be recoverable, but either user didn't allow to check, or it's crashed_unraid_scenario:
                 recoverable_backup_chain=false
                 echo "$domain: A backup operation was previously cancelled. Backup chain is partially recoverable, but will not attempt to fix the backup for further use"
 
@@ -416,20 +408,22 @@ check_backups()
         #------------------------------------------------------------------------------
         if [[ $backup_folder_integrity == true ]]; then
 
+            echo "$domain: Backup folder integrity of '$LOCAL_BACKUP_PATH/$domain' appears to be OK"
+
             # Read qemu checkpoints:
             qemu_checkpoints_list=($(domain_checkpoints_list $domain))
 
             # Read backup checkpoints:
             folder_checkpoints_list=($(backup_checkpoints_list $LOCAL_BACKUP_PATH/$domain))
 
-            if [[ $(domain_state $domain) == "shut off" || $unraid_scenario == true ]]; then
+            if [[ $(domain_state $domain) == "shut off" || $crashed_unraid_scenario == true ]]; then
 
                 # Checking in-backup checkpoints vs. disk image bitmaps it's the most accurate way to determine backup chain integrity.
-                # Only can be done if VM is shut down (and the only possible way when unraid_scenario applies):
+                # Only can be done if VM is shut down (and the only possible way when crashed_unraid_scenario applies):
                 local backup_check_message="Performing a full check into its backup chain..."
 
-                [[ $unraid_scenario == true ]] \
-                    && echo "$domain: Is running (Unraid OS scenario). $backup_check_message" \
+                [[ $crashed_unraid_scenario == true ]] \
+                    && echo "$domain: Is $(domain_state $domain) (Crashed Unraid scenario). $backup_check_message" \
                     || echo "$domain: Is shut down. $backup_check_message"
 
                 # Acquire the list of disk image path(s) contained for this VM:
@@ -451,7 +445,7 @@ check_backups()
                         echo "$domain: Backup checkpoints and bitmaps lists on disk $image do not match! (${#existing_bitmaps_list[@]}:${#folder_checkpoints_list[@]})"
 
                         # When more than one disk image to check, notify the check has been cancelled:
-                        [[ ${#existing_images_list[@]} -gt 1 ]] && echo "$domain: Full check operation has been cancelled"
+                        [[ ${#existing_images_list[@]} -gt 1 ]] && echo "$domain: Backup check operation has been cancelled"
 
                         # Interrupt the current operation. Nothing else to do:
                         break
@@ -461,8 +455,8 @@ check_backups()
             elif [[ $(domain_state $domain) == "running" ]]; then
 
                 # When VM is running, bitmaps created during a backup chain update aren't visible with qemu-img info until VM has not been shut down.
-                # The only reliable method it's to compare in-backup vs QEMU checkpoints count (and this doesn't apply on unraid_scenario):
-                echo "$domain: Is running, comparing QEMU and Backup's checkpoints lists..."
+                # The only reliable method it's to compare in-backup vs QEMU checkpoints count (and this doesn't apply on crashed_unraid_scenario):
+                echo "$domain: Is running. Comparing QEMU and Backup's checkpoints lists..."
 
                 if [[ ${qemu_checkpoints_list[@]} == ${folder_checkpoints_list[@]} ]]; then
 
@@ -473,7 +467,7 @@ check_backups()
                 else
                     # Mark the backup chain status as broken:
                     backup_chain_integrity=false
-                    echo "$domain: QEMU and Backup checkpoints lists do not match! ${#qemu_checkpoints_list[@]}:${#folder_checkpoints_list[@]}"
+                    echo "$domain: QEMU and backup checkpoints lists do not match! ${#qemu_checkpoints_list[@]}:${#folder_checkpoints_list[@]}"
                 fi
             fi
 
@@ -506,7 +500,7 @@ check_backups()
             # leaving an incomplete -and unusable- backup chain.
             # By deleting last checkpoint & bitmap from VM, and files generated by virtnbdbackup before the interruption,
             # backup chain ends at the latest successful backup state, and can receive more updates.
-            # (Under unraid_scenario, there are basically NO chances to repair a backup chain this way, so this operation won't happen in that case):
+            # (Under crashed_unraid_scenario, there are basically NO chances to repair a backup chain this way, so this operation won't happen in that case):
 
             # Read qemu checkpoints:
             qemu_checkpoints_list=($(domain_checkpoints_list $domain))
@@ -553,6 +547,7 @@ check_backups()
 
             # Add VM to the list of preserved backup chain ones:
             preserved_backup_chain_list+=($domain)
+            echo "$domain: Backup chain was fixed by removing latest checkpoint and deleting useless data/references at '$LOCAL_BACKUP_PATH/$domain'"
 
         else # All other scenarios, where checking backup folder and/or chain failed...
 
@@ -577,16 +572,16 @@ check_backups()
                     [[ $delete_bitmap_exit_code -eq 1 ]] && break
                 done
 
-            elif [[ $(domain_state $domain) == "running" && $unraid_scenario == false ]]; then
+            elif [[ $(domain_state $domain) == "running" && $crashed_unraid_scenario == false ]]; then
 
                 # Deletes checkpoints (and bitmaps) if any detected:
                 echo "$domain: Pruning any existing checkpoints..."
                 domain_delete_checkpoints $domain --all
                 delete_checkpoint_exit_code=$?
 
-            elif [[ $(domain_state $domain) == "running" && $unraid_scenario == true ]]; then
+            elif [[ $(domain_state $domain) == "running" && $crashed_unraid_scenario == true ]]; then
 
-                # unraid_scenario. Only does something if is allowed to perform a power cycle on VM:
+                # crashed_unraid_scenario. Only does something if is allowed to perform a power cycle on VM:
                 if [[ -n $VM_ALLOW_POWERCYCLE ]]; then
 
                     domain_shutdown $domain --wait $VM_WAIT_TIME
@@ -644,7 +639,7 @@ check_backups()
                     domain_failed_list+=($domain)
                 ;;
 
-                "") # unraid_scenario (no checkpoints were ever processed):
+                "") # crashed_unraid_scenario (no checkpoints were ever processed):
 
                     case $shutdown_exit_code in
 
@@ -704,7 +699,7 @@ check_backups()
     echo "____________________________________________________________________________________________________________"
     echo -e "Automatic Backup Chain Verification Summary:\n"
     echo "Preserved backup chains:      ${preserved_backup_chain_list[@]:-"None"}"
-    echo "Broken / no backup chains:    ${broken_backup_chain_list[@]:-"None"}"
+    echo "Broken / No backup chains:    ${broken_backup_chain_list[@]:-"None"}"
     [[ -n $VM_ALLOW_POWERCYCLE ]] && \
     echo "VMs into auto powercycle:     ${domain_shutdown_success_list[@]:-"None"}" || \
     echo "VMs needing manual shut down: ${domain_shutdown_needed_list[@]:-"None"}"
