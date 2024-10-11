@@ -186,72 +186,80 @@ create_domains_list()
 }
 
 #------------------------------------------------------------------------------
-# Checks for VMs in DOMAINS_LIST by verifying existence and read/write permissions of its virtual disks,
+# Check for VMs in DOMAINS_LIST by verifying existence and read/write permissions of its virtual disks,
 # also marking VMs for automatic start, when required by the user:
 #------------------------------------------------------------------------------
 check_domains()
 {
     local domain_autostart_list=()
+    local domain_success
     local domain_failed_list=()
     local domain_success_list=()
-    local vm_autostart_message
+    local vm_has_issues
 
     echo "____________________________________________________________________________________________________________"
-    echo -e "Checking virtual disks..."
+    echo -e "Checking access to virtual disks (and other remarks)..."
 
     for domain in ${DOMAINS_LIST[@]}; do
 
         # (Re)initialize used variables:
-        vm_autostart_message=""
+        vm_has_issues=""
 
         echo ""
 
-        # Checks for virtual disks, if are reachable and possess both read/write permissions:
+        # Check for virtual disks, if are reachable and possess both read/write permissions:
         if [[ -z $(domain_drives_list $domain) ]]; then
 
             # Non-transient VM without disks attached. Adds to failed list, notifies and aborts the check:
             domain_failed_list+=($domain)
+            vm_has_issues=true
             echo "$domain: Has no virtual disks that can be backed up"
             break
 
         else
-            # Does have drives able to be backed up. Checks if such disk images are reachable inside the container:
+            # Check if existing disk images are reachable inside the container and have correct filesystem permissions:
             local images_list=($(domain_img_paths_list $domain))
 
             for image in ${images_list[@]}; do
 
                 if [[ ! -f $image ]]; then
 
-                    domain_failed_list+=($domain)
+                    vm_has_issues=true
                     echo "$domain: Disk image '$image' not found inside the container"
 
                 elif [[ ! -r $image || ! -w $image ]]; then
 
-                    domain_failed_list+=($domain)
+                    vm_has_issues=true
                     echo "$domain: Insufficient filesystem permissions for disk image '$image'"
 
                 else
-                    # Check passed. Add into correspondent list:
-                    domain_success_list+=($domain)
-
-                    for autostart_vm in $VM_AUTOSTART_LIST; do
-
-                        if [[ $domain == $autostart_vm ]]; then
-
-                            # If the VM is in VM_AUTOSTART_LIST, requires to be started:
-                            domain_autostart_list+=($domain)
-
-                            # Append a informative message:
-                            vm_autostart_message=", and scheduled for being started automatically"
-
-                            # And stop searching:
-                            break
-                        fi
-                    done
-
-                    echo "$domain: Virtual disk(s) accessible and correct filesystem permissions$vm_autostart_message"
+                    "$domain: Found, and verified correct filesystem permissions for disk image '$image'"
                 fi
             done
+
+            if [[ $vm_has_issues == true ]]; then
+
+                # Check failed. Add into correspondent list:
+                domain_failed_list+=($domain)
+
+            else
+                # Check passed. Add into correspondent list:
+                domain_success_list+=($domain)
+
+                # Search for other remarks:
+                for autostart_vm in $VM_AUTOSTART_LIST; do
+
+                    if [[ $domain == $autostart_vm ]]; then
+
+                        # If the VM is in VM_AUTOSTART_LIST, requires to be started:
+                        domain_autostart_list+=($domain)
+                        echo "$domain: Scheduled for autostart (if not found running by then)"
+
+                        # And stop searching:
+                        break
+                    fi
+                done
+            fi
         fi
     done
 
@@ -264,23 +272,11 @@ check_domains()
     # Appends VMs with unexistent, unreachable or virtual disks with permission issues:
     FAILED_VMS_LIST+=(${domain_failed_list[@]})
 
-    # Appends successfully checked VMs to the global list in need to be started:
+    # Appends successfully checked VMs marked for automatic start into the global list:
     POWEREDOFF_VMS_LIST+=(${domain_autostart_list[@]})
 
     [[ -n ${domain_failed_list[@]} ]] \
-        && echo -e "\nWARNING: Disk image paths of VM(s): ${domain_failed_list[@]} are showing issues, and therefore will be ignored. To solve this, take in mind that:\n - $(basename $0) cannot work with VMs without virtual disks (e.g. transient VMs)\n - Paths including virtual disks must be mounted equally at both host and container (e.g. '/mnt/user/vms:/mnt/user/vms')\n - If additional disks are under different paths, they must be mounted alike, in similar way as the above example\n - All paths and virtual disks must have read and write permissions\n"
-
-: << 'disabled_code'
-    echo ""
-    echo "Virtual Machines Check Summary:"
-    echo ""
-    echo "Ready for Backup Check Integrity:" ${domain_success_list[@]:-"None"}
-    echo "Set for Autostart (after checks):" ${domain_autostart_list[@]:-"None"}
-    echo ""
-    [[ -z ${domain_failed_list[@]} ]] && \
-    echo "All Virtual Machines Checked!" \ ||
-    echo "Missing/issues on virtual disks:"  ${domain_failed_list[@]:-"None"}
-disabled_code
+        && echo -e "\nWARNING: Issues found with at least one disk image paths of VM(s): ${domain_failed_list[@]}, and therefore such VMs will be ignored. To solve this, take in mind that:\n - $(basename $0) cannot work with VMs without virtual disks (e.g. transient VMs)\n - Paths including virtual disks must be mounted equally at both host and container (e.g. '/mnt/user/vms:/mnt/user/vms')\n - If additional disks are under different paths, they must be mounted alike, in similar way as the above example\n - All paths and virtual disks must have read/write permissions\n"
 }
 
 #------------------------------------------------------------------------------
