@@ -79,7 +79,6 @@ check_variables()
 
     # Check RSYNC_BACKUP_PATH:
     #------------------------------------------------------------------------------
-
     case $RSYNC_BACKUP_PATH in
 
         '') # Rsync path is not set:
@@ -90,9 +89,9 @@ check_variables()
 
         [/]*) # Rsync path is an absolute path into root filesystem:
 
-            # RSYNC_BACKUP_PATH exists. Check for filesystem permissions:
             if [[ -d $RSYNC_BACKUP_PATH ]]; then
 
+                # RSYNC_BACKUP_PATH exists. Check for filesystem permissions:
                 if [[ -r $RSYNC_BACKUP_PATH && -w $RSYNC_BACKUP_PATH ]]; then
 
                     # RSYNC_BACKUP_PATH has read/write permissions:
@@ -110,7 +109,7 @@ check_variables()
 
         *[@]*[:/]*)  # Rsync path is at aremote host, pointing an absolute path into its root filesystem:
 
-            # Apparently includes correct remote login and path. Separates ssh login from remote path:
+            # Separate ssh login from remote path:
             local ssh_login=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f1)
             local rsync_path=$(echo $RSYNC_BACKUP_PATH | cut -d':' -f2)
 
@@ -158,7 +157,6 @@ check_variables()
     fi
 
     # TODO: Check other ENV variables, and SSH key:
-
     # When all status variables passed the checks, return success:
     [[ $max_backups_per_chain_ok && $local_backup_path_ok && $rsync_backup_path_ok ]] \
         && variables_exit_code=0 \
