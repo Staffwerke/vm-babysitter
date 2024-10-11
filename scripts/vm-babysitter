@@ -668,13 +668,13 @@ check_backups()
                             # This VM may either have issues, or just taking too long into shut down.
                             # User action is required (but may also shut down itself eventually):
                             domain_shutdown_needed_list+=($domain)
-                            echo "$domain: User action is required"
+                            echo "$domain: Shut down didn't complete after $VM_WAIT_TIME seconds. If does not occur eventually, user manual intervention is going to be required"
                         ;;
 
                         "") # No permissions to power cycle the VM are given (no shutdown was ever attempted):
                             # User action is required:
                             domain_shutdown_needed_list+=($domain)
-                            echo "$domain: User action is required (env variable VM_ALLOW_POWERCYCLE not set)"
+                            echo "$domain: Manual shut down is required! (VM_ALLOW_POWERCYCLE is not set)"
                         ;;
                     esac
                 ;;
@@ -700,18 +700,15 @@ check_backups()
     # Appends failed to shut down VMs to failed VMs list:
     FAILED_VMS_LIST+=(${domain_failed_list[@]})
 
-    echo ""
-    echo "Backup Chain Integrity Summary:"
-    echo ""
-    echo "Added to Scheduled Backups:   ${preserved_backup_chain_list[@]:-"None"}"
-    echo "In need of new backup chain:  ${broken_backup_chain_list[@]:-"None"}"
+    # Show a final summary:
+    echo "____________________________________________________________________________________________________________"
+    echo -e "Automatic Backup Chain Verification Summary:\n"
+    echo "Preserved backup chains:      ${preserved_backup_chain_list[@]:-"None"}"
+    echo "Broken / no backup chains:    ${broken_backup_chain_list[@]:-"None"}"
     [[ -n $VM_ALLOW_POWERCYCLE ]] && \
-    echo "Into automatic power cycle:   ${domain_shutdown_success_list[@]:-"None"}" || \
-    echo "Manual shut down is required: ${domain_shutdown_needed_list[@]:-"None"}"
-    echo ""
-    [[ -z ${domain_failed_list[@]} ]] && \
-    echo "All Backup Chains Checked!" \ ||
-    echo "Failed Power Cycle:           ${domain_failed_list[@]:-"None"}"
+    echo "VMs into auto powercycle:     ${domain_shutdown_success_list[@]:-"None"}" || \
+    echo "VMs needing manual shut down: ${domain_shutdown_needed_list[@]:-"None"}"
+    echo "VMs that failed during check: ${domain_failed_list[@]:-"None"}"
 }
 
 ###############################################################################
