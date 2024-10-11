@@ -32,7 +32,8 @@ check_variables()
     local rsync_backup_path_exists
     local rsync_backup_path_ok
 
-    echo "Checking environment variables..."
+    echo -e "\nChecking environment variables...\n"
+
     # Check MAX_BACKUPS_PER_CHAIN
     #------------------------------------------------------------------------------
     if [[ $MAX_BACKUPS_PER_CHAIN =~ [0-9] && $MAX_BACKUPS_PER_CHAIN -ge 0 ]]; then
@@ -73,7 +74,7 @@ check_variables()
         fi
 
     else
-        echo "ERROR: LOCAL_BACKUP_PATH: '$LOCAL_BACKUP_PATH'  <- Path was not found inside the container. Ensure you mount this correctly (e.g. '-v /mnt/user/backups/vm-backups:/backups')"
+        echo "ERROR: LOCAL_BACKUP_PATH: '$LOCAL_BACKUP_PATH'  <- Path was not found inside the container. Ensure you mount this correctly (e.g. '-v /mnt/user/backups/vm-backups:/backups:rw')"
     fi
 
     # Check RSYNC_BACKUP_PATH:
@@ -103,7 +104,7 @@ check_variables()
                 fi
 
             else
-                echo "ERROR: RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH'  <- Path was not found inside the container. Ensure you mount this correctly (e.g. '-v /mnt/remotes/hostname/vm-backups-mirror:/backups-mirror')"
+                echo "ERROR: RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH'  <- Path was not found inside the container. Ensure you mount this correctly (e.g. '-v /mnt/remotes/hostname/vm-backups-mirror:/backups-mirror:rw')"
             fi
         ;;
 
