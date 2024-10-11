@@ -207,7 +207,7 @@ if [[ -n ${backups_list[@]} ]]; then
 
                 # Only show remote stats when remote endppoint is set:
                 echo "____________________________________________________________________________________________________________"
-                echo -e "$backup_action Rsync summary:\n"
+                echo -e "$backup_action Rsync Summary:\n"
                 echo "Successful syncs: ${rsync_success_list[@]:-"None"}"
                 echo "Failed syncs:     ${rsync_failed_list[@]:-"None"}"
             fi
