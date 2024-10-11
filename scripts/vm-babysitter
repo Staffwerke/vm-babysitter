@@ -247,13 +247,13 @@ check_domains()
     unset DOMAINS_LIST
 
     # Appends successfully checked VMs for checking backups:
-    CHECK_BACKUPS_LIST+=${domain_success_list[@]}
+    CHECK_BACKUPS_LIST+=(${domain_success_list[@]})
 
     # Appends VMs with unexistent, unreachable or virtual disks with permission issues:
-    FAILED_VMS_LIST+=${domain_failed_list[@]}
+    FAILED_VMS_LIST+=(${domain_failed_list[@]})
 
     # Appends successfully checked VMs to the global list in need to be started:
-    POWEREDOFF_VMS_LIST+=${domain_autostart_list[@]}
+    POWEREDOFF_VMS_LIST+=(${domain_autostart_list[@]})
 
     echo ""
     echo "Virtual Machines Check Summary:"
