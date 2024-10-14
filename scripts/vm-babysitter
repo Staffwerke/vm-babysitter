@@ -190,7 +190,7 @@ check_variables()
 create_domains_list()
 {
     local domains_all_list=($(domains_list))
-    local domains_skipped_list=(${VM_IGNORED_LIST[@]} ${FAILED_VMS_LIST[@]} ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ${POWERON_REQUIRED_VMS_LIST[@]} ${CHECK_BACKUPS_LIST[@]} ${CREATE_BACKUP_CHAIN_LIST[@]} ${SCHEDULED_BACKUPS_LIST[@]})
+    local domains_skipped_list=(${VM_IGNORED_LIST[@]} ${VMS_TO_DISCARD_LIST[@]} ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ${POWERON_REQUIRED_VMS_LIST[@]} ${CHECK_BACKUPS_LIST[@]} ${CREATE_BACKUP_CHAIN_LIST[@]} ${BACKUPS_TO_SCHEDULE_LIST[@]})
 
     for domain in ${domains_all_list[@]}; do
 
@@ -285,7 +285,7 @@ check_domains()
     CHECK_BACKUPS_LIST+=(${domain_success_list[@]})
 
     # Appends VMs with unexistent, unreachable or virtual disks with permission issues:
-    FAILED_VMS_LIST+=(${domain_failed_list[@]})
+    VMS_TO_DISCARD_LIST+=(${domain_failed_list[@]})
 
     # Appends successfully checked VMs marked for automatic start into the global list:
     POWERON_REQUIRED_VMS_LIST+=(${domain_autostart_list[@]})
@@ -720,13 +720,13 @@ check_backups()
     POWERON_REQUIRED_VMS_LIST+=(${domain_shutdown_success_list[@]})
 
     # Appends preserved backup chains to scheduled backups directly:
-    SCHEDULED_BACKUPS_LIST+=(${preserved_backup_chain_list[@]})
+    BACKUPS_TO_SCHEDULE_LIST+=(${preserved_backup_chain_list[@]})
 
     # Appends VMs failed to shutdown (by user's setting or by fail) to request user action:
     SHUTDOWN_REQUIRED_VMS_LIST+=(${domain_shutdown_needed_list[@]})
 
     # Appends failed to shut down VMs to failed VMs list:
-    FAILED_VMS_LIST+=(${domain_failed_list[@]})
+    VMS_TO_DISCARD_LIST+=(${domain_failed_list[@]})
 
     if [[ $(os_is_unraid) == true ]]; then
 
@@ -993,8 +993,8 @@ optional_crontab
                         # Turn on the VM. Do not wait for Guest's QEMU agent:
                         domain_start $domain --nowait
 
-                        # Add any VM failed to start to FAILED_VMS_LIST:
-                        [[ $? -ne 0 ]] && FAILED_VMS_LIST+=($domain)
+                        # Add any VM failed to start to VMS_TO_DISCARD_LIST:
+                        [[ $? -ne 0 ]] && VMS_TO_DISCARD_LIST+=($domain)
                     fi
                 done
             fi
@@ -1020,8 +1020,8 @@ optional_crontab
             [[ -n ${CHECK_BACKUPS_LIST[@]} ]] \
                 && { echo -e "\nPassed the initial check: ${#CHECK_BACKUPS_LIST[@]}\n > ${CHECK_BACKUPS_LIST[@]}"; unset CHECK_BACKUPS_LIST; }
 
-            [[ -n ${SCHEDULED_BACKUPS_LIST[@]} ]] \
-                && echo -e "\nPassed the backup check integrity: ${#SCHEDULED_BACKUPS_LIST[@]}\n > ${SCHEDULED_BACKUPS_LIST[@]}"
+            [[ -n ${BACKUPS_TO_SCHEDULE_LIST[@]} ]] \
+                && echo -e "\nPassed the backup check integrity: ${#BACKUPS_TO_SCHEDULE_LIST[@]}\n > ${BACKUPS_TO_SCHEDULE_LIST[@]}"
 
             [[ -n ${CREATE_BACKUP_CHAIN_LIST[@]} ]] \
                 && { echo -e "\nRequired new backup chains: ${#CREATE_BACKUP_CHAIN_LIST[@]}\n > ${CREATE_BACKUP_CHAIN_LIST[@]}"; unset CREATE_BACKUP_CHAIN_LIST; }
@@ -1034,11 +1034,20 @@ optional_crontab
             [[ -n ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] \
                 && echo -e "\nPending shut down (auto or manual): ${#SHUTDOWN_REQUIRED_VMS_LIST[@]}\n > ${SHUTDOWN_REQUIRED_VMS_LIST[@]}"
 
-            [[ -n ${FAILED_VMS_LIST[@]} ]] \
-                && echo -e "\nFailed during checks: ${#FAILED_VMS_LIST[@]}\n > ${FAILED_VMS_LIST[@]}"
+            [[ -n ${VMS_TO_DISCARD_LIST[@]} ]] \
+                && echo -e "\nFailed during checks: ${#VMS_TO_DISCARD_LIST[@]}\n > ${VMS_TO_DISCARD_LIST[@]}"
 
             # Export variables to be used on scheduled backups:
             #------------------------------------------------------------------------------
+
+            # Reload the external variables file:
+            source $external_vars
+
+            # Add preserved backup chains to global SCHEDULED_BACKUPS_LIST:
+            SCHEDULED_BACKUPS_LIST+=(${BACKUPS_TO_SCHEDULE_LIST[@]})
+
+            # And Vms with issues to global FAILED_VMS_LIST:
+            FAILED_VMS_LIST+=(${VMS_TO_DISCARD_LIST[@]})
 
             # Sed can't expand arrays correctly. Convert variables to be exported into strings.
             # This will be reverted at next block iteration, by sourcing such external variables as arrays:
