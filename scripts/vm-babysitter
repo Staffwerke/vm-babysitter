@@ -172,12 +172,12 @@ check_variables()
 
         # Define messages to be prompted:
         local vars_issues_subject="Failed to start container!"
-        local vars_issues_message="Issues were found checking environment variables and could not intialize. Please check container logs, or $(basename $LOGFILE_PATH) for more information."
+        local vars_issues_message="Issues were found checking environment variables and could not intialize"
 
-        echo -e "ERROR: $vars_issues_subject\n$vars_issues_message\n"
+        echo -e "\nERROR: $vars_issues_subject\n$vars_issues_message\n"
 
         [[ $(os_is_unraid) == true ]] \
-            && unraid_notify "alert" "VM-Babysitter" "$vars_issues_subject" "$vars_issues_message"
+            && unraid_notify "alert" "VM-Babysitter" "$vars_issues_subject" "$vars_issues_message. Please check container logs, or $(basename $LOGFILE_PATH) for more information."
     fi
 
     return $variables_exit_code
@@ -307,6 +307,8 @@ check_domains()
     -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
     $external_vars
 
+    # Notify about issues and/or errors, if any:
+    #------------------------------------------------------------------------------
     if [[ -n ${domain_failed_list[@]} ]]; then
 
         echo -e "WARNING: Issues found with at least one disk image paths of VM(s): ${domain_failed_list[@]}, and therefore such VMs will be ignored. To solve this, take in mind that:\n - $(basename $0) cannot work with VMs without virtual disks (e.g. transient VMs)\n - Paths including virtual disks must be mounted equally at both host and container (e.g. '/mnt/user/vms:/mnt/user/vms')\n - If additional disks are under different paths, they must be mounted alike, in similar way as the above example\n - All paths and virtual disks must have read/write permissions\n"
@@ -314,9 +316,9 @@ check_domains()
         if [[ $(os_is_unraid) == true ]]; then
 
             local vm_disks_issues_subject="Issues with disk image path(s)"
-            local vm_disks_issues_message="Domain(s): ${domain_failed_list[@]} could not be put on backups schedule because issues were found with at least one of the disk image paths. Please check container logs, or $(basename $LOGFILE_PATH) for more information."
+            local vm_disks_issues_message="Domain(s): ${domain_failed_list[@]} could not be put on backups schedule because issues were found with at least one of the disk image paths"
 
-            unraid_notify "warning" "VM-Babysitter" "$vm_disks_issues_subject" "$vm_disks_issues_message"
+            unraid_notify "warning" "VM-Babysitter" "$vm_disks_issues_subject" "$vm_disks_issues_message. Please check container logs, or $(basename $LOGFILE_PATH) for more information."
         fi
     fi
 }
@@ -555,6 +557,8 @@ check_backups()
             # backup chain ends at the latest successful backup state, and can receive more updates.
             # (Under crashed_unraid_scenario, there are basically NO chances to repair a backup chain this way, so this operation won't happen in that case):
 
+            # TODO: Exit this process if issues are found during backup fix.
+
             # Read qemu checkpoints:
             qemu_checkpoints_list=($(domain_checkpoints_list $domain))
 
@@ -767,35 +771,39 @@ check_backups()
     -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
     $external_vars
 
-    if [[ $(os_is_unraid) == true ]]; then
+    # Notify about issues and/or errors, if any:
+    #------------------------------------------------------------------------------
 
+    if [[ -n ${domain_shutdown_needed_list[@]} ]]; then
 
-        if [[ -n ${domain_shutdown_needed_list[@]} ]]; then
+        if [[ $unraid_crashed_scenario == true ]]; then
 
-            if [[ $unraid_crashed_scenario == true ]]; then
+            # check_backups encountered unraid_crashed_scenario:
+            local shutdown_required_subject="Manual Shut Down is Required!"
+            local shutdown_required_message="Please power off the following domain(s): ${domain_shutdown_needed_list[@]}. This action is mandatory before to put it into backup schedule. Once performed, the final restart will be done automatically"
 
-                # check_backups encountered unraid_crashed_scenario:
-                local shutdown_required_subject="Manual Shut Down is Required!"
-                local shutdown_required_message="Please power off the following domain(s): ${domain_shutdown_needed_list[@]}. This action is mandatory before to put it into backup schedule. Once performed, the final restart will be done automatically"
-
-
-            else
-                # check_backups gave up powering off vm(s):
-                local shutdown_required_subject="A Manual Shut Down Might be Required"
-                local shutdown_required_message="Domain(s): ${domain_shutdown_needed_list[@]}, are taking more than expected into shut down completely ($VM_WAIT_TIME secs). This step is mandatory before to put it into backup schedule. If no further notice about success of this is received into the next minutes, consider to examine the domain(s) and if necessary, perform a manual shut down (the final restart will be done automatically)."
-            fi
-
-            unraid_notify "warning" "VM-Babysitter" "$shutdown_required_subject" "$shutdown_required_message"
+        else
+            # check_backups gave up powering off vm(s):
+            local shutdown_required_subject="A Manual Shut Down Might be Required"
+            local shutdown_required_message="Domain(s): ${domain_shutdown_needed_list[@]}, are taking more than expected into shut down completely ($VM_WAIT_TIME secs). This step is mandatory before to put it into backup schedule. If no further notice about success of this is received into the next minutes, consider to examine the domain(s) and if necessary, perform a manual shut down (the final restart will be done automatically)."
         fi
 
-        if [[ -n ${domain_failed_list[@]} ]]; then
+        echo -e "\nNOTICE: $shutdown_required_subject\n$shutdown_required_message\n"
 
-            # check_backups found unexpected issues:
-            local backup_chain_issues_subject="Something went unexpectedly wrong when checking backup chain integrity"
-            local backup_chain_issues_message="Domain(s): ${domain_failed_list[@]} could not be put on backups schedule because something went unexpectedly wrong while checking backup integrity. Please check container logs, or $(basename $LOGFILE_PATH) for more information."
+        [[ $(os_is_unraid) == true ]] \
+            && unraid_notify "warning" "VM-Babysitter" "$shutdown_required_subject" "$shutdown_required_message. Please check container logs, or $(basename $LOGFILE_PATH) for more information."
+    fi
 
-            unraid_notify "warning" "VM-Babysitter" "$backup_chain_issues_subject" "$backup_chain_issues_message"
-        fi
+    if [[ -n ${domain_failed_list[@]} ]]; then
+
+        # check_backups found unexpected issues:
+        local backup_chain_issues_subject="Something went unexpectedly wrong when checking backup chain integrity"
+        local backup_chain_issues_message="Domain(s): ${domain_failed_list[@]} could not be put on backups schedule because something went unexpectedly wrong while checking backup integrity"
+
+        echo -e "\nWARNING: $backup_chain_issues_subject\n$backup_chain_issues_message\n"
+
+        [[ $(os_is_unraid) == true ]] \
+            && unraid_notify "warning" "VM-Babysitter" "$backup_chain_issues_subject" "$backup_chain_issues_message. Please check container logs, or $(basename $LOGFILE_PATH) for more information."
     fi
 }
 
