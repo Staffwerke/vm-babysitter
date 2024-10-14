@@ -14,7 +14,9 @@ stop_container()
 {
     echo "############################################################################################################"
     echo "SIGTERM signal received at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
-    # TODO: Terminate or kill background processes before to exit.
+
+    # TODO: Terminate or kill background processes before to exit...
+
     echo "Container Stopped."
     echo ""
     exit 0
@@ -158,10 +160,26 @@ check_variables()
     fi
 
     # TODO: Check other ENV variables, and SSH key:
-    # When all status variables passed the checks, return success:
-    [[ $max_backups_per_chain_ok && $local_backup_path_ok && $rsync_backup_path_ok ]] \
-        && variables_exit_code=0 \
-        || variables_exit_code=1
+
+    if [[ $max_backups_per_chain_ok && $local_backup_path_ok && $rsync_backup_path_ok ]]; then
+
+            # When all status variables passed the checks, return success:
+            variables_exit_code=0
+
+    else
+        # check_variables has found non-recoverable errors.
+        variables_exit_code=1
+
+        # Define messages to be prompted:
+        local vars_issues_subject="Failed to start container!"
+        local vars_issues_message="Issues were found checking environment variables and could not intialize. Please check container logs, or $(basename $LOGFILE_PATH) for more information."
+
+        echo -e "ERROR: $vars_issues_subject\n$vars_issues_message\n"
+
+
+        [[ $(os_is_unraid) == true ]] \
+            && unraid_notify "alert" "VM-Babysitter" "$vars_issues_subject" "$vars_issues_message"
+    fi
 
     return $variables_exit_code
 }
@@ -263,9 +281,6 @@ check_domains()
         fi
     done
 
-    # Cleanse DOMAINS_LIST, since all VMs were processed, and copied into correspondent lists:
-    unset DOMAINS_LIST
-
     # Appends successfully checked VMs for checking backups:
     CHECK_BACKUPS_LIST+=(${domain_success_list[@]})
 
@@ -275,8 +290,19 @@ check_domains()
     # Appends successfully checked VMs marked for automatic start into the global list:
     POWERON_REQUIRED_VMS_LIST+=(${domain_autostart_list[@]})
 
-    [[ -n ${domain_failed_list[@]} ]] \
-        && echo -e "\nWARNING: Issues found with at least one disk image paths of VM(s): ${domain_failed_list[@]}, and therefore such VMs will be ignored. To solve this, take in mind that:\n - $(basename $0) cannot work with VMs without virtual disks (e.g. transient VMs)\n - Paths including virtual disks must be mounted equally at both host and container (e.g. '/mnt/user/vms:/mnt/user/vms')\n - If additional disks are under different paths, they must be mounted alike, in similar way as the above example\n - All paths and virtual disks must have read/write permissions\n"
+    if [[ -n ${domain_failed_list[@]} ]]; then
+
+        echo -e "WARNING: Issues found with at least one disk image paths of VM(s): ${domain_failed_list[@]}, and therefore such VMs will be ignored. To solve this, take in mind that:\n - $(basename $0) cannot work with VMs without virtual disks (e.g. transient VMs)\n - Paths including virtual disks must be mounted equally at both host and container (e.g. '/mnt/user/vms:/mnt/user/vms')\n - If additional disks are under different paths, they must be mounted alike, in similar way as the above example\n - All paths and virtual disks must have read/write permissions\n"
+
+        if [[ $(os_is_unraid) == true ]]; then
+
+            local vm_disks_issues_subject="Issues with disk image path(s)"
+            local vm_disks_issues_message="Domain(s): ${domain_failed_list[@]} could not be put on backups schedule because issues were found with at least one of the disk image paths. Please check container logs, or $(basename $LOGFILE_PATH) for more information."
+
+            unraid_notify "warning" "VM-Babysitter" "$vm_disks_issues_subject" "$vm_disks_issues_message"
+
+        fi
+    fi
 }
 
 #------------------------------------------------------------------------------
@@ -329,12 +355,11 @@ check_backups()
             [[ $(domain_state $domain) == "running" ]] && { some_vm_is_running=true; break; } || some_vm_is_running=false
         done
 
-        if [[ $checkpoints_found == false && $some_vm_is_running == true ]]; then
+        if [[ $checkpoints_found == false && $some_vm_is_running == true && -z $VM_ALLOW_POWERCYCLE ]]; then
 
-            # If no checkpoints were found across the server and at least one of the VMs to be checked is running, set crashed_unraid_scenario flag:
+            # Set crashed_unraid_scenario flag and notify:
             crashed_unraid_scenario=true
-
-            echo -e "\nNOTICE: Unraid OS detected, no VM has QEMU checkpoints at all, and at least one VM which backup chain needs to be checked is running\nTo prevent the need of user intervention when Unraid comes from a server crash scenario you can, according with your needs, either:\n - Set VM_ALLOW_POWERCYCLE to 'Y', allowing to shut down / power on VMs with issues into backup chains; or\n - Disable autostart of VMs you intend to backup automatically with $(basename $0), then use VM_AUTOSTART_LIST (and/or VM_IGNORED_LIST) instead\n"
+            echo -e "\nNOTICE: Unraid OS detected, no VM has QEMU checkpoints at all, and at least one VM which backup chain needs to be checked is running\nTo prevent the need of user intervention when Unraid comes from a server crash scenario you can, according with your needs, either:\n - Set VM_ALLOW_POWERCYCLE to 'Y', allowing to powercycle domains with issues into backup chains; or\n - Disable autostart of domains you intend to backup automatically, using VM_AUTOSTART_LIST (and/or VM_IGNORED_LIST) instead\n"
 
         else
             # No crashed_unraid_scenario to mind about:
@@ -356,11 +381,9 @@ check_backups()
         verify_integrity_exit_code=""
 
         echo ""
-
         #------------------------------------------------------------------------------
         # Stage 1: Check backup integrity:
         #------------------------------------------------------------------------------
-
 
         # Discard non-existing, and empty folders:
         #------------------------------------------------------------------------------
@@ -529,7 +552,7 @@ check_backups()
                     # Read bitmaps in each virtual image:
                     existing_bitmaps_list=($(disk_image_bitmaps_list $image))
 
-                    echo "$domain: Deleting insecure bitmap ${existing_bitmaps_list[-1]} on disk image $image..."
+                    echo "$domain: Deleting insecure bitmap ${existing_bitmaps_list[-1]} on disk image $image ..."
                     disk_image_bitmaps_delete $image ${existing_bitmaps_list[-1]}
                 done
 
@@ -561,7 +584,7 @@ check_backups()
 
             # Add VM to the list of preserved backup chain ones:
             preserved_backup_chain_list+=($domain)
-            echo "$domain: Backup chain was fixed by removing latest checkpoint and deleting useless data/references at '$LOCAL_BACKUP_PATH/$domain'"
+            echo "$domain: Backup chain was fixed by removing latest checkpoint and deleting incomplete data at '$LOCAL_BACKUP_PATH/$domain'"
 
         else # All other scenarios, where checking backup folder and/or chain failed...
 
@@ -577,7 +600,7 @@ check_backups()
                 for image in $(domain_img_paths_list $domain); do
 
                     # Then deletes all bitmaps, in all image disks:
-                    echo "$domain: Pruning any existing bitmaps on disk image $image..."
+                    echo "$domain: Pruning any existing bitmaps on disk image $image ..."
 
                     disk_image_bitmaps_delete $image --all
                     delete_bitmap_exit_code=$?
@@ -608,7 +631,7 @@ check_backups()
                         for image in $(domain_img_paths_list $domain); do
 
                             # Then deletes all bitmaps, in all image disks:
-                            echo "$domain: Pruning any existing bitmaps on disk image $image..."
+                            echo "$domain: Pruning any existing bitmaps on disk image $image ..."
 
                             disk_image_bitmaps_delete $image --all
                             delete_bitmap_exit_code=$?
@@ -621,7 +644,6 @@ check_backups()
             fi
 
             # Assign VM and/or backup chain to the correspondent list, according the results:
-
             case $delete_checkpoint_exit_code in
 
                 0|2)
@@ -677,22 +699,19 @@ check_backups()
                             # This VM may either have issues, or just taking too long into shut down.
                             # User action is required (but may also shut down itself eventually):
                             domain_shutdown_needed_list+=($domain)
-                            echo "$domain: Shut down didn't complete after $VM_WAIT_TIME seconds. If does not occur eventually, user manual intervention is going to be required"
+                            echo "WARNING: Shut down of domain '$domain' didn't complete after $VM_WAIT_TIME seconds. If this does not occur eventually, user manual intervention is going to be required"
                         ;;
 
                         "") # No permissions to power cycle the VM are given (no shutdown was ever attempted):
                             # User action is required:
                             domain_shutdown_needed_list+=($domain)
-                            echo "$domain: Manual shut down is required! (VM_ALLOW_POWERCYCLE is not set)"
+                            echo "WARNING: Manual shut down of domain '$domain' is required! (VM_ALLOW_POWERCYCLE is not set)"
                         ;;
                     esac
                 ;;
             esac
         fi
     done
-
-    # Cleanse CHECK_BACKUPS_LIST, since all VMs were processed, and copied into correspondent lists:
-    unset CHECK_BACKUPS_LIST
 
     # Appends broken backup chains for new backup chain creation:
     CREATE_BACKUP_CHAIN_LIST+=(${broken_backup_chain_list[@]})
@@ -709,24 +728,43 @@ check_backups()
     # Appends failed to shut down VMs to failed VMs list:
     FAILED_VMS_LIST+=(${domain_failed_list[@]})
 
-: << 'disabled_code'
-    # Show a final summary:
-    echo "____________________________________________________________________________________________________________"
-    echo -e "Automatic Backup Chain Verification Summary:\n"
-    echo "Preserved backup chains:      ${preserved_backup_chain_list[@]:-"None"}"
-    echo "Broken / No backup chains:    ${broken_backup_chain_list[@]:-"None"}"
-    [[ -n $VM_ALLOW_POWERCYCLE ]] && \
-    echo "VMs into auto powercycle:     ${domain_shutdown_success_list[@]:-"None"}" || \
-    echo "VMs needing manual shut down: ${domain_shutdown_needed_list[@]:-"None"}"
-    echo "VMs that failed during check: ${domain_failed_list[@]:-"None"}"
-disabled_code
+    if [[ $(os_is_unraid) == true ]]; then
+
+        if [[ -n ${domain_shutdown_needed_list[@]} ]]; then
+
+            if [[ $unraid_crashed_scenario == true ]]; then
+
+                # check_backups encountered unraid_crashed_scenario:
+                local shutdown_required_subject="Manual Shut Down is Required!"
+                local shutdown_required_message="Please power off the following domain(s): ${domain_shutdown_needed_list[@]}. This action is mandatory before to put it into backup schedule. Once performed, the final restart will be done automatically"
+
+
+            else
+                # check_backups gave up powering off vm(s):
+                local shutdown_required_subject="A Manual Shut Down Might be Required"
+                local shutdown_required_message="Domain(s): ${domain_shutdown_needed_list[@]}, are taking more than expected into shut down completely ($VM_WAIT_TIME secs). This step is mandatory before to put it into backup schedule. If no further notice about success of this is received into the next minutes, consider to examine the domain(s) and if necessary, perform a manual shut down (the final restart will be done automatically)."
+            fi
+
+            unraid_notify "warning" "VM-Babysitter" "$shutdown_required_subject" "$shutdown_required_message"
+        fi
+
+        if [[ -n ${domain_failed_list[@]} ]]; then
+
+            # check_backups found unexpected issues:
+            local backup_chain_issues_subject="Something went unexpectedly wrong when checking backup chain integrity"
+            local backup_chain_issues_message="Domain(s): ${domain_failed_list[@]} could not be put on backups schedule because something went unexpectedly wrong while checking backup integrity. Please check container logs, or $(basename $LOGFILE_PATH) for more information."
+
+            unraid_notify "warning" "VM-Babysitter" "$backup_chain_issues_subject" "$backup_chain_issues_message"
+        fi
+    fi
 }
 
+###############################################################################
+# Main execution:
 ###############################################################################
 
 # User variables defaults (details on README.md):
 #------------------------------------------------------------------------------
-
 BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-"@daily"}
 CHECK_BACKUPS_INTEGRITY=${CHECK_BACKUPS_INTEGRITY:-""}
 LOCAL_BACKUP_CHAINS_TO_KEEP=${LOCAL_BACKUP_CHAINS_TO_KEEP:-"1"}
@@ -763,9 +801,6 @@ external_vars="/tmp/vm-babysit-vars"
 # Export variables used by children processes:
 export external_vars
 
-# Main execution:
-###############################################################################
-
 # Redirect system stdout and stderr to $LOGFILE_PATH. Note this applies to all other commands and scripts run from this script:
 exec &> >(tee -a $LOGFILE_PATH)
 
@@ -783,7 +818,6 @@ fi
 # The most gracefully way to stop this container is with:
 # 'docker kill --signal=SIGTERM <docker-name-or-id>'
 trap 'stop_container' SIGTERM
-
 
 echo "############################################################################################################"
 echo "Container started at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
@@ -892,10 +926,6 @@ optional_crontab
         # because it could ignore SIGTERM from Docker, thus being killed with SIGKILL:
         sleep 1
 
-        # (Re)reads all external variables:
-        #------------------------------------------------------------------------------
-        source $external_vars
-
         if [[ -n ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
 
             # Check for VMs which are in need of shutdown.
@@ -916,16 +946,32 @@ optional_crontab
                     # Rebuild indexes into the array:
                     SHUTDOWN_REQUIRED_VMS_LIST=(${SHUTDOWN_REQUIRED_VMS_LIST[@]})
 
-                    [[ $(os_is_unraid) == true ]] && unraid_notify "normal" "VM-Babysitter" "Required shut down detected" "Resuming check/backup for $domain"
                 fi
+
+                # Increases the counter:
+                ((i++))
             done
+
+            if [[ $(os_is_unraid) == true ]]; then
+
+                if [[ -z $VM_ALLOW_POWERCYCLE ]]; then
+
+                    shutdown_performed_subject="Manual Powercycle of Domain(s) in Progress"
+                    shutdown_performed_message="Domain(s) ${CHECK_BACKUPS_LIST[@]} went shut off successfully by the user, and will be right back as soon as all checks has finished."
+
+                else
+                    shutdown_performed_subject="Automatic Powercycle of Domain(s) in Progress"
+                    shutdown_performed_message="Domain(s) ${CHECK_BACKUPS_LIST[@]} suddenly went shut off automatically, without user intervention. Will be right back as soon as checks has finished."
+                fi
+
+                unraid_notify "warning" "VM-Babysitter" "$shutdown_performed_subject" "$shutdown_performed_message"
+            fi
         fi
 
         if [[ -n ${DOMAINS_LIST[@]} || -n ${CHECK_BACKUPS_LIST[@]} ]]; then
 
             echo "============================================================================================================"
             echo -e "Changes detected at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))\n"
-
 
             # Check for virtual drives status on detected VMs:
             #------------------------------------------------------------------------------
@@ -940,7 +986,6 @@ optional_crontab
             if [[ -n ${POWERON_REQUIRED_VMS_LIST[@]} ]]; then
 
                 echo ""
-                i=0
                 for domain in ${POWERON_REQUIRED_VMS_LIST[@]}; do
 
                     if [[ $(domain_state $domain) != running ]]; then
@@ -951,15 +996,6 @@ optional_crontab
                         # Add any VM failed to start to FAILED_VMS_LIST:
                         [[ $? -ne 0 ]] && FAILED_VMS_LIST+=($domain)
                     fi
-
-                    # Remove the VM from the list is being read:
-                    unset POWERON_REQUIRED_VMS_LIST[$i]
-
-                    # Rebuild indexes into the array:
-                    POWERON_REQUIRED_VMS_LIST=(${POWERON_REQUIRED_VMS_LIST[@]})
-
-                    # Increases the counter:
-                    ((i++))
                 done
             fi
 
@@ -969,51 +1005,37 @@ optional_crontab
 
                 # Create new backup chains with backup script (on-demand mode):
                 vm-backup --create-new ${CREATE_BACKUP_CHAIN_LIST[@]}
-
-                # Reload external variables to gather changes on lists:
-                source $external_vars
             fi
 
             # Show a final summary and notify about user actions, if required:
             #------------------------------------------------------------------------------
             echo "============================================================================================================"
-            echo -e "Babysitter Global Summary:\n"
-            echo "Running fine, under scheduled backups: ${SCHEDULED_BACKUPS_LIST[@]:-"None"}"
-            echo "Misbehaving, failed during some check: ${FAILED_VMS_LIST[@]:-"None"}"
-            echo "Manual shut down is required to check: ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
+            echo -e "All changes ended to be processed at $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
+            echo -e "Changed Status Summary:"
 
+            # Good news goes first:
+            [[ -n ${DOMAINS_LIST[@]} ]] \
+                && { echo -e "\nSubmitted for check: ${#DOMAINS_LIST[@]}\n > ${DOMAINS_LIST[@]}"; unset DOMAINS_LIST; }
 
-            if [[ -n ${SCHEDULED_BACKUPS_LIST[@]} && -z ${SHUTDOWN_REQUIRED_VMS_LIST[@]} && -z ${FAILED_VMS_LIST[@]} ]]; then
+            [[ -n ${CHECK_BACKUPS_LIST[@]} ]] \
+                && { echo -e "\nPassed the initial check: ${#CHECK_BACKUPS_LIST[@]}\n > ${CHECK_BACKUPS_LIST[@]}"; unset CHECK_BACKUPS_LIST; }
 
-                echo ""
-                echo "All Virtual Machines Running Under Incremental Backups!"
+            [[ -n ${SCHEDULED_BACKUPS_LIST[@]} ]] \
+                && echo -e "\nPassed the backup check integrity: ${#SCHEDULED_BACKUPS_LIST[@]}\n > ${SCHEDULED_BACKUPS_LIST[@]}"
 
-            elif [[ -n ${SHUTDOWN_REQUIRED_VMS_LIST[@]} || -n ${FAILED_VMS_LIST[@]} ]]; then
+            [[ -n ${CREATE_BACKUP_CHAIN_LIST[@]} ]] \
+                && { echo -e "\nRequired new backup chains: ${#CREATE_BACKUP_CHAIN_LIST[@]}\n > ${CREATE_BACKUP_CHAIN_LIST[@]}"; unset CREATE_BACKUP_CHAIN_LIST; }
 
-                user_action_message="USER ACTION IS REQUIRED!"
+            # Then notify about other events (autostart, powercycle, etc.):
+            [[ -n ${POWERON_REQUIRED_VMS_LIST[@]} ]] \
+                && { echo -e "\nAuto-started or completed powercycle: ${POWERON_REQUIRED_VMS_LIST[@]}\n > ${POWERON_REQUIRED_VMS_LIST[@]}"; unset POWERON_REQUIRED_VMS_LIST; }
 
-                echo ""
-                echo $user_action_message
+            # Then notify about potential, or directly bad news:
+            [[ -n ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] \
+                && echo -e "\nPending shut down (auto or manual): ${#SHUTDOWN_REQUIRED_VMS_LIST[@]}\n > ${SHUTDOWN_REQUIRED_VMS_LIST[@]}"
 
-                if [[ -n ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]]; then
-
-                    shutdown_required_message="As env variable 'VM_ALLOW_POWERCYCLE' is not set, a manual Shut Down is required for VM(s): ${SHUTDOWN_REQUIRED_VMS_LIST[@]} 'As Soon As Possible'. This is required prior to perform backup integrity checks and cannot procced without that. Once shut down, the program will perform the checks and will restart involved VM(s) automatically."
-
-                    echo "WARNING: $shutdown_required_message"
-                    [[ $(os_is_unraid) == true ]] && unraid_notify "warning" "VM-Babysitter" "$user_action_message" "$shutdown_required_message"
-                fi
-
-                if [[ -n ${FAILED_VMS_LIST[@]} ]]; then
-
-                    failed_vms_message="Unexpected failure during check/backup operation involving VM(s): ${FAILED_VMS_LIST[@]}. Human attention is required 'As Soon As Possible' to solve the situation. Any scheduled backup or further alert for involved VM(s) is suspended until this container had been restarted. Check $(basename $LOGFILE_PATH) in this host for detailed logs."
-
-
-                    echo  "ERROR: $failed_vms_message"
-                    [[ $(os_is_unraid) == true ]] && unraid_notify "alert" "VM-Babysitter" "$user_action_message" "$failed_vms_message"
-                fi
-            fi
-
-            echo -e "\nAll changes ended to be processed at $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))\n"
+            [[ -n ${FAILED_VMS_LIST[@]} ]] \
+                && echo -e "\nFailed during checks: ${#FAILED_VMS_LIST[@]}\n > ${FAILED_VMS_LIST[@]}"
 
             # Export variables to be used on scheduled backups:
             #------------------------------------------------------------------------------
@@ -1034,12 +1056,7 @@ optional_crontab
         #------------------------------------------------------------------------------
     done
 
-else
-    # Initial checks have proven non-recoverable errors:
-    failed_initialize_message="Could not initialize due to errors! Check $(basename $LOGFILE_PATH) in this host for detailed logs."
-
-    echo "ERROR: $failed_initialize_message"
-    [[ $(os_is_unraid) == true ]] && unraid_notify "alert" "VM-Babysitter" "Failed to start container" "$failed_initialize_message"
-
-    stop_container
+    else
+        # Stop the container when check_variables ends with code 1:
+        stop_container
 fi
