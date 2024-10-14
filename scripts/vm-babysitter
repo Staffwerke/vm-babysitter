@@ -1000,7 +1000,7 @@ optional_crontab
                 ((i++))
             done
 
-            if [[ $(os_is_unraid) == true ]]; then
+            if [[ -n ${POWERON_REQUIRED_VMS_LIST[@]} ]]; then
 
                 if [[ -z $VM_ALLOW_POWERCYCLE ]]; then
 
@@ -1012,7 +1012,10 @@ optional_crontab
                     shutdown_performed_message="Domain(s) ${CHECK_BACKUPS_LIST[@]} suddenly went shut off automatically, without user intervention. Will be right back as soon as checks has finished."
                 fi
 
-                unraid_notify "warning" "VM-Babysitter" "$shutdown_performed_subject" "$shutdown_performed_message"
+                echo -e "\nNOTICE: $shutdown_performed_subject\n$shutdown_performed_message"
+
+                [[ $(os_is_unraid) == true ]] \
+                    && unraid_notify "warning" "VM-Babysitter" "$shutdown_performed_subject" "$shutdown_performed_message"
             fi
         fi
 
