@@ -176,7 +176,6 @@ check_variables()
 
         echo -e "ERROR: $vars_issues_subject\n$vars_issues_message\n"
 
-
         [[ $(os_is_unraid) == true ]] \
             && unraid_notify "alert" "VM-Babysitter" "$vars_issues_subject" "$vars_issues_message"
     fi
@@ -290,6 +289,24 @@ check_domains()
     # Appends successfully checked VMs marked for automatic start into the global list:
     POWERON_REQUIRED_VMS_LIST+=(${domain_autostart_list[@]})
 
+    # Export definitive results, so other scripts have updated lists (e.g. future re-scan schedule of previously failed VMs):
+    #------------------------------------------------------------------------------
+
+    # Reload the external variables file:
+    source $external_vars
+
+    # And Vms with issues to global FAILED_VMS_LIST:
+    FAILED_VMS_LIST+=(${VMS_TO_DISCARD_LIST[@]})
+
+    # Sed can't expand arrays correctly. Convert variables to be exported into strings.
+    # This will be reverted at next block iteration, by sourcing such external variables as arrays:
+    FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
+
+    # Export the variables:
+    sed -i \
+    -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
+    $external_vars
+
     if [[ -n ${domain_failed_list[@]} ]]; then
 
         echo -e "WARNING: Issues found with at least one disk image paths of VM(s): ${domain_failed_list[@]}, and therefore such VMs will be ignored. To solve this, take in mind that:\n - $(basename $0) cannot work with VMs without virtual disks (e.g. transient VMs)\n - Paths including virtual disks must be mounted equally at both host and container (e.g. '/mnt/user/vms:/mnt/user/vms')\n - If additional disks are under different paths, they must be mounted alike, in similar way as the above example\n - All paths and virtual disks must have read/write permissions\n"
@@ -300,7 +317,6 @@ check_domains()
             local vm_disks_issues_message="Domain(s): ${domain_failed_list[@]} could not be put on backups schedule because issues were found with at least one of the disk image paths. Please check container logs, or $(basename $LOGFILE_PATH) for more information."
 
             unraid_notify "warning" "VM-Babysitter" "$vm_disks_issues_subject" "$vm_disks_issues_message"
-
         fi
     fi
 }
@@ -728,7 +744,31 @@ check_backups()
     # Appends failed to shut down VMs to failed VMs list:
     VMS_TO_DISCARD_LIST+=(${domain_failed_list[@]})
 
+    # Export definitive results, so other scripts have updated lists (e.g. scheduled backups):
+    #------------------------------------------------------------------------------
+
+    # Reload the external variables file:
+    source $external_vars
+
+    # Add preserved backup chains to global SCHEDULED_BACKUPS_LIST:
+    SCHEDULED_BACKUPS_LIST+=(${BACKUPS_TO_SCHEDULE_LIST[@]})
+
+    # And Vms with issues to global FAILED_VMS_LIST:
+    FAILED_VMS_LIST+=(${VMS_TO_DISCARD_LIST[@]})
+
+    # Sed can't expand arrays correctly. Convert variables to be exported into strings.
+    # This will be reverted at next block iteration, by sourcing such external variables as arrays:
+    FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
+    SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
+
+    # Export the variables:
+    sed -i \
+    -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
+    -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
+    $external_vars
+
     if [[ $(os_is_unraid) == true ]]; then
+
 
         if [[ -n ${domain_shutdown_needed_list[@]} ]]; then
 
@@ -1021,7 +1061,7 @@ optional_crontab
                 && { echo -e "\nPassed the initial check: ${#CHECK_BACKUPS_LIST[@]}\n > ${CHECK_BACKUPS_LIST[@]}"; unset CHECK_BACKUPS_LIST; }
 
             [[ -n ${BACKUPS_TO_SCHEDULE_LIST[@]} ]] \
-                && echo -e "\nPassed the backup check integrity: ${#BACKUPS_TO_SCHEDULE_LIST[@]}\n > ${BACKUPS_TO_SCHEDULE_LIST[@]}"
+                && { echo -e "\nPassed the backup check integrity: ${#BACKUPS_TO_SCHEDULE_LIST[@]}\n > ${BACKUPS_TO_SCHEDULE_LIST[@]}"; unset BACKUPS_TO_SCHEDULE_LIST; }
 
             [[ -n ${CREATE_BACKUP_CHAIN_LIST[@]} ]] \
                 && { echo -e "\nRequired new backup chains: ${#CREATE_BACKUP_CHAIN_LIST[@]}\n > ${CREATE_BACKUP_CHAIN_LIST[@]}"; unset CREATE_BACKUP_CHAIN_LIST; }
@@ -1035,30 +1075,7 @@ optional_crontab
                 && echo -e "\nPending shut down (auto or manual): ${#SHUTDOWN_REQUIRED_VMS_LIST[@]}\n > ${SHUTDOWN_REQUIRED_VMS_LIST[@]}"
 
             [[ -n ${VMS_TO_DISCARD_LIST[@]} ]] \
-                && echo -e "\nFailed during checks: ${#VMS_TO_DISCARD_LIST[@]}\n > ${VMS_TO_DISCARD_LIST[@]}"
-
-            # Export variables to be used on scheduled backups:
-            #------------------------------------------------------------------------------
-
-            # Reload the external variables file:
-            source $external_vars
-
-            # Add preserved backup chains to global SCHEDULED_BACKUPS_LIST:
-            SCHEDULED_BACKUPS_LIST+=(${BACKUPS_TO_SCHEDULE_LIST[@]})
-
-            # And Vms with issues to global FAILED_VMS_LIST:
-            FAILED_VMS_LIST+=(${VMS_TO_DISCARD_LIST[@]})
-
-            # Sed can't expand arrays correctly. Convert variables to be exported into strings.
-            # This will be reverted at next block iteration, by sourcing such external variables as arrays:
-            FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
-            SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
-
-            # Export the variables:
-            sed -i \
-            -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
-            -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
-            $external_vars
+                && { echo -e "\nFailed during checks: ${#VMS_TO_DISCARD_LIST[@]}\n > ${VMS_TO_DISCARD_LIST[@]}"; unset VMS_TO_DISCARD_LIST; }
         fi
 
         # Restarts the loop, until SIGTERM or SIGKILL are received from Docker...
