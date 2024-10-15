@@ -196,7 +196,7 @@ create_domains_list()
     for domain in ${domains_all_list[@]}; do
 
         # When domain is not found at domains_ignored_list, add it DOMAINS_LIST:
-        [[ -z item_position $domain "domains_ignored_list" ]] && DOMAINS_LIST+=($domain)
+        [[ -z $(item_position $domain "domains_ignored_list") ]] && DOMAINS_LIST+=($domain)
 
     done
 }
@@ -249,7 +249,7 @@ check_domains()
                     echo "$domain: Insufficient filesystem permissions for disk image '$image'"
 
                 else
-                    "$domain: Found, and verified correct filesystem permissions for disk image '$image'"
+                    echo "$domain: Found, and verified correct filesystem permissions for disk image '$image'"
                 fi
             done
 
@@ -836,7 +836,7 @@ autostart_domains()
             # Put the VM into one of corresponding lists, according with if was previously shut down,
             # or was configures for autostart in VM_AUTOSTART_LIST:
             [[ -z $(item_position $domain "VM_AUTOSTART_LIST") ]] \
-                && powercycle_success_list+=($domain)
+                && powercycle_success_list+=($domain) \
                 || autostart_success_list+=($domain)
 
         else
@@ -1132,7 +1132,7 @@ optional_crontab
             #------------------------------------------------------------------------------
             [[ -n ${CREATE_BACKUP_CHAIN_LIST[@]} ]] && vm-backup --create-new ${CREATE_BACKUP_CHAIN_LIST[@]}
 
-            # Show a final summary and notify about user actions, if required:
+            # Show a summary of changes:
             #------------------------------------------------------------------------------
             echo "============================================================================================================"
             echo -e "All changes ended to be processed at $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
@@ -1153,15 +1153,26 @@ optional_crontab
 
             # Then notify about other events (autostart, powercycle, etc.):
             [[ -n ${POWERON_REQUIRED_VMS_LIST[@]} ]] \
-                && { echo -e "\nAuto-started or completed powercycle: ${POWERON_REQUIRED_VMS_LIST[@]}\n > ${POWERON_REQUIRED_VMS_LIST[@]}"; unset POWERON_REQUIRED_VMS_LIST; }
+                && { echo -e "\nAuto-started or completed powercycle: ${#POWERON_REQUIRED_VMS_LIST[@]}\n > ${POWERON_REQUIRED_VMS_LIST[@]}"; unset POWERON_REQUIRED_VMS_LIST; }
 
             # Then notify about potential, or directly bad news:
+
+            # SHUTDOWN_REQUIRED_VMS_LIST is the only array kept for future iterations, awaiting for auto or manual shutdown:
             [[ -n ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] \
-                # SHUTDOWN_REQUIRED_VMS_LIST is the only array kept for future iterations, awaiting for auto or manual shutdown:
                 && echo -e "\nPending shut down (auto or manual): ${#SHUTDOWN_REQUIRED_VMS_LIST[@]}\n > ${SHUTDOWN_REQUIRED_VMS_LIST[@]}"
 
             [[ -n ${VMS_TO_DISCARD_LIST[@]} ]] \
                 && { echo -e "\nFailed during checks: ${#VMS_TO_DISCARD_LIST[@]}\n > ${VMS_TO_DISCARD_LIST[@]}"; unset VMS_TO_DISCARD_LIST; }
+
+            # Reload the external variables file, and show a global summary:
+            #------------------------------------------------------------------------------
+            source $external_vars
+            echo ""
+            echo "============================================================================================================"
+            echo -e "Current Global Status:\n"
+            echo -e "Running under backups schedule: ${#SCHEDULED_BACKUPS_LIST[@]}\n > ${SCHEDULED_BACKUPS_LIST[@]:-"None"}\n"
+            echo -e "Failed during checks or backup: ${#FAILED_VMS_LIST[@]}\n > ${FAILED_VMS_LIST[@]:-"None"}\n"
+            echo ""
         fi
 
         # Restarts the loop, until SIGTERM or SIGKILL are received from Docker...
