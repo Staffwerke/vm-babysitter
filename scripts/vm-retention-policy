@@ -38,7 +38,7 @@ if [[ -n ${retention_list[@]} ]]; then
 
         if [[ -d $LOCAL_BACKUP_PATH/$domain && -n $(ls -A $LOCAL_BACKUP_PATH/$domain) ]]; then
 
-            echo "$domain: Checking backup lifecycle..."
+            echo "$domain: Checking backup chain lifecycle..."
 
             # Backup path exists and is not empty. Proceed with check:
             # Retention policy is set (at least, partially) by the user. Retrieve the number of existing checkpoints in the backup chain:
@@ -57,7 +57,7 @@ if [[ -n ${retention_list[@]} ]]; then
                     elif [[ $num_of_backup_checkpoints -ge $MAX_BACKUPS_PER_CHAIN ]]; then
 
                         end_of_lifecycle=true
-                        echo "$domain: Backup chain has reached the end of its lifecycle and must be archived ($num_of_backup_checkpoints of $MAX_BACKUPS_PER_CHAIN allowed checkpoints)"
+                        echo "$domain: Backup chain has reached the end of its lifecycle and must be rotated ($num_of_backup_checkpoints of $MAX_BACKUPS_PER_CHAIN allowed checkpoints)"
 
                     else
                         end_of_lifecycle=false
@@ -67,7 +67,7 @@ if [[ -n ${retention_list[@]} ]]; then
 
                 Forced) # No checks will be performed. Directly end its lifecycle
 
-                    echo "$domain: Backup chain has been forcibly set to end its lifecycle ($num_of_backup_checkpoints of $MAX_BACKUPS_PER_CHAIN allowed checkpoints)"
+                    echo "$domain: Backup chain has been forcibly set to end its lifecycle and must be rotated ($num_of_backup_checkpoints of $MAX_BACKUPS_PER_CHAIN allowed checkpoints)"
                     end_of_lifecycle=true
                 ;;
 
@@ -109,5 +109,5 @@ if [[ -n ${retention_list[@]} ]]; then
         && echo -e "\n$(basename $0): Finished\n"
 
 else
-    echo -e "No flags or VM(s) passed as arguments to check backup lifecycle or apply data retention policy\n"
+    echo -e "No flags and/or domain(s) passed as arguments to check backup lifecycle or apply data retention policy\n"
 fi

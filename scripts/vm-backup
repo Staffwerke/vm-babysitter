@@ -70,7 +70,7 @@ if [[ -n ${backups_list[@]} ]]; then
 
     # Notify via Unraid about the start of a scheduled process:
     [[ $(os_is_unraid) == true ]] \
-        && unraid_notify "normal" "VM-Babysitter" "$backup_action Backup" "In progress for ${backups_list[@]}. Avoid to stop/restart this container until further notice"
+        && unraid_notify "normal" "VM-Babysitter" "$backup_action Backup" "In progress for domain(s): ${backups_list[@]}. Avoid to stop/restart this container until further notice"
 
     for domain in ${backups_list[@]}; do
 
@@ -97,7 +97,7 @@ if [[ -n ${backups_list[@]} ]]; then
 
                 [[ $agent_is_connected ==  true ]] \
                     && echo "$domain: Success" \
-                    || echo "WARNING: Timed out awaiting for $domain's QEMU guest agent. Backup may not be concurrent (not installed onto guest OS?)"
+                    || echo "WARNING: Timed out awaiting for domain '$domain' QEMU guest agent. Backup may not be concurrent (not installed onto guest OS?)"
             fi
 
             # Perform the backup operation:
@@ -121,7 +121,7 @@ if [[ -n ${backups_list[@]} ]]; then
         else
             # Create a separated list of 'lost' VMs, and prompt about the unexpected error
             backup_skipped_list+=($domain)
-            echo "WARNING: There is no such VM '$domain' to backup"
+            echo "WARNING: There is no such domain '$domain' to backup"
         fi
     done
 
@@ -163,20 +163,20 @@ if [[ -n ${backups_list[@]} ]]; then
             # Reload SCHEDULED_BACKUPS_LIST and FAILED_VMS_LIST again, since other VMs could have been processed during this run:
             source $external_vars
 
-            for vm in ${backup_success_list[@]}; do
+            for domain in ${backup_success_list[@]}; do
 
                 # Add any successfully backed up VM into SCHEDULED_BACKUPS_LIST that is not currently present into this list:
-                [[ -z $(item_position $vm "SCHEDULED_BACKUPS_LIST") ]] && SCHEDULED_BACKUPS_LIST+=($vm)
+                [[ -z $(item_position $domain "SCHEDULED_BACKUPS_LIST") ]] && SCHEDULED_BACKUPS_LIST+=($domain)
             done
 
-            for vm in ${backup_failed_list[@]} ${backup_skipped_list[@]}; do
+            for domain in ${backup_failed_list[@]} ${backup_skipped_list[@]}; do
 
-                failed_vm_index=$(item_position $vm "SCHEDULED_BACKUPS_LIST")
+                failed_domain_index=$(item_position $domain "SCHEDULED_BACKUPS_LIST")
 
-                if [[ -n $failed_vm_index ]]; then
+                if [[ -n $failed_domain_index ]]; then
 
                     # Delete each failed or skipped VM found into SCHEDULED_BACKUPS_LIST:
-                    unset SCHEDULED_BACKUPS_LIST[$failed_vm_index]
+                    unset SCHEDULED_BACKUPS_LIST[$failed_domain_index]
 
                     # Rebuild the array upon each iteration:
                     SCHEDULED_BACKUPS_LIST=(${SCHEDULED_BACKUPS_LIST[@]})
@@ -221,13 +221,13 @@ if [[ -n ${backups_list[@]} ]]; then
 
                 else
                     [[ -n ${backup_skipped_list[@]} ]] \
-                        && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup" "Unable to find VM(s): ${backup_skipped_list[@]} and therefore removed from schedule (maybe deleted by the user?) "
+                        && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup" "Unable to find domain(s): ${backup_skipped_list[@]} and therefore removed from schedule (maybe deleted by the user?) "
 
                     [[ -n ${backup_failed_list[@]} ]] \
-                        && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup finished with errors" "Could not perform backup(s) for: ${backup_failed_list[@]}"
+                        && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup finished with errors" "Could not backup domain(s): ${backup_failed_list[@]}"
 
                     [[ -n ${rsync_failed_list[@]} ]] \
-                        && unraid_notify "warning" "VM-Babysitter" "$backup_action Rsync finished with errors" "Could not sync backup chain(s) of: ${rsync_failed_list[@]}"
+                        && unraid_notify "warning" "VM-Babysitter" "$backup_action Rsync finished with errors" "Could not sync backup of domain(s): ${rsync_failed_list[@]}"
                 fi
             fi
 
@@ -237,5 +237,5 @@ if [[ -n ${backups_list[@]} ]]; then
     esac
 
 else
-    echo -e "No Virtual machine(s) for $backup_action Backup to process\n"
+    echo -e "No domain(s) for $backup_action Backup to process\n"
 fi
