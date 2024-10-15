@@ -844,7 +844,7 @@ autostart_domains()
             # (Re)initialize used variables:
             start_exit_code=""
 
-            if [[ -z $(item_position $domain "powercycle_success_list") && -z $(item_position $domain "powercycle_failed_list")  ]]
+            if [[ -z $(item_position $domain "powercycle_success_list") && -z $(item_position $domain "powercycle_failed_list")  ]]; then
 
                 # VM has not been marked for powercycle, therefore is in VM_AUTOSTART_LIST only.
                 # Attempt to turn on the VM. Do not wait for Guest's QEMU agent:
