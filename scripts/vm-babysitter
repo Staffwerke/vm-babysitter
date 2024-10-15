@@ -909,7 +909,7 @@ autostart_domains()
     if [[ -n ${start_failed_list[@]} ]]; then
 
         failed_start_subject="Autostart or Powercycle of Domain(s) Failed"
-        failed_start_mesage="Something went wrong while performing autostart or powercycle of Domain(s): ${start_failed_list[@]}"
+        failed_start_mesage="Something went wrong while performing autostart or powercycle of domain(s): ${start_failed_list[@]}"
 
         echo -e "\nWARNING: $failed_start_subject\n$failed_start_mesage\n"
 
