@@ -778,6 +778,7 @@ item_position()
     done
 }
 
+# -----------------------------------------------------------------------------
 # Returns a formatted string that is the last modified date and time:
 # -----------------------------------------------------------------------------
 last_modified()
@@ -785,6 +786,14 @@ last_modified()
     echo $(date -r $1 "+%Y-%m-%d %H:%M:%S")
 }
 
+# -----------------------------------------------------------------------------
+# # Returns a listing all file extensions into a folder path, given as argumet.
+# Note that returns NULL for hidden, ending with '.' and no extension files:
+# -----------------------------------------------------------------------------
+list_extensions()
+{
+    find $1 -type f | sed -rn 's|.*/[^/]+\.([^/.]+)$|\1|p' | sort -u
+}
 # -----------------------------------------------------------------------------
 # Guess OS name by kernel, returning 'true' if OS is Unraid, and otherwise returning 'false'):
 # -----------------------------------------------------------------------------
