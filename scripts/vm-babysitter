@@ -360,7 +360,7 @@ check_backups()
             echo -e "\nNOTICE: Unraid OS detected. It seems the server was restarted recently, or this mihght be the first run of $(basename $0)\nBackup chain(s) need to be checked thoughtfully, assuming the possibility server could have crashed before to restart\nThis kind of check involves that domain(s) currently running need a controlled powercycle\n"
 
             [[ -z $VM_ALLOW_POWERCYCLE ]] \
-                && echo -e "\nTo prevent further need of user intervention under this scenario; proced with one of the following steps:\n - Either set env var VM_ALLOW_POWERCYCLE to 'Y' to allow $(basname $0) powercycle domains automatically\n - Or disable autostart of domains you intend to backup automatically, using env vars VM_AUTOSTART_LIST (and/or VM_IGNORED_LIST) instead\n" \
+                && echo -e "\nTo prevent further need of user intervention under this scenario; proced with one of the following steps:\n - Either set env var VM_ALLOW_POWERCYCLE to 'Y' to allow $(basename $0) powercycle domains automatically\n - Or disable autostart of domains you intend to backup automatically, using env vars VM_AUTOSTART_LIST (and/or VM_IGNORED_LIST) instead\n" \
                 || echo -e "\nVM_ALLOW_POWERCYCLE is set, $(basename $0) will perform a controlled powercycle of the running domain(s)...\n"
 
         else
