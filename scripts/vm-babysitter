@@ -176,7 +176,7 @@ check_variables()
         echo -e "\nERROR: $vars_issues_subject\n$vars_issues_message\n"
 
         [[ $(os_is_unraid) == true ]] \
-            && unraid_notify "alert" "VM-Babysitter" "$vars_issues_subject" "$vars_issues_message. Please check container logs, or $(basename $LOGFILE_PATH) for more information."
+            && unraid_notify "alert" "VM-Babysitter" "$vars_issues_subject" "$vars_issues_message$unraid_logcheck_message"
     fi
 
     return $variables_exit_code
@@ -317,7 +317,7 @@ check_domains()
             local vm_disks_issues_subject="Issues with disk image path(s)"
             local vm_disks_issues_message="Domain(s): ${domain_failed_list[@]} could not be put on backups schedule because issues were found with at least one of the disk image paths"
 
-            unraid_notify "warning" "VM-Babysitter" "$vm_disks_issues_subject" "$vm_disks_issues_message. Please check container logs, or $(basename $LOGFILE_PATH) for more information."
+            unraid_notify "warning" "VM-Babysitter" "$vm_disks_issues_subject" "$vm_disks_issues_message$unraid_logcheck_message"
         fi
     fi
 }
@@ -796,7 +796,7 @@ check_backups()
         echo -e "\nNOTICE: $shutdown_required_subject\n$shutdown_required_message\n"
 
         [[ $(os_is_unraid) == true ]] \
-            && unraid_notify "warning" "VM-Babysitter" "$shutdown_required_subject" "$shutdown_required_message. Please check container logs, or $(basename $LOGFILE_PATH) for more information."
+            && unraid_notify "warning" "VM-Babysitter" "$shutdown_required_subject" "$shutdown_required_message$unraid_logcheck_message"
     fi
 
     if [[ -n ${domain_failed_list[@]} ]]; then
@@ -808,7 +808,7 @@ check_backups()
         echo -e "\nWARNING: $backup_chain_issues_subject\n$backup_chain_issues_message\n"
 
         [[ $(os_is_unraid) == true ]] \
-            && unraid_notify "warning" "VM-Babysitter" "$backup_chain_issues_subject" "$backup_chain_issues_message. Please check container logs, or $(basename $LOGFILE_PATH) for more information."
+            && unraid_notify "warning" "VM-Babysitter" "$backup_chain_issues_subject" "$backup_chain_issues_message$unraid_logcheck_message"
     fi
 }
 
@@ -920,7 +920,7 @@ autostart_domains()
         echo -e "\nWARNING: $failed_start_subject\n$failed_start_mesage\n"
 
         [[ $(os_is_unraid) == true ]] \
-            && unraid_notify "warning" "VM-Babysitter" "$failed_start_subject" "$failed_start_mesage. Please check container logs, or $(basename $LOGFILE_PATH) for more information."
+            && unraid_notify "warning" "VM-Babysitter" "$failed_start_subject" "$failed_start_mesage$unraid_logcheck_message"
     fi
 }
 
@@ -978,6 +978,9 @@ if [[ -n $local_timezone_file ]]; then
     ln -fs $local_timezone_file /etc/localtime
     &> /dev/null dpkg-reconfigure -f noninteractive tzdata
 fi
+
+# This string is appended to some Unraid messages:
+unraid_logcheck_message=". Please check container logs, or $(basename $LOGFILE_PATH) for more information"
 
 # Catches the signal sent from docker to stop execution:
 # The most gracefully way to stop this container is with:
@@ -1041,11 +1044,13 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # Environment variables used by scheduled tasks:
 LOCAL_BACKUP_CHAINS_TO_KEEP="$LOCAL_BACKUP_CHAINS_TO_KEEP"
 LOCAL_BACKUP_PATH="$LOCAL_BACKUP_PATH"
+LOGFILE_PATH="$LOGFILE_PATH"
 MAX_BACKUPS_PER_CHAIN="$MAX_BACKUPS_PER_CHAIN"
 RSYNC_ARGS="$RSYNC_ARGS"
 RSYNC_BACKUP_CHAINS_TO_KEEP="$RSYNC_BACKUP_CHAINS_TO_KEEP"
 RSYNC_BACKUP_PATH="$RSYNC_BACKUP_PATH"
 RSYNC_SCHEDULE=$RSYNC_SCHEDULE
+SCHEDULE_LOGFILE_PATH="$SCHEDULE_LOGFILE_PATH"
 SSH_OPTIONS="$SSH_OPTIONS"
 UNRAID_NOTIFY_HOST="$UNRAID_NOTIFY_HOST"
 VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS"
