@@ -183,21 +183,21 @@ check_variables()
 }
 
 #------------------------------------------------------------------------------
-# Populates DOMAINS_LIST, filtering ignored, into process and failed  VMs:
+# Populates DOMAINS_LIST, filtering ignored, and already processed VMs:
 #------------------------------------------------------------------------------
 create_domains_list()
 {
+    # Reload the external variables file:
+    source $external_vars
+
     local domains_all_list=($(domains_list))
-    local domains_skipped_list=(${VM_IGNORED_LIST[@]} ${VMS_TO_DISCARD_LIST[@]} ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ${POWERON_REQUIRED_VMS_LIST[@]} ${CHECK_BACKUPS_LIST[@]} ${CREATE_BACKUP_CHAIN_LIST[@]} ${BACKUPS_TO_SCHEDULE_LIST[@]})
+    local domains_ignored_list=(${VM_IGNORED_LIST[@]} ${SCHEDULED_BACKUPS_LIST[@]} ${FAILED_VMS_LIST[@]})
 
     for domain in ${domains_all_list[@]}; do
 
-        for skipped in ${domains_skipped_list[@]}; do
+        # When domain is not found at domains_ignored_list, add it DOMAINS_LIST:
+        [[ -z item_position $domain "domains_ignored_list" ]] && DOMAINS_LIST+=($domain)
 
-            [[ $domain == $skipped ]] && continue 2
-        done
-
-        DOMAINS_LIST+=($domain)
     done
 }
 
