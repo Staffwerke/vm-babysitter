@@ -376,7 +376,11 @@ check_backups()
 
             # Set crashed_unraid_scenario flag and notify:
             crashed_unraid_scenario=true
-            echo -e "\nNOTICE: Unraid OS detected, no VM has QEMU checkpoints at all, and at least one VM which backup chain needs to be checked is running\nTo prevent the need of user intervention when Unraid comes from a server crash scenario you can, according with your needs, either:\n - Set VM_ALLOW_POWERCYCLE to 'Y', allowing to powercycle domains with issues into backup chains; or\n - Disable autostart of domains you intend to backup automatically, using VM_AUTOSTART_LIST (and/or VM_IGNORED_LIST) instead\n"
+            echo -e "\nNOTICE: Unraid OS detected. It seems the server was restarted recently, or this mihght be the first run of $(basename $0)\nBackup chain(s) need to be checked thoughtfully, assuming the possibility server could have crashed before to restart\nThis kind of check involves that domain(s) currently running need a controlled powercycle\n"
+
+            [[ -z $VM_ALLOW_POWERCYCLE ]] \
+                && echo -e "\nTo prevent further need of user intervention under this scenario; proced with one of the following steps:\n - Either set env var VM_ALLOW_POWERCYCLE to 'Y' to allow $(basname $0) powercycle domains automatically\n - Or disable autostart of domains you intend to backup automatically, using env vars VM_AUTOSTART_LIST (and/or VM_IGNORED_LIST) instead\n" \
+                || echo -e "\nVM_ALLOW_POWERCYCLE is set, $(basename $0) will perform a controlled powercycle of the running domain(s)...\n"
 
         else
             # No crashed_unraid_scenario to mind about:
