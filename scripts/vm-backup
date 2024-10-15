@@ -26,6 +26,9 @@ case $1 in
 
             # Populates the backups list from VMs passed as (remaining) arguments:
             backups_list=($@)
+
+            # This string is appended to some Unraid messages:
+            unraid_logcheck_message=". Please check container logs, or $(basename $LOGFILE_PATH) for more information"
     ;;
 
     --run-schedule)
@@ -40,6 +43,9 @@ case $1 in
 
         # Virtnbdbackup mode is set to 'auto':
         backup_mode="auto"
+
+        # This string is appended to some Unraid messages:
+        unraid_logcheck_message=". Please check container logs, or $(basename $SCHEDULE_LOGFILE_PATH) for more information"
 
         # On Scheduled mode, force '--no-color' for more clarity in log files:
         [[ -z $(grep -o -e "--nocolor" <<< "$VIRTNBDBACKUP_ARGS") ]] \
@@ -221,13 +227,13 @@ if [[ -n ${backups_list[@]} ]]; then
 
                 else
                     [[ -n ${backup_skipped_list[@]} ]] \
-                        && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup" "Unable to find domain(s): ${backup_skipped_list[@]} and therefore removed from schedule (maybe deleted by the user?) "
+                        && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup" "Unable to find domain(s): ${backup_skipped_list[@]} and therefore removed from schedule (maybe deleted by the user?)"
 
                     [[ -n ${backup_failed_list[@]} ]] \
-                        && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup finished with errors" "Could not backup domain(s): ${backup_failed_list[@]}"
+                        && unraid_notify "warning" "VM-Babysitter" "$backup_action Backup finished with errors" "Could not backup domain(s): ${backup_failed_list[@]}$unraid_logcheck_message"
 
                     [[ -n ${rsync_failed_list[@]} ]] \
-                        && unraid_notify "warning" "VM-Babysitter" "$backup_action Rsync finished with errors" "Could not sync backup of domain(s): ${rsync_failed_list[@]}"
+                        && unraid_notify "warning" "VM-Babysitter" "$backup_action Rsync finished with errors" "Could not sync backup of domain(s): ${rsync_failed_list[@]}$unraid_logcheck_message"
                 fi
             fi
 

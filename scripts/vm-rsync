@@ -21,6 +21,9 @@ case $1 in
         # Processes backups from SCHEDULED_BACKUPS_LIST:
         rsync_list=(${SCHEDULED_BACKUPS_LIST[@]})
 
+        # This string is appended to some Unraid messages:
+        unraid_logcheck_message=". Please check container logs, or $(basename $LOGFILE_PATH) for more information"
+
         # Display initial message to append at logfile:
         echo "############################################################################################################"
         echo "$rsync_action Rsync started at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
@@ -118,7 +121,7 @@ if [[ -n ${rsync_list[@]} ]]; then
                 # Notifies via Unraid about the results:
                 [[ -z ${rsync_failed[@]} ]] \
                     && unraid_notify "normal" "VM-Babysitter" "$rsync_action Rsync" "Success" \
-                    || unraid_notify "warning" "VM-Babysitter" "$rsync_action Rsync finished with errors" "Could not sync backup of domain(s):: ${rsync_failed[@]}"
+                    || unraid_notify "warning" "VM-Babysitter" "$rsync_action Rsync finished with errors" "Could not sync backup of domain(s): ${rsync_failed[@]}$unraid_logcheck_message"
             fi
 
             echo -e "\n$rsync_action Rsync ended at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))\n"
