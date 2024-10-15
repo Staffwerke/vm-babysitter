@@ -35,12 +35,13 @@ if [[ -n ${retention_list[@]} ]]; then
         [[ ${#retention_list[@]} -gt 1 ]] \
             && echo "____________________________________________________________________________________________________________"
 
-
-        if [[ -d $LOCAL_BACKUP_PATH/$domain && -n $(ls -A $LOCAL_BACKUP_PATH/$domain) ]]; then
+        if [[ -d $LOCAL_BACKUP_PATH/$domain \
+            && -n $(ls -A $LOCAL_BACKUP_PATH/$domain) \
+            && -n $(list_extensions $LOCAL_BACKUP_PATH/$domain | grep -iv log) ]]; then
 
             echo "$domain: Checking backup chain lifecycle..."
 
-            # Backup path exists and is not empty. Proceed with check:
+            # Backup path exists, is not empty and has something aside logs. Proceed with check:
             # Retention policy is set (at least, partially) by the user. Retrieve the number of existing checkpoints in the backup chain:
             num_of_backup_checkpoints=$(backup_checkpoints_list $LOCAL_BACKUP_PATH/$domain --num)
 

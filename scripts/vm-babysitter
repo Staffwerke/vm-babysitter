@@ -402,9 +402,11 @@ check_backups()
         # Stage 1: Check backup integrity:
         #------------------------------------------------------------------------------
 
-        # Discard non-existing, and empty folders:
+        # Discard non-existing, and empty, and early failed (with only logs) folders:
         #------------------------------------------------------------------------------
-        if [[ ! -d $LOCAL_BACKUP_PATH/$domain || -z $(ls -A $LOCAL_BACKUP_PATH/$domain) ]]; then
+        if [[ ! -d $LOCAL_BACKUP_PATH/$domain \
+            || -z $(ls -A $LOCAL_BACKUP_PATH/$domain) \
+            || -z $(list_extensions $LOCAL_BACKUP_PATH/$domain | grep -iv log) ]]; then
 
             backup_folder_integrity=false
             echo "$domain: Unexistent or empty backup chain folder '$LOCAL_BACKUP_PATH/$domain'"
