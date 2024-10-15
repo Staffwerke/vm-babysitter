@@ -806,14 +806,13 @@ autostart_domains()
     local i=0
 
     echo "____________________________________________________________________________________________________________"
-    echo -e "Starting domains..."
+    echo -e "Starting domains...\n"
 
     for domain in ${POWERON_REQUIRED_VMS_LIST[@]}; do
 
         # (Re)initialize used variables:
         start_exit_code=""
 
-        echo ""
         # Attempt to turn on the VM. Do not wait for Guest's QEMU agent:
         domain_start $domain --nowait
 
@@ -867,7 +866,7 @@ autostart_domains()
     fi
 
     # Add any VM failed to start to VMS_TO_DISCARD_LIST:
-    VMS_TO_DISCARD_LIST+=($domain)
+    VMS_TO_DISCARD_LIST+=(${start_failed_list[@]})
 
     # Export definitive results, so other scripts have updated lists (e.g. future re-scan schedule of previously failed VMs):
     #------------------------------------------------------------------------------
