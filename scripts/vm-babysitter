@@ -17,7 +17,7 @@ stop_container()
 
     # TODO: Terminate or kill background processes before to exit...
 
-    echo "Container Stopped."
+    echo -e "Container Stopped.\n"
     echo ""
     exit 0
 }
@@ -165,7 +165,6 @@ check_variables()
 
             # When all status variables passed the checks, return success:
             variables_exit_code=0
-
     else
         # check_variables has found non-recoverable errors.
         variables_exit_code=1
@@ -725,7 +724,7 @@ check_backups()
                         "") # No permissions to power cycle the VM are given (no shutdown was ever attempted):
                             # User action is required:
                             domain_shutdown_needed_list+=($domain)
-                            echo "WARNING: Manual shut down of domain '$domain' is required! (VM_ALLOW_POWERCYCLE is not set)"
+                            echo "WARNING: Manual shut down of domain '$domain' is required (VM_ALLOW_POWERCYCLE is not set)"
                         ;;
                     esac
                 ;;
@@ -780,12 +779,12 @@ check_backups()
 
             # check_backups encountered unraid_crashed_scenario:
             local shutdown_required_subject="Manual Shut Down is Required!"
-            local shutdown_required_message="Please power off the following domain(s): ${domain_shutdown_needed_list[@]}. This action is mandatory before to put it into backup schedule. Once performed, the final restart will be done automatically"
+            local shutdown_required_message="Please power off the following domain(s): ${domain_shutdown_needed_list[@]}. This action is mandatory before to put it into backup schedule. Once performed, powercycle will be completed automatically"
 
         else
             # check_backups gave up powering off vm(s):
             local shutdown_required_subject="A Manual Shut Down Might be Required"
-            local shutdown_required_message="Domain(s): ${domain_shutdown_needed_list[@]}, are taking more than expected into shut down completely ($VM_WAIT_TIME secs). This step is mandatory before to put it into backup schedule. If no further notice about success of this is received into the next minutes, consider to examine the domain(s) and if necessary, perform a manual shut down (the final restart will be done automatically)."
+            local shutdown_required_message="Domain(s): ${domain_shutdown_needed_list[@]}, are taking more than expected into shut down completely ($VM_WAIT_TIME secs). This step is mandatory before to put it into backup schedule. If no further notice about powercycle success is received into the next minutes, consider to examine the domain(s) and if necessary, perform a manual shut down (powercycle will be completed automatically)"
         fi
 
         echo -e "\nNOTICE: $shutdown_required_subject\n$shutdown_required_message\n"
@@ -876,10 +875,12 @@ autostart_domains()
     -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
     $external_vars
 
+    # Notify about events and/or errors, if any:
+    #------------------------------------------------------------------------------
     if [[ -n ${autostart_success_list[@]} ]]; then
 
         autostart_performed_subject="User Configured Autostart Completed"
-        autostart_performed_mesage="Domain(s) ${autostart_success_list[@]} started successfully."
+        autostart_performed_mesage="Domain(s): ${autostart_success_list[@]} started successfully"
 
         echo -e "\nNOTICE: $autostart_performed_subject\n$autostart_performed_mesage\n"
 
@@ -892,11 +893,11 @@ autostart_domains()
         if [[ -z $VM_ALLOW_POWERCYCLE ]]; then
 
             powercycle_performed_subject="Manual Powercycle of Domain(s) Completed"
-            powercycle_performed_mesage="Domain(s) ${powercycle_success_list[@]} went shut off by the user, and came back on successfully."
+            powercycle_performed_mesage="Domain(s): ${powercycle_success_list[@]} went shut off by the user, and came back on successfully"
 
         else
             powercycle_performed_subject="Automatic Powercycle of Domain(s) Completed"
-            powercycle_performed_mesage="Domain(s) ${powercycle_success_list[@]} went shut off without user intervention, and came back on successfully."
+            powercycle_performed_mesage="Domain(s): ${powercycle_success_list[@]} went shut off without user intervention, and came back on successfully"
         fi
 
         echo -e "\nNOTICE: $powercycle_performed_subject\n$powercycle_performed_mesage\n"
@@ -908,7 +909,7 @@ autostart_domains()
     if [[ -n ${start_failed_list[@]} ]]; then
 
         failed_start_subject="Autostart or Powercycle of Domain(s) Failed"
-        failed_start_mesage="Something went wrong while performing autostart or powercycle of Domain(s) ${start_failed_list[@]}."
+        failed_start_mesage="Something went wrong while performing autostart or powercycle of Domain(s): ${start_failed_list[@]}"
 
         echo -e "\nWARNING: $failed_start_subject\n$failed_start_mesage\n"
 
@@ -1075,7 +1076,7 @@ optional_crontab
     #------------------------------------------------------------------------------
     echo -e "Babysitter mode started...\n"
 
-    # Creates DOMAINS_LIST, a list of non-transient domains that aren't into any of the queues from past iterations:
+    # Creates DOMAINS_LIST, a list of non-transient domains that will start to be monitored, until fail:
     create_domains_list
 
     while true; do
