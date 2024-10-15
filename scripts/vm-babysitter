@@ -775,7 +775,7 @@ check_backups()
 
     if [[ -n ${domain_shutdown_needed_list[@]} ]]; then
 
-        if [[ -z $VM_ALLOW_POWERCYCLE == true ]]; then
+        if [[ -z $VM_ALLOW_POWERCYCLE ]]; then
 
             # check_backups encountered unraid_crashed_scenario:
             local shutdown_required_subject="Manual Shut Down is Required!"
