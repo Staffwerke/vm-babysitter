@@ -1151,44 +1151,35 @@ optional_crontab
             # Show a summary of changes:
             #------------------------------------------------------------------------------
             echo "============================================================================================================"
-            echo -e "All changes ended to be processed at $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
-            echo -e "Changed Status Summary:"
+            echo -e "Changed Status Summary:\n"
 
-            # Good news goes first:
-            [[ -n ${DOMAINS_LIST[@]} ]] \
-                && { echo -e "\nSubmitted for check: ${#DOMAINS_LIST[@]}\n > ${DOMAINS_LIST[@]}"; unset DOMAINS_LIST; }
+            echo -e   "${#DOMAINS_LIST[@]}"               "Found & submitted for check: ${DOMAINS_LIST[@]:-"None"}"
+            echo -e "\n${#CHECK_BACKUPS_LIST[@]}"         "Passed the filesystem check: ${CHECK_BACKUPS_LIST[@]:-"None"}"
+            echo -e "\n${#BACKUPS_TO_SCHEDULE_LIST[@]}"   "Sent into scheduled backups: ${BACKUPS_TO_SCHEDULE_LIST[@]:-"None"}"
+            echo -e "\n${#CREATE_BACKUP_CHAIN_LIST[@]}"   "Required a new backup chain: ${CREATE_BACKUP_CHAIN_LIST[@]:-"None"}"
+            echo -e "\n${#POWERON_REQUIRED_VMS_LIST[@]}"  "Auto-started or powercycled: ${POWERON_REQUIRED_VMS_LIST[@]:-"None"}\n"
 
-            [[ -n ${CHECK_BACKUPS_LIST[@]} ]] \
-                && { echo -e "\nPassed the initial check: ${#CHECK_BACKUPS_LIST[@]}\n > ${CHECK_BACKUPS_LIST[@]}"; unset CHECK_BACKUPS_LIST; }
+            echo -e "\n${#SHUTDOWN_REQUIRED_VMS_LIST[@]}" "Require auto/manual shutdown:  ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
+            echo -e "\n${#VMS_TO_DISCARD_LIST[@]}"        "Didn't pass a check or failed: ${VMS_TO_DISCARD_LIST[@]:-"None"}"
 
-            [[ -n ${BACKUPS_TO_SCHEDULE_LIST[@]} ]] \
-                && { echo -e "\nPassed the backup check integrity: ${#BACKUPS_TO_SCHEDULE_LIST[@]}\n > ${BACKUPS_TO_SCHEDULE_LIST[@]}"; unset BACKUPS_TO_SCHEDULE_LIST; }
-
-            [[ -n ${CREATE_BACKUP_CHAIN_LIST[@]} ]] \
-                && { echo -e "\nRequired new backup chains: ${#CREATE_BACKUP_CHAIN_LIST[@]}\n > ${CREATE_BACKUP_CHAIN_LIST[@]}"; unset CREATE_BACKUP_CHAIN_LIST; }
-
-            # Then notify about other events (autostart, powercycle, etc.):
-            [[ -n ${POWERON_REQUIRED_VMS_LIST[@]} ]] \
-                && { echo -e "\nAuto-started or completed powercycle: ${#POWERON_REQUIRED_VMS_LIST[@]}\n > ${POWERON_REQUIRED_VMS_LIST[@]}"; unset POWERON_REQUIRED_VMS_LIST; }
-
-            # Then notify about potential, or directly bad news:
-
-            # SHUTDOWN_REQUIRED_VMS_LIST is the only array kept for future iterations, awaiting for auto or manual shutdown:
-            [[ -n ${SHUTDOWN_REQUIRED_VMS_LIST[@]} ]] \
-                && echo -e "\nPending shut down (auto or manual): ${#SHUTDOWN_REQUIRED_VMS_LIST[@]}\n > ${SHUTDOWN_REQUIRED_VMS_LIST[@]}"
-
-            [[ -n ${VMS_TO_DISCARD_LIST[@]} ]] \
-                && { echo -e "\nFailed during checks: ${#VMS_TO_DISCARD_LIST[@]}\n > ${VMS_TO_DISCARD_LIST[@]}"; unset VMS_TO_DISCARD_LIST; }
+            # Unset variables that require a clean state for next iteration (SHUTDOWN_REQUIRED_VMS_LIST is kept, awaiting for results):
+            unset DOMAINS_LIST
+            unset CHECK_BACKUPS_LIST
+            unset BACKUPS_TO_SCHEDULE_LIST
+            unset CREATE_BACKUP_CHAIN_LIST
+            unset POWERON_REQUIRED_VMS_LIST
+            unset VMS_TO_DISCARD_LIST
 
             # Reload the external variables file, and show a global summary:
             #------------------------------------------------------------------------------
             source $external_vars
-            echo ""
             echo "============================================================================================================"
-            echo -e "Current Global Status:\n"
-            echo -e "Running under backups schedule: ${#SCHEDULED_BACKUPS_LIST[@]}\n > ${SCHEDULED_BACKUPS_LIST[@]:-"None"}\n"
-            echo -e "Failed during checks or backup: ${#FAILED_VMS_LIST[@]}\n > ${FAILED_VMS_LIST[@]:-"None"}\n"
-            echo ""
+            echo -e "Last Global Status (after changes):\n"
+            echo -e "${#SCHEDULED_BACKUPS_LIST[@]}"       "Running into scheduled backups: ${SCHEDULED_BACKUPS_LIST[@]:-"None"}"
+            echo -e "${#FAILED_VMS_LIST[@]}"              "Failed during checks or backup: ${FAILED_VMS_LIST[@]:-"None"}"
+
+            echo -e "\nAll changes ended to be processed at $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))\n"
+
         fi
 
         # Restarts the loop, until SIGTERM or SIGKILL are received from Docker...
