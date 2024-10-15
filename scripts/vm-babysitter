@@ -837,7 +837,7 @@ autostart_domains()
         ((i++))
     done
 
-    if [[ $AUTOSTART_COMPLETED != true ]]; then
+    if [[ $FIRST_AUTOSTART_COMPLETED != true ]]; then
 
         for domain in $VM_AUTOSTART_LIST; do
 
@@ -861,8 +861,9 @@ autostart_domains()
                 fi
             fi
         done
+
         # Ensure the automatic start of VMs is executed once per script run:
-        AUTOSTART_COMPLETED=true
+        FIRST_AUTOSTART_COMPLETED=true
     fi
 
     # Add any VM failed to start to VMS_TO_DISCARD_LIST:
@@ -1140,9 +1141,9 @@ optional_crontab
             #------------------------------------------------------------------------------
             [[ -n ${CHECK_BACKUPS_LIST[@]} ]] && check_backups
 
-            # Turns on all VMs that was, either declared in VM_AUTOSTART_LIST or previously shutdown for checks:
+            # Start all VMs that was, either declared in VM_AUTOSTART_LIST and have not started yet, or if any is in POWERON_REQUIRED_VMS_LIST:
             #------------------------------------------------------------------------------
-            [[ -n ${POWERON_REQUIRED_VMS_LIST[@]} ]] && autostart_domains
+            [[ -n ${POWERON_REQUIRED_VMS_LIST[@]} || $FIRST_AUTOSTART_COMPLETED != true ]] && autostart_domains
 
             # Create new backup chains for VMs that require it:
             #------------------------------------------------------------------------------
