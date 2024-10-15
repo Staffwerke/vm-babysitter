@@ -202,12 +202,10 @@ create_domains_list()
 }
 
 #------------------------------------------------------------------------------
-# Check for VMs in DOMAINS_LIST by verifying existence and read/write permissions of its virtual disks,
-# also marking VMs for automatic start, when required by the user:
+# Check for VMs in DOMAINS_LIST by verifying existence and read/write permissions of its virtual disks:
 #------------------------------------------------------------------------------
 check_domains()
 {
-    local domain_autostart_list=()
     local domain_success
     local domain_failed_list=()
     local domain_success_list=()
@@ -261,20 +259,6 @@ check_domains()
             else
                 # Check passed. Add into correspondent list:
                 domain_success_list+=($domain)
-
-                # Search for other remarks:
-                for autostart_vm in $VM_AUTOSTART_LIST; do
-
-                    if [[ $domain == $autostart_vm ]]; then
-
-                        # If the VM is in VM_AUTOSTART_LIST, requires to be started:
-                        domain_autostart_list+=($domain)
-                        echo "$domain: Scheduled for autostart (if not found running by then)"
-
-                        # And stop searching:
-                        break
-                    fi
-                done
             fi
         fi
     done
@@ -284,9 +268,6 @@ check_domains()
 
     # Appends VMs with unexistent, unreachable or virtual disks with permission issues:
     VMS_TO_DISCARD_LIST+=(${domain_failed_list[@]})
-
-    # Appends successfully checked VMs marked for automatic start into the global list:
-    POWERON_REQUIRED_VMS_LIST+=(${domain_autostart_list[@]})
 
     # Export definitive results, so other scripts have updated lists (e.g. future re-scan schedule of previously failed VMs):
     #------------------------------------------------------------------------------
@@ -813,7 +794,7 @@ check_backups()
 }
 
 #------------------------------------------------------------------------------
-# Checks POWERON_REQUIRED_VMS_LIST and VM_AUTOSTART_LIST, and attempts to start them.
+# Checks domains in POWERON_REQUIRED_VMS_LIST and VM_AUTOSTART_LIST, and attempts to start them.
 #------------------------------------------------------------------------------
 autostart_domains()
 {
@@ -833,23 +814,16 @@ autostart_domains()
         start_exit_code=""
 
         echo ""
-
-        # Attempt to turn on the VM, regardless its current state. Do not wait for Guest's QEMU agent:
+        # Attempt to turn on the VM. Do not wait for Guest's QEMU agent:
         domain_start $domain --nowait
 
         if [[ $start_exit_code -eq 0 ]]; then
 
-            # Put the VM into one of corresponding lists, according with if was previously shut down,
-            # or was configures for autostart in VM_AUTOSTART_LIST:
-            [[ -z $(item_position $domain "VM_AUTOSTART_LIST") ]] \
-                && powercycle_success_list+=($domain) \
-                || autostart_success_list+=($domain)
+            # Put VM into powercycle success list:
+            powercycle_success_list+=($domain)
 
         else
-            # Add any VM failed to start to VMS_TO_DISCARD_LIST:
-            VMS_TO_DISCARD_LIST+=($domain)
-
-            # Also, to the list to be displayed as soon the interation ends:
+            # Put VM into failed list:
             start_failed_list+=($domain)
 
             # Remove from POWERON_REQUIRED_VMS_LIST:
@@ -862,6 +836,37 @@ autostart_domains()
         # Increases the counter:
         ((i++))
     done
+
+    if [[ $AUTOSTART_COMPLETED != true ]]; then
+
+        for domain in $VM_AUTOSTART_LIST; do
+
+            # (Re)initialize used variables:
+            start_exit_code=""
+
+            if [[ -z $(item_position $domain "powercycle_success_list") && -z $(item_position $domain "powercycle_failed_list")  ]]
+
+                # VM has not been marked for powercycle, therefore is in VM_AUTOSTART_LIST only.
+                # Attempt to turn on the VM. Do not wait for Guest's QEMU agent:
+                domain_start $domain --nowait
+
+                if [[ $start_exit_code -eq 0 ]]; then
+
+                    # Put VM into autostart success list:
+                    autostart_success_list+=($domain)
+
+                else
+                    # Put VM into failed list:
+                    start_failed_list+=($domain)
+                fi
+            fi
+        done
+        # Ensure the automatic start of VMs is executed once per script run:
+        AUTOSTART_COMPLETED=true
+    fi
+
+    # Add any VM failed to start to VMS_TO_DISCARD_LIST:
+    VMS_TO_DISCARD_LIST+=($domain)
 
     # Export definitive results, so other scripts have updated lists (e.g. future re-scan schedule of previously failed VMs):
     #------------------------------------------------------------------------------
