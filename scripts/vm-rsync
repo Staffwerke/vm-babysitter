@@ -81,15 +81,15 @@ if [[ -n ${rsync_list[@]} ]]; then
 
             if [[ $rsync_exit_code -eq 0 ]]; then
 
-                rsync_success+=($domain)
+                rsync_success_list+=($domain)
                 echo "$domain: Backup synced successfully"
 
             else
-                rsync_failed+=($domain)
+                rsync_failed_list+=($domain)
                 echo "$domain: Failed to sync backup to $rsync_destination (Rsync exit code: $rsync_exit_code)"
             fi
         else
-            rsync_skipped+=($domain)
+            rsync_skipped_list+=($domain)
             echo "WARNING: There is no such backup '$rsync_source' to sync"
         fi
     done
@@ -103,7 +103,7 @@ if [[ -n ${rsync_list[@]} ]]; then
                 && echo -e "\n$(basename $0): Finished\n"
 
             # Only exits with rsync code when there was only one backup on the list and existed (not skipped):
-            [[ ${#rsync_list[@]} -eq 1 && -z ${rsync_skipped[@]} ]] \
+            [[ ${#rsync_list[@]} -eq 1 && -z ${rsync_skipped_list[@]} ]] \
                 && exit $rsync_exit_code
         ;;
 
@@ -112,16 +112,16 @@ if [[ -n ${rsync_list[@]} ]]; then
             # Displays a brief summary:
             echo "____________________________________________________________________________________________________________"
             echo -e "$rsync_action Rsync Summary:\n"
-            echo "Successful syncs: ${rsync_success[@]:-"None"}"
-            echo "Failed syncs:     ${rsync_failed[@]:-"None"}"
-            echo "Missing backups:  ${rsync_skipped[@]:-"None"}"
+            echo "Successful syncs: ${rsync_success_list[@]:-"None"}"
+            echo "Failed syncs:     ${rsync_failed_list[@]:-"None"}"
+            echo "Missing backups:  ${rsync_skipped_list[@]:-"None"}"
 
             if [[ $(os_is_unraid) == true ]]; then
 
                 # Notifies via Unraid about the results:
-                [[ -z ${rsync_failed[@]} ]] \
+                [[ -z ${rsync_failed_list[@]} ]] \
                     && unraid_notify "normal" "VM-Babysitter" "$rsync_action Rsync" "Success" \
-                    || unraid_notify "warning" "VM-Babysitter" "$rsync_action Rsync finished with errors" "Could not sync backup of domain(s): ${rsync_failed[@]}$unraid_logcheck_message"
+                    || unraid_notify "warning" "VM-Babysitter" "$rsync_action Rsync finished with errors" "Could not sync backup of domain(s): ${rsync_failed_list[@]}$unraid_logcheck_message"
             fi
 
             echo -e "\n$rsync_action Rsync ended at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))\n"
