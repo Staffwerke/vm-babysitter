@@ -1153,14 +1153,13 @@ optional_crontab
             echo "============================================================================================================"
             echo -e "Changed Status Summary:\n"
 
-            echo -e   "${#DOMAINS_LIST[@]}"               "Found & submitted for check: ${DOMAINS_LIST[@]:-"None"}"
-            echo -e "\n${#CHECK_BACKUPS_LIST[@]}"         "Passed the filesystem check: ${CHECK_BACKUPS_LIST[@]:-"None"}"
-            echo -e "\n${#BACKUPS_TO_SCHEDULE_LIST[@]}"   "Sent into scheduled backups: ${BACKUPS_TO_SCHEDULE_LIST[@]:-"None"}"
-            echo -e "\n${#CREATE_BACKUP_CHAIN_LIST[@]}"   "Required a new backup chain: ${CREATE_BACKUP_CHAIN_LIST[@]:-"None"}"
-            echo -e "\n${#POWERON_REQUIRED_VMS_LIST[@]}"  "Auto-started or powercycled: ${POWERON_REQUIRED_VMS_LIST[@]:-"None"}\n"
-
-            echo -e "\n${#SHUTDOWN_REQUIRED_VMS_LIST[@]}" "Require auto/manual shutdown:  ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
-            echo -e "\n${#VMS_TO_DISCARD_LIST[@]}"        "Didn't pass a check or failed: ${VMS_TO_DISCARD_LIST[@]:-"None"}"
+            echo -e "${#DOMAINS_LIST[@]}"               "Found & submitted for check: ${DOMAINS_LIST[@]:-"None"}"
+            echo -e "${#CHECK_BACKUPS_LIST[@]}"         "Passed the filesystem check: ${CHECK_BACKUPS_LIST[@]:-"None"}"
+            echo -e "${#BACKUPS_TO_SCHEDULE_LIST[@]}"   "Sent into scheduled backups: ${BACKUPS_TO_SCHEDULE_LIST[@]:-"None"}"
+            echo -e "${#CREATE_BACKUP_CHAIN_LIST[@]}"   "Required a new backup chain: ${CREATE_BACKUP_CHAIN_LIST[@]:-"None"}"
+            echo -e "${#POWERON_REQUIRED_VMS_LIST[@]}"  "Auto-started or powercycled: ${POWERON_REQUIRED_VMS_LIST[@]:-"None"}"
+            echo -e "${#SHUTDOWN_REQUIRED_VMS_LIST[@]}" "Require auto/manual shutdown:  ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
+            echo -e "${#VMS_TO_DISCARD_LIST[@]}"        "Didn't pass a check or failed: ${VMS_TO_DISCARD_LIST[@]:-"None"}"
 
             # Unset variables that require a clean state for next iteration (SHUTDOWN_REQUIRED_VMS_LIST is kept, awaiting for results):
             unset DOMAINS_LIST
