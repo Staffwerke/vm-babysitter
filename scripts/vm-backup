@@ -28,7 +28,7 @@ case $1 in
             backups_list=($@)
 
             # This string is appended to some Unraid messages:
-            unraid_logcheck_message=". Please check container logs, or $(basename $LOGFILE_PATH) for more information"
+            unraid_logcheck_message=". Check container logs, or $(basename $LOGFILE_PATH) for details."
     ;;
 
     --run-schedule)
@@ -45,7 +45,7 @@ case $1 in
         backup_mode="auto"
 
         # This string is appended to some Unraid messages:
-        unraid_logcheck_message=". Please check container logs, or $(basename $SCHEDULE_LOGFILE_PATH) for more information"
+        unraid_logcheck_message=". Check $(basename $SCHEDULE_LOGFILE_PATH) for details."
 
         # On Scheduled mode, force '--no-color' for more clarity in log files:
         [[ -z $(grep -o -e "--nocolor" <<< "$VIRTNBDBACKUP_ARGS") ]] \

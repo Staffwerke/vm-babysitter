@@ -987,7 +987,7 @@ if [[ -n $local_timezone_file ]]; then
 fi
 
 # This string is appended to some Unraid messages:
-unraid_logcheck_message=". Please check container logs, or $(basename $LOGFILE_PATH) for more information"
+unraid_logcheck_message=". Check container logs, or $(basename $LOGFILE_PATH) for details."
 
 # Catches the signal sent from docker to stop execution:
 # The most gracefully way to stop this container is with:
@@ -1163,7 +1163,7 @@ optional_crontab
             echo -e "Directly sent to scheduled backups:   ${BACKUPS_TO_SCHEDULE_LIST[@]:-"None"}"
             echo -e "Required a new backup chain:          ${CREATE_BACKUP_CHAIN_LIST[@]:-"None"}"
             echo -e "Awaiting auto or manual shut down:    ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
-            echo -e "Failed any check or unexpectedly:     ${VMS_TO_DISCARD_LIST[@]:-"None"}\n"
+            echo -e "Failed any check or unexpectedly:     ${VMS_TO_DISCARD_LIST[@]:-"None"}"
             echo -e "\nGlobal Status (after changes):"
             echo -e "Total running into scheduled backups: ${SCHEDULED_BACKUPS_LIST[@]:-"None"}"
             echo -e "Total failed during checks or backup: ${FAILED_VMS_LIST[@]:-"None"}"

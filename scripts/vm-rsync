@@ -22,7 +22,7 @@ case $1 in
         rsync_list=(${SCHEDULED_BACKUPS_LIST[@]})
 
         # This string is appended to some Unraid messages:
-        unraid_logcheck_message=". Please check container logs, or $(basename $LOGFILE_PATH) for more information"
+        unraid_logcheck_message=". Check $(basename $SCHEDULE_LOGFILE_PATH) for details."
 
         # Display initial message to append at logfile:
         echo "############################################################################################################"
