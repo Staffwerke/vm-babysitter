@@ -291,7 +291,7 @@ check_domains()
     #------------------------------------------------------------------------------
     if [[ -n ${domain_failed_list[@]} ]]; then
 
-        echo -e "WARNING: Issues found with at least one disk image paths of VM(s): ${domain_failed_list[@]}, and therefore such VMs will be ignored. To solve this, take in mind that:\n - $(basename $0) cannot work with VMs without virtual disks (e.g. transient VMs)\n - Paths including virtual disks must be mounted equally at both host and container (e.g. '/mnt/user/vms:/mnt/user/vms')\n - If additional disks are under different paths, they must be mounted alike, in similar way as the above example\n - All paths and virtual disks must have read/write permissions\n"
+        echo -e "\nWARNING: Issues found with at least one disk image paths of VM(s): ${domain_failed_list[@]}, and therefore will be ignored. To solve this, take in mind that:\n - $(basename $0) cannot work with domains without virtual disks (e.g. transient machines)\n - Paths including virtual disks must be mounted equally at both host and container (e.g. '/mnt/user/vms:/mnt/user/vms')\n - If additional disks are under different paths, they must be mounted alike, in similar way as the above example\n - All paths and virtual disks must have both read and write permissions\n"
 
         if [[ $(os_is_unraid) == true ]]; then
 
@@ -357,10 +357,10 @@ check_backups()
 
             # Set crashed_unraid_scenario flag and notify:
             crashed_unraid_scenario=true
-            echo -e "\nNOTICE: It seems this Unraid server has either been restarted recently, or this is the 1st run of $(basename $0). Assuming the possible scenario of a server booted after a crash; all backup chains need to be checked in detail, and running domains (except listed in env var VM_IGNORED_LIST) will require a controlled powercycle, in order to check and fix any issue found into the backup chain."
+            echo -e "\nNOTICE: This Unraid server has either been restarted recently, or this $(basename $0)'s 1st run.\n\nAssuming the possibility of this server might have crashed before, all backup chains need to be checked in detail. All running domains (except listed in env var VM_IGNORED_LIST) will require a controlled powercycle, in order to check and fix any issue found into the backup chain. Please refer to documentation for more detailed explanation."
 
             [[ -z $VM_ALLOW_POWERCYCLE ]] \
-                && echo -e "\nEnv var VM_ALLOW_POWERCYCLE is not set. To prevent the need of user intervention under this (undesirable) scenario in the future; proceed with one of the following solutions:\n - Either set env var VM_ALLOW_POWERCYCLE and allow $(basename $0) powercycle domains automatically (and thus fix the issue)\n - Or disable autostart of domains intended to be backed up automatically on Unraid 'VMS' section, and use env vars VM_AUTOSTART_LIST (and VM_IGNORED_LIST) instead" \
+                && echo -e "\nEnv var VM_ALLOW_POWERCYCLE is not set\nTo prevent the need of user intervention under this scenario in the future, proceed with one of the following solutions:\n - Set env var VM_ALLOW_POWERCYCLE and allow $(basename $0) powercycle domains automatically\n - Or disable autostart of domains intended to be backed up, and use env vars VM_AUTOSTART_LIST and VM_IGNORED_LIST instead" \
                 || echo -e "\nEnv var VM_ALLOW_POWERCYCLE is set, $(basename $0) will perform a controlled powercycle of the running domain(s)..."
 
         else
