@@ -212,7 +212,7 @@ check_domains()
     local vm_has_issues
 
     echo "____________________________________________________________________________________________________________"
-    echo -e "Checking access to virtual disks (and other remarks)..."
+    echo -e "Checking fileystem permissions for virtual disks..."
 
     for domain in ${DOMAINS_LIST[@]}; do
 
@@ -247,7 +247,7 @@ check_domains()
                     echo "$domain: Insufficient filesystem permissions for disk image '$image'"
 
                 else
-                    echo "$domain: Found, and verified correct filesystem permissions for disk image '$image'"
+                    echo "$domain: Disk image '$image' found, and verified correct filesystem permissions"
                 fi
             done
 
@@ -357,11 +357,11 @@ check_backups()
 
             # Set crashed_unraid_scenario flag and notify:
             crashed_unraid_scenario=true
-            echo -e "\nNOTICE: Unraid OS detected. It seems the server was restarted recently, or this mihght be the first run of $(basename $0)\nBackup chain(s) need to be checked thoughtfully, assuming the possibility server could have crashed before to restart\nThis kind of check involves that domain(s) currently running need a controlled powercycle\n"
+            echo -e "\nNOTICE: It seems this Unraid server has either been restarted recently, or this is the 1st run of $(basename $0). Assuming the possible scenario of a server booted after a crash; all backup chains need to be checked in detail, and running domains (except listed in env var VM_IGNORED_LIST) will require a controlled powercycle, in order to check and fix any issue found into the backup chain."
 
             [[ -z $VM_ALLOW_POWERCYCLE ]] \
-                && echo -e "\nTo prevent further need of user intervention under this scenario; proced with one of the following steps:\n - Either set env var VM_ALLOW_POWERCYCLE to 'Y' to allow $(basename $0) powercycle domains automatically\n - Or disable autostart of domains you intend to backup automatically, using env vars VM_AUTOSTART_LIST (and/or VM_IGNORED_LIST) instead\n" \
-                || echo -e "\nVM_ALLOW_POWERCYCLE is set, $(basename $0) will perform a controlled powercycle of the running domain(s)...\n"
+                && echo -e "\nEnv var VM_ALLOW_POWERCYCLE is not set. To prevent the need of user intervention under this (undesirable) scenario in the future; proceed with one of the following solutions:\n - Either set env var VM_ALLOW_POWERCYCLE and allow $(basename $0) powercycle domains automatically (and thus fix the issue)\n - Or disable autostart of domains intended to be backed up automatically on Unraid 'VMS' section, and use env vars VM_AUTOSTART_LIST (and VM_IGNORED_LIST) instead" \
+                || echo -e "\nEnv var VM_ALLOW_POWERCYCLE is set, $(basename $0) will perform a controlled powercycle of the running domain(s)..."
 
         else
             # No crashed_unraid_scenario to mind about:
@@ -705,13 +705,13 @@ check_backups()
                             # This VM may either have issues, or just taking too long into shut down.
                             # User action is required (but may also shut down itself eventually):
                             domain_shutdown_needed_list+=($domain)
-                            echo "WARNING: Shut down of domain '$domain' didn't complete after $VM_WAIT_TIME seconds. If this does not occur eventually, user manual intervention is going to be required"
+                            echo "$domain: Automatic shut down didn't complete after $VM_WAIT_TIME seconds. If this does not occur eventually, user manual intervention might be required"
                         ;;
 
                         "") # No permissions to power cycle the VM are given (no shutdown was ever attempted):
                             # User action is required:
                             domain_shutdown_needed_list+=($domain)
-                            echo "WARNING: Manual shut down of domain '$domain' is required (VM_ALLOW_POWERCYCLE is not set)"
+                            echo "$domain: Manual shut down is required (VM_ALLOW_POWERCYCLE is not set)"
                         ;;
                     esac
                 ;;
@@ -774,7 +774,7 @@ check_backups()
             local shutdown_required_message="Domain(s): ${domain_shutdown_needed_list[@]}, are taking more than expected into shut down completely ($VM_WAIT_TIME secs). This step is mandatory before to put it into backup schedule. If no further notice about powercycle success is received into the next minutes, consider to examine the domain(s) and if necessary, perform a manual shut down (powercycle will be completed automatically)"
         fi
 
-        echo -e "\nNOTICE: $shutdown_required_subject\n$shutdown_required_message\n"
+        echo -e "\nWARNING: $shutdown_required_subject $shutdown_required_message\n"
 
         [[ $(os_is_unraid) == true ]] \
             && unraid_notify "warning" "VM-Babysitter" "$shutdown_required_subject" "$shutdown_required_message$unraid_logcheck_message"
@@ -783,10 +783,10 @@ check_backups()
     if [[ -n ${domain_failed_list[@]} ]]; then
 
         # check_backups found unexpected issues:
-        local backup_chain_issues_subject="Something went unexpectedly wrong when checking backup chain integrity"
+        local backup_chain_issues_subject="Something went unexpectedly wrong when checking backup chain integrity!"
         local backup_chain_issues_message="Domain(s): ${domain_failed_list[@]} could not be put on backups schedule because something went unexpectedly wrong while checking backup integrity"
 
-        echo -e "\nWARNING: $backup_chain_issues_subject\n$backup_chain_issues_message\n"
+        echo -e "\nWARNING: $backup_chain_issues_subject $backup_chain_issues_message\n"
 
         [[ $(os_is_unraid) == true ]] \
             && unraid_notify "warning" "VM-Babysitter" "$backup_chain_issues_subject" "$backup_chain_issues_message$unraid_logcheck_message"
@@ -843,9 +843,11 @@ autostart_domains()
             # (Re)initialize used variables:
             start_exit_code=""
 
-            if [[ -z $(item_position $domain "powercycle_success_list") && -z $(item_position $domain "powercycle_failed_list")  ]]; then
+            if [[ -z $(item_position $domain "powercycle_success_list") \
+                && -z $(item_position $domain "powercycle_failed_list") \
+                && $(domain_state $domain) != "running" ]]; then
 
-                # VM has not been marked for powercycle, therefore is in VM_AUTOSTART_LIST only.
+                # VM is in VM_AUTOSTART_LIST, has not been marked for powercycle, and is not running.
                 # Attempt to turn on the VM. Do not wait for Guest's QEMU agent:
                 domain_start $domain --nowait
 
@@ -1148,18 +1150,23 @@ optional_crontab
             #------------------------------------------------------------------------------
             [[ -n ${CREATE_BACKUP_CHAIN_LIST[@]} ]] && vm-backup --create-new ${CREATE_BACKUP_CHAIN_LIST[@]}
 
-            # Show a summary of changes:
+            # Reload the external variables file
+            source $external_vars
+
+            # Show a summary of changes and global status:
             #------------------------------------------------------------------------------
             echo "============================================================================================================"
-            echo -e "Changed Status Summary:\n"
-
-            echo -e "${#DOMAINS_LIST[@]}"               "Found & submitted for check: ${DOMAINS_LIST[@]:-"None"}"
-            echo -e "${#CHECK_BACKUPS_LIST[@]}"         "Passed the filesystem check: ${CHECK_BACKUPS_LIST[@]:-"None"}"
-            echo -e "${#BACKUPS_TO_SCHEDULE_LIST[@]}"   "Sent into scheduled backups: ${BACKUPS_TO_SCHEDULE_LIST[@]:-"None"}"
-            echo -e "${#CREATE_BACKUP_CHAIN_LIST[@]}"   "Required a new backup chain: ${CREATE_BACKUP_CHAIN_LIST[@]:-"None"}"
-            echo -e "${#POWERON_REQUIRED_VMS_LIST[@]}"  "Auto-started or powercycled: ${POWERON_REQUIRED_VMS_LIST[@]:-"None"}"
-            echo -e "${#SHUTDOWN_REQUIRED_VMS_LIST[@]}" "Require auto/manual shutdown:  ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
-            echo -e "${#VMS_TO_DISCARD_LIST[@]}"        "Didn't pass a check or failed: ${VMS_TO_DISCARD_LIST[@]:-"None"}"
+            echo -e "Changed Status Summary:"
+            echo -e "Detected & submitted for check:       ${DOMAINS_LIST[@]:-"None"}"
+            echo -e "Submitted for backup integrity check: ${CHECK_BACKUPS_LIST[@]:-"None"}"
+            echo -e "Auto-started / powercycled:           ${POWERON_REQUIRED_VMS_LIST[@]:-"None"}"
+            echo -e "Directly sent to scheduled backups:   ${BACKUPS_TO_SCHEDULE_LIST[@]:-"None"}"
+            echo -e "Required a new backup chain:          ${CREATE_BACKUP_CHAIN_LIST[@]:-"None"}"
+            echo -e "Awaiting auto or manual shut down:    ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
+            echo -e "Failed any check or unexpectedly:     ${VMS_TO_DISCARD_LIST[@]:-"None"}\n"
+            echo -e "\nGlobal Status (after changes):"
+            echo -e "Total running into scheduled backups: ${SCHEDULED_BACKUPS_LIST[@]:-"None"}"
+            echo -e "Total failed during checks or backup: ${FAILED_VMS_LIST[@]:-"None"}"
 
             # Unset variables that require a clean state for next iteration (SHUTDOWN_REQUIRED_VMS_LIST is kept, awaiting for results):
             unset DOMAINS_LIST
@@ -1169,16 +1176,7 @@ optional_crontab
             unset POWERON_REQUIRED_VMS_LIST
             unset VMS_TO_DISCARD_LIST
 
-            # Reload the external variables file, and show a global summary:
-            #------------------------------------------------------------------------------
-            source $external_vars
-            echo "============================================================================================================"
-            echo -e "Last Global Status (after changes):\n"
-            echo -e "${#SCHEDULED_BACKUPS_LIST[@]}"       "Running into scheduled backups: ${SCHEDULED_BACKUPS_LIST[@]:-"None"}"
-            echo -e "${#FAILED_VMS_LIST[@]}"              "Failed during checks or backup: ${FAILED_VMS_LIST[@]:-"None"}"
-
             echo -e "\nAll changes ended to be processed at $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))\n"
-
         fi
 
         # Restarts the loop, until SIGTERM or SIGKILL are received from Docker...
