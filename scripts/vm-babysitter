@@ -13,11 +13,11 @@ source /usr/local/bin/vm-functions
 stop_container()
 {
     echo "############################################################################################################"
-    echo "SIGTERM signal received at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
+    echo "$(basename $0) received SIGTERM signal at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
 
     # TODO: Terminate or kill background processes before to exit...
 
-    echo -e "Container Stopped.\n"
+    echo -e "Stopped.\n"
     echo ""
     exit 0
 }
@@ -47,7 +47,7 @@ check_variables()
 
     else
         # Invalid value:
-        echo "ERROR: Incorrect value for MAX_BACKUPS_PER_CHAIN: '$MAX_BACKUPS_PER_CHAIN' <- It must be a natural integer >= 0"
+        echo "ERROR: Incorrect value for MAX_BACKUPS_PER_CHAIN: '$MAX_BACKUPS_PER_CHAIN'. It must be a natural integer >= 0"
     fi
 
     # Check LOCAL_BACKUP_PATH:
@@ -69,7 +69,7 @@ check_variables()
 
             else
                 # Invalid value:
-                echo "ERROR: Incorrect value for LOCAL_BACKUP_CHAINS_TO_KEEP: '$LOCAL_BACKUP_CHAINS_TO_KEEP' <- It must be a natural integer >= 0"
+                echo "ERROR: Incorrect value for LOCAL_BACKUP_CHAINS_TO_KEEP: '$LOCAL_BACKUP_CHAINS_TO_KEEP'. It must be a natural integer >= 0"
             fi
 
         else
@@ -77,7 +77,7 @@ check_variables()
         fi
 
     else
-        echo "ERROR: LOCAL_BACKUP_PATH: '$LOCAL_BACKUP_PATH'  <- Path was not found inside the container. Ensure you mount this correctly (e.g. '-v /mnt/user/backups/vm-backups:/backups:rw')"
+        echo "ERROR: LOCAL_BACKUP_PATH: '$LOCAL_BACKUP_PATH' <- Path not found inside the container. Ensure to mount this correctly (e.g. '-v /mnt/user/backups/vm-backups:/backups:rw')"
     fi
 
     # Check RSYNC_BACKUP_PATH:
@@ -99,14 +99,14 @@ check_variables()
 
                     # RSYNC_BACKUP_PATH has read/write permissions:
                     rsync_backup_path_exists=true
-                    echo "RSYNC_BACKUP_PATH is local, and set to: $RSYNC_BACKUP_PATH"
+                    echo "RSYNC_BACKUP_PATH is a local endpoint, and set to: $RSYNC_BACKUP_PATH"
 
                 else
-                    echo "ERROR: RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH' <- Insufficient filesystem permissions to work into this path"
+                    echo "ERROR: RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH'. Insufficient filesystem permissions to work into this path"
                 fi
 
             else
-                echo "ERROR: RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH'  <- Path was not found inside the container. Ensure you mount this correctly (e.g. '-v /mnt/remotes/hostname/vm-backups-mirror:/backups-mirror:rw')"
+                echo "ERROR: RSYNC_BACKUP_PATH: '$RSYNC_BACKUP_PATH'. Path not found inside the container. Ensure to mount this correctly (e.g. '-v /mnt/remotes/hostname/vm-backups-mirror:/backups-mirror:rw')"
             fi
         ;;
 
@@ -129,10 +129,10 @@ check_variables()
 
                     # Mark as found (also notifiy if it was created):
                     rsync_backup_path_exists=true
-                    echo "RSYNC_BACKUP_PATH is remote, was $remote_backup_path_status and set to: $RSYNC_BACKUP_PATH"
+                    echo "RSYNC_BACKUP_PATH is a remote endpoint, was $remote_backup_path_status and set to: $RSYNC_BACKUP_PATH"
 
                 else
-                    echo "ERROR: Remote RSYNC_BACKUP_PATH '$RSYNC_BACKUP_PATH' <- Insufficient filesystem permissions to create or work into this path, or is not a directory"
+                    echo "ERROR: Remote RSYNC_BACKUP_PATH '$RSYNC_BACKUP_PATH'. Insufficient filesystem permissions to create or work into this path, or is not a directory"
                 fi
 
             else
@@ -155,7 +155,7 @@ check_variables()
             echo "RSYNC_BACKUP_CHAINS_TO_KEEP set to: $RSYNC_BACKUP_CHAINS_TO_KEEP"
 
         else
-            echo "ERROR: Incorrect value RSYNC_BACKUP_CHAINS_TO_KEEP: '$RSYNC_BACKUP_CHAINS_TO_KEEP' <- It must be a natural integer >= 0"
+            echo "ERROR: Incorrect value RSYNC_BACKUP_CHAINS_TO_KEEP: '$RSYNC_BACKUP_CHAINS_TO_KEEP'. It must be a natural integer >= 0"
         fi
     fi
 
@@ -247,7 +247,7 @@ check_domains()
                     echo "$domain: Insufficient filesystem permissions for disk image '$image'"
 
                 else
-                    echo "$domain: Disk image '$image' found, and verified correct filesystem permissions"
+                    echo "$domain: Disk image $image found, and verified correct filesystem permissions"
                 fi
             done
 
@@ -291,12 +291,12 @@ check_domains()
     #------------------------------------------------------------------------------
     if [[ -n ${domain_failed_list[@]} ]]; then
 
-        echo -e "\nWARNING: Issues found with at least one disk image paths of VM(s): ${domain_failed_list[@]}, and therefore will be ignored. To solve this, take in mind that:\n - $(basename $0) cannot work with domains without virtual disks (e.g. transient machines)\n - Paths including virtual disks must be mounted equally at both host and container (e.g. '/mnt/user/vms:/mnt/user/vms')\n - If additional disks are under different paths, they must be mounted alike, in similar way as the above example\n - All paths and virtual disks must have both read and write permissions\n"
+        echo -e "\nWARNING: Issues found with at least one disk image paths of VM(s): ${domain_failed_list[@]}, and therefore will be ignored. To solve this, take in mind that:\n - $(basename $0) cannot work with domains without virtual disks (e.g. transient machines)\n - Paths including virtual disks must be mounted equally at both host and container (e.g. '/mnt/user/domains:/mnt/user/domains')\n - If additional disks are under different paths, these has to be mounted in similar way as the above example\n - All paths and virtual disks must have both read and write permissions\n"
 
         if [[ $(os_is_unraid) == true ]]; then
 
             local vm_disks_issues_subject="Issues with disk image path(s)"
-            local vm_disks_issues_message="Domain(s): ${domain_failed_list[@]} could not be put on backups schedule because issues were found with at least one of the disk image paths"
+            local vm_disks_issues_message="Domain(s): ${domain_failed_list[@]} could not be put on backups schedule because issues were found with its disk image path(s)"
 
             unraid_notify "warning" "VM-Babysitter" "$vm_disks_issues_subject" "$vm_disks_issues_message$unraid_logcheck_message"
         fi
@@ -364,7 +364,7 @@ check_backups()
             # Set crashed_unraid_scenario flag and notify:
             crashed_unraid_scenario=true
 
-            echo -e "\nNOTICE: This Unraid server has either been restarted recently, or this is $(basename $0)'s 1st run.\n\nAssuming the possibility of this server might have crashed before, all running domains (except listed in env var VM_IGNORED_LIST) will require a controlled powercycle, in order to check and fix any issue found into the backup chain. Refer to documentation for more detailed explanation."
+            echo -e "\nNOTICE: This Unraid server has either been restarted recently, or this is $(basename $0)'s 1st run.\n\nAssuming the possibility of this server might have crashed before, all running domains (except listed in env var VM_IGNORED_LIST) will require a controlled powercycle, in order to check and fix any issue found into the backup chain. Refer to documentation for a more detailed explanation."
 
             if [[ -z $VM_ALLOW_POWERCYCLE ]]; then
 
@@ -396,7 +396,10 @@ check_backups()
 
                 for domain in ${domains_running_list[@]}; do
 
+                    # (Re)initialize used variables:
                     shutdown_exit_code=""
+
+                    echo ""
 
                     # Shut down the domain and await for it, for an exit code:
                     domain_shutdown $domain --wait $VM_WAIT_TIME
@@ -438,6 +441,7 @@ check_backups()
 
     for domain in ${resulting_check_backup_list[@]}; do
 
+        # (Re)initialize used variables:
         backup_chain_integrity=""
         backup_folder_integrity=""
         delete_bitmap_exit_code=""
@@ -449,6 +453,7 @@ check_backups()
         verify_integrity_exit_code=""
 
         echo ""
+
         #------------------------------------------------------------------------------
         # Stage 1: Check backup integrity:
         #------------------------------------------------------------------------------
@@ -541,11 +546,11 @@ check_backups()
 
                         # Backup chain is OK, mark as preserved:
                         backup_chain_integrity=true
-                        echo "$domain: Backup checkpoints and bitmaps lists on disk $image match (${#existing_bitmaps_list[@]}:${#folder_checkpoints_list[@]})"
+                        echo "$domain: Backup checkpoints and bitmaps lists on disk $image match (${#existing_bitmaps_list[@]} vs ${#folder_checkpoints_list[@]})"
 
                     else
                         backup_chain_integrity=false
-                        echo "$domain: Backup checkpoints and bitmaps lists on disk $image do not match! (${#existing_bitmaps_list[@]}:${#folder_checkpoints_list[@]})"
+                        echo "$domain: Backup checkpoints and bitmaps lists on disk $image do not match! (${#existing_bitmaps_list[@]} vs ${#folder_checkpoints_list[@]})"
 
                         # When more than one disk image to check, notify the check has been cancelled:
                         [[ ${#existing_images_list[@]} -gt 1 ]] && echo "$domain: Backup check operation has been cancelled"
@@ -565,12 +570,12 @@ check_backups()
 
                     # Backup chain integrity is OK:
                     backup_chain_integrity=true
-                    echo "$domain: QEMU and backup checkpoints lists match (${#qemu_checkpoints_list[@]}:${#folder_checkpoints_list[@]})"
+                    echo "$domain: QEMU and backup checkpoints lists match (${#qemu_checkpoints_list[@]} vs ${#folder_checkpoints_list[@]})"
 
                 else
                     # Mark the backup chain status as broken:
                     backup_chain_integrity=false
-                    echo "$domain: QEMU and backup checkpoints lists do not match! ${#qemu_checkpoints_list[@]}:${#folder_checkpoints_list[@]}"
+                    echo "$domain: QEMU and backup checkpoints lists do not match! ${#qemu_checkpoints_list[@]} vs ${#folder_checkpoints_list[@]}"
                 fi
             fi
 
@@ -762,7 +767,7 @@ check_backups()
 
         # check_backups found unexpected issues:
         local backup_chain_issues_subject="Something went unexpectedly wrong when checking backup chain integrity!"
-        local backup_chain_issues_message="Domain(s): ${domain_failed_list[@]} could not be put on backups schedule because something went unexpectedly wrong while checking backup integrity"
+        local backup_chain_issues_message="Domain(s): ${domain_failed_list[@]} could not be put into backups schedule because something went unexpectedly wrong while checking backup integrity"
 
         echo -e "\nWARNING: $backup_chain_issues_subject $backup_chain_issues_message\n"
 
@@ -784,12 +789,14 @@ autostart_domains()
     local i=0
 
     echo "____________________________________________________________________________________________________________"
-    echo -e "Starting domains...\n"
+    echo -e "Starting domains..."
 
     for domain in ${POWERON_REQUIRED_VMS_LIST[@]}; do
 
         # (Re)initialize used variables:
         start_exit_code=""
+
+        echo ""
 
         # Attempt to turn on the VM. Do not wait for Guest's QEMU agent:
         domain_start $domain --nowait
@@ -820,6 +827,8 @@ autostart_domains()
 
             # (Re)initialize used variables:
             start_exit_code=""
+
+            echo ""
 
             if [[ -z $(item_position $domain "powercycle_success_list") \
                 && -z $(item_position $domain "powercycle_failed_list") \
@@ -883,12 +892,12 @@ autostart_domains()
 
         if [[ -z $VM_ALLOW_POWERCYCLE ]]; then
 
-            powercycle_performed_subject="Manual Powercycle of Domain(s) Completed"
-            powercycle_performed_mesage="Domain(s): ${powercycle_success_list[@]} went shut off by the user, and came back on successfully"
+            powercycle_performed_subject="Manual Powercycle Completed"
+            powercycle_performed_mesage="Domain(s): ${powercycle_success_list[@]}, that went shut off by the user for backup check, already started successfully"
 
         else
-            powercycle_performed_subject="Automatic Powercycle of Domain(s) Completed"
-            powercycle_performed_mesage="Domain(s): ${powercycle_success_list[@]} went shut off without user intervention, and came back on successfully"
+            powercycle_performed_subject="Automatic Powercycle Completed"
+            powercycle_performed_mesage="Domain(s): ${powercycle_success_list[@]}, that went shut off automatically for backup check, already started successfully"
         fi
 
         echo -e "\nNOTICE: $powercycle_performed_subject\n$powercycle_performed_mesage\n"
@@ -899,7 +908,7 @@ autostart_domains()
 
     if [[ -n ${start_failed_list[@]} ]]; then
 
-        failed_start_subject="Autostart or Powercycle of Domain(s) Failed"
+        failed_start_subject="Autostart or Powercycle Failed"
         failed_start_mesage="Something went wrong while performing autostart or powercycle of domain(s): ${start_failed_list[@]}"
 
         echo -e "\nWARNING: $failed_start_subject\n$failed_start_mesage\n"
@@ -973,7 +982,7 @@ unraid_logcheck_message=". Check container logs, or $(basename $LOGFILE_PATH) fo
 trap 'stop_container' SIGTERM
 
 echo "############################################################################################################"
-echo "Container started at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
+echo "$(basename $0) started at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
 echo "############################################################################################################"
 
 #------------------------------------------------------------------------------
@@ -1134,15 +1143,17 @@ optional_crontab
             # Show a summary of changes and global status:
             #------------------------------------------------------------------------------
             echo "============================================================================================================"
-            echo -e "Changed Status Summary:"
-            echo -e "Detected & submitted for check:       ${DOMAINS_LIST[@]:-"None"}"
-            echo -e "Submitted for backup integrity check: ${CHECK_BACKUPS_LIST[@]:-"None"}"
-            echo -e "Auto-started / powercycled:           ${POWERON_REQUIRED_VMS_LIST[@]:-"None"}"
-            echo -e "Directly sent to scheduled backups:   ${BACKUPS_TO_SCHEDULE_LIST[@]:-"None"}"
-            echo -e "Required a new backup chain:          ${CREATE_BACKUP_CHAIN_LIST[@]:-"None"}"
-            echo -e "Awaiting auto or manual shut down:    ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
-            echo -e "Failed any check or unexpectedly:     ${VMS_TO_DISCARD_LIST[@]:-"None"}"
-            echo -e "\nGlobal Status (after changes):"
+            echo -e "Changed Status Summary:\n"
+
+            echo -e "Submitted for checks:      ${DOMAINS_LIST[@]:-"None"}"
+            echo -e "Autostarted / powercycled: ${POWERON_REQUIRED_VMS_LIST[@]:-"None"}"
+            echo -e "Passed all the checks:     ${BACKUPS_TO_SCHEDULE_LIST[@]:-"None"}"
+            echo -e "Required new backup chain: ${CREATE_BACKUP_CHAIN_LIST[@]:-"None"}"
+            echo -e "Awaiting for shut down:    ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
+            echo -e "Failed during a check:     ${VMS_TO_DISCARD_LIST[@]:-"None"}"
+
+            echo -e "\nGlobal Status (after changes):\n"
+
             echo -e "Total running into scheduled backups: ${SCHEDULED_BACKUPS_LIST[@]:-"None"}"
             echo -e "Total failed during checks or backup: ${FAILED_VMS_LIST[@]:-"None"}"
 
