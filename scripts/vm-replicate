@@ -41,27 +41,24 @@ end_of_info
 source $functions_path
 
 status=1
-if [ -z $@ ]; then
+if [[ -z $@ ]]; then
 
     # -----------------------------------------------------------------------------
     # Beginning of interactive part:
     # -----------------------------------------------------------------------------
 
-    # No input parameters enables the interctive mode:
     show_info
     read -n1 -s -r -p $'Press any key to continue, or Ctrl+C to Cancel...\n' key
 
+    echo -e "Scanning for Virtual Machines...\n"
     vms_list=($(domains_list))
 
-    if [ $? == 0 ] && [[ ${#vms_list[@]} -ge 1 ]]; then
+    if [[ $? == 0 && ${#vms_list[@]} -gt 0 ]]; then
 
-        # Only proceeds either if libvirt doesn't report an error, and if there are non-trasient VMs:
-        echo ""
-        echo "Scanning for Virtual Machines..."
-        echo ""
-        echo "${#vms_list[@]} VMs found in host '$localhost':"
+        # Proceeds if libvirt doesn't report an error, and if there is, at least, one non-trasient domain:
+        echo "Total domains found in this host: ${#vms_list[@]}:"
         echo '-------------------------------------------------------------------------------'
-        printf "%3s %-31s %6s %-19s %s \n" "#" "VM Name" "MB RAM" "Drives" "MAC Addresses"
+        printf "%3s %-31s %6s %-19s %s \n" "#" "Domain" "MB RAM" "Drives" "MAC Addresses"
         echo '-------------------------------------------------------------------------------'
 
         i=0
@@ -80,16 +77,17 @@ if [ -z $@ ]; then
         # Asks the user to choose a VM to clone:
         # -----------------------------------------------------------------------------
         echo ""
-        choice=$(choose_number "Choose the Virtual Machine to be replicated" "1" "${#vms_list[@]}")
+        choice=$(choose_number "Choose a domain to be replicated" "1" "${#vms_list[@]}")
 
         # Saves VM specs that will be used for restoration:
         src_vm="${vms_list[(( $choice - 1 ))]}"                     # Domain name
         vm_ram_list=(${vm_ram_list[(( $choice - 1 ))]})             # Max RAM (in KiB)
         vm_drives_list=(${vm_drives_list[(( $choice - 1 ))]})       # List of drives (targets)
         vm_nics_list=(${vm_nics_list[(( $choice - 1 ))]})           # List of NIC's MAC address(es)
+
         src_vm_img_paths_list=($(domain_img_paths_list $src_vm))    # Path(s) to disk image file(s)
 
-        echo "VM '$src_vm' selected for being replicated"
+        echo "Domain '$src_vm' selected for replication"
 
         # Asks the user to replicate onto local, or remote VM:
         # -----------------------------------------------------------------------------
