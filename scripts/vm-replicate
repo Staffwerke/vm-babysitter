@@ -61,7 +61,7 @@ if [ -z $@ ]; then
         echo ""
         echo "${#vms_list[@]} VMs found in host '$localhost':"
         echo '-------------------------------------------------------------------------------'
-        printf " %s \t %-15s \t %s \t %+20s \n" "#" "VM Name" "Drives" "MAC Addresses"
+        printf "%3s %-30s %6s %-20s %s \n" "#" "VM Name" "MB RAM" "Drives" "MAC Addresses"
         echo '-------------------------------------------------------------------------------'
 
         i=0
@@ -69,10 +69,11 @@ if [ -z $@ ]; then
 
             # Get lists with drives and MAC addresses in each VM that can be restored:
             vm_drives_list+=("$(domain_drives_list $vm)")
+            vm_ram_list+=("$(domain_getmem $vm --max)")
             vm_nics_list+=("$(domain_macaddr_list $vm)")
 
             # Shows each VM found, including the restorable drives and MACs:
-            printf " %s \t %-15s \t %-10s \t %+24s \n" "$(( $i + 1))" "$vm" "${vm_drives_list[$i]}" "${vm_nics_list[$i]}"
+            printf "%3s %-30s %6d %-20s %s \n" "$(($i+1))" "$vm" "$((${vm_ram_list[$i]} / 1024))" "${vm_drives_list[$i]}" "${vm_nics_list[$i]}"
             ((i++))
         done
 
@@ -82,10 +83,11 @@ if [ -z $@ ]; then
         choice=$(choose_number "Choose the Virtual Machine to be replicated" "1" "${#vms_list[@]}")
 
         # Saves VM specs that will be used for restoration:
-        src_vm="${vms_list[(( $choice - 1 ))]}"
-        src_vm_img_paths_list=($(domain_img_paths_list $src_vm))
-        vm_drives_list=(${vm_drives_list[(( $choice - 1 ))]})
-        vm_nics_list=(${vm_nics_list[(( $choice - 1 ))]})
+        src_vm="${vms_list[(( $choice - 1 ))]}"                     # Domain name
+        vm_ram_list=(${vm_ram_list[(( $choice - 1 ))]})             # Max RAM (in KiB)
+        vm_drives_list=(${vm_drives_list[(( $choice - 1 ))]})       # List of drives (targets)
+        vm_nics_list=(${vm_nics_list[(( $choice - 1 ))]})           # List of NIC's MAC address(es)
+        src_vm_img_paths_list=($(domain_img_paths_list $src_vm))    # Path(s) to disk image file(s)
 
         echo "VM '$src_vm' selected for being replicated"
 
