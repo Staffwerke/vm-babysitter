@@ -106,6 +106,8 @@ if [[ -z $@ ]]; then
 
                 2)
                     endpoint="remote"
+
+                    # Ask for SSH login:
                     while true; do
 
                         read -p "Provide a valid SSH login (and optionally, port) where domain '$src_vm' will be replicated (e.g. '-p2222 user@hostname'): " remote_server
@@ -145,7 +147,7 @@ if [[ -z $@ ]]; then
                             fi
 
                         else
-                            "ERROR: Incorrect syntax for endpoint '$remote_server'. It must be an SSH valid login"
+                            echo "ERROR: Incorrect syntax for endpoint '$remote_server'. It must be an SSH valid login"
                         fi
                     done
                 ;;
