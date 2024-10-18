@@ -47,7 +47,7 @@ if [[ -z $@ ]]; then
     echo -e "Scanning for Virtual Machines...\n"
     vms_list=($(domains_list))
 
-    if [[ $? == 0 && ${#vms_list[@]} -gt 0 ]]; then
+    if [[ $? -eq 0 && ${#vms_list[@]} -gt 0 ]]; then
 
         # Proceeds if libvirt doesn't report an error, and if there is, at least, one non-trasient domain:
         echo "Total domains found in this host: ${#vms_list[@]}:"
@@ -89,59 +89,63 @@ if [[ -z $@ ]]; then
 
             echo ""
             echo '-------------------------------------------------------------------------------'
-            echo "Endpoint selection to replicate '$src_vm'"
+            echo "Select the endpoint where to replicate domain '$src_vm'"
             echo '-------------------------------------------------------------------------------'
-            echo "1. At this host"
-            echo "2. At a remote host (via SSH)"
+            echo "1. This host (local)"
+            echo "2. Another host (via SSH)"
             echo ""
-            choice=$(choose_number "Choose an option number for endpoint" "1" "2" "1")
+            choice=$(choose_number "Choose an endpoint option" "1" "2" "1")
 
             case $choice in
 
                 1)
                     endpoint="local"
-                    echo "Destination endpoint set to '$localhost'"
+                    echo "Destination endpoint will be this same host"
                     break
                 ;;
+
                 2)
                     endpoint="remote"
                     while true; do
 
-                        read -p "Insert username and server's FQDN or IP where $src_vm will be replicated (e.g. user@hostname): " remote_server
+                        read -p "Provide a valid SSH login (and optionally, port) where domain '$src_vm' will be replicated (e.g. '-p2222 user@hostname'): " remote_server
 
                         if [[ $remote_server == *@* ]]; then
 
-                            # Grabs remote user and server separately:
+                            # Grabs server separately:
                             remote_server_name=$(echo $remote_server | cut -d'@' -f2)
 
                             # Test remote host connectivity and libvirt:
                             ssh $SSH_OPTIONS $remote_server "exit 0"
                             remote_server_status=$?
 
-                            if [ $remote_server_status == 0 ]; then
+                            if [[ $remote_server_status -eq 0 ]]; then
 
                                 # Server returns the command status sent. Looks up for libvirt API:
                                 remote_api_version=$(ssh $SSH_OPTIONS $remote_server 'echo $(virsh --version)')
                                 remote_api_status=$?
 
-                                if [ $remote_api_status == 0 ]; then
+                                if [[ $remote_api_status -eq 0 ]]; then
 
                                     echo ""
-                                    echo "Destination endpoint set to '$remote_server_name' (libvirt $remote_api_version)"
+                                    echo "Host $remote_server_name contacted successfully (Libvirt version: $remote_api_version)"
 
                                     # Gets the list of VMs from $remote_server to discard duplicates on the remote endpoint:
                                     vms_list=($(ssh $SSH_OPTIONS $remote_server "virsh list --all --persistent --name"))
 
                                     # Breaks both loops:
                                     break 2
+
                                 else
-                                    echo "ERROR: Cannot connect with libvirt service at endpoint '$remote_server_name' (failed with status $remote_api_status)"
+                                    echo "ERROR: Cannot connect with remote Libvirt service located at $remote_server_name (Libvirt exit code: $remote_api_status)"
                                 fi
+
                             else
-                                echo "ERROR: Cannot connect with endpoint '$remote_server_name' port $remote_port (failed with status $remote_server_status)"
+                                echo "ERROR: Cannot connect with host '$remote_server_name' (SSH exit code: $remote_server_status)"
                             fi
+
                         else
-                            echo "ERROR: '$remote_server' has a bad syntax"
+                            "ERROR: Incorrect syntax for endpoint '$remote_server'. It must be an SSH valid login"
                         fi
                     done
                 ;;
