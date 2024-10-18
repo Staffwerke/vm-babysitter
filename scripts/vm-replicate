@@ -5,12 +5,6 @@
 # Temporal path to store files (as .xml):
 working_path="/tmp/.$(basename $0).tmp"
 
-# Location of the script where all functions and global variables to be used are declared:
-# (Here, on the same dir
-functions_path="/usr/local/bin/vm-functions"
-
-# Name of the local host:
-localhost=$(cat /etc/hostname)
 show_info()
 {
 cat << end_of_info
@@ -38,7 +32,7 @@ end_of_info
 # -----------------------------------------------------------------------------
 
 # Load functions:
-source $functions_path
+source /usr/local/bin/vm-functions
 
 status=1
 if [[ -z $@ ]]; then
@@ -97,7 +91,7 @@ if [[ -z $@ ]]; then
             echo '-------------------------------------------------------------------------------'
             echo "Endpoint selection to replicate '$src_vm'"
             echo '-------------------------------------------------------------------------------'
-            echo "1. At localhost ($localhost)"
+            echo "1. At this host"
             echo "2. At a remote host (via SSH)"
             echo ""
             choice=$(choose_number "Choose an option number for endpoint" "1" "2" "1")
