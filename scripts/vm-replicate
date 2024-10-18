@@ -61,17 +61,18 @@ if [ -z $@ ]; then
         echo ""
         echo "${#vms_list[@]} VMs found in host '$localhost':"
         echo '-------------------------------------------------------------------------------'
-        printf " %s \t %-15s \t %s \n" "#" "VM Name" "Drives"
+        printf " %s \t %-15s \t %s \t %+20s \n" "#" "VM Name" "Drives" "MAC Addresses"
         echo '-------------------------------------------------------------------------------'
 
         i=0
         for vm in "${vms_list[@]}"; do
 
-            # Gets a list with drives in each VM that can b e restored:
+            # Get lists with drives and MAC addresses in each VM that can be restored:
             vm_drives_list+=("$(domain_drives_list $vm)")
+            vm_nics_list+=("$(domain_macaddr_list $vm)")
 
-            # Shows each VM found, including the restorable drives:
-            printf " %s \t %-15s \t %s \n" "$(( $i + 1))" "$vm" "${vm_drives_list[$i]}"
+            # Shows each VM found, including the restorable drives and MACs:
+            printf " %s \t %-15s \t %-10s \t %+24s \n" "$(( $i + 1))" "$vm" "${vm_drives_list[$i]}" "${vm_nics_list[$i]}"
             ((i++))
         done
 
@@ -84,6 +85,7 @@ if [ -z $@ ]; then
         src_vm="${vms_list[(( $choice - 1 ))]}"
         src_vm_img_paths_list=($(domain_img_paths_list $src_vm))
         vm_drives_list=(${vm_drives_list[(( $choice - 1 ))]})
+        vm_nics_list=(${vm_nics_list[(( $choice - 1 ))]})
 
         echo "VM '$src_vm' selected for being replicated"
 
