@@ -61,7 +61,7 @@ if [ -z $@ ]; then
         echo ""
         echo "${#vms_list[@]} VMs found in host '$localhost':"
         echo '-------------------------------------------------------------------------------'
-        printf "%3s %-30s %6s %-20s %s \n" "#" "VM Name" "MB RAM" "Drives" "MAC Addresses"
+        printf "%3s %-31s %6s %-19s %s \n" "#" "VM Name" "MB RAM" "Drives" "MAC Addresses"
         echo '-------------------------------------------------------------------------------'
 
         i=0
@@ -73,7 +73,7 @@ if [ -z $@ ]; then
             vm_nics_list+=("$(domain_macaddr_list $vm)")
 
             # Shows each VM found, including the restorable drives and MACs:
-            printf "%3s %-30s %6d %-20s %s \n" "$(($i+1))" "$vm" "$((${vm_ram_list[$i]} / 1024))" "${vm_drives_list[$i]}" "${vm_nics_list[$i]}"
+            printf "%3s %-31s %6s %-19s %s \n" "$(($i+1))" "$vm" "$((${vm_ram_list[$i]} / 1024))" "${vm_drives_list[$i]:-"None"}" "${vm_nics_list[$i]:-"None"}"
             ((i++))
         done
 
