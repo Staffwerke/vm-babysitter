@@ -517,7 +517,7 @@ if [[ -z $@ ]]; then
             remote) # Copy vm_definitions_file to the same path of the first image disk, or at /tmp if no disk paths are defined:
 
                 [[ -n ${dest_vm_img_paths_list[@]} ]] \
-                    && remote_vm_definitions_file="/$(dirname ${dest_vm_img_paths_list[0]})/$(basename $vm_definitions_file)"
+                    && remote_vm_definitions_file="/$(dirname ${dest_vm_img_paths_list[0]})/$(basename $vm_definitions_file)" \
                     || remote_vm_definitions_file="/tmp/$(basename $vm_definitions_file)"
 
                 scp $SSH_OPTIONS $vm_definitions_file $remote_server:$remote_vm_definitions_file
