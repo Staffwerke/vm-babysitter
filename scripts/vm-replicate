@@ -41,8 +41,7 @@ if [[ -z $@ ]]; then
     # Beginning of interactive part:
     # -----------------------------------------------------------------------------
 
-    show_info
-    read -n1 -s -r -p $'Press any key to continue, or Ctrl+C to Cancel...\n' key
+    #show_info
 
     echo -e "Scanning for Virtual Machines...\n"
     vms_list=($(domains_list))
@@ -85,74 +84,71 @@ if [[ -z $@ ]]; then
 
         # Asks the user to replicate onto local, or remote VM:
         # -----------------------------------------------------------------------------
-        while true; do
+        echo ""
+        echo '-------------------------------------------------------------------------------'
+        echo "Select the endpoint where to replicate domain '$src_vm'"
+        echo '-------------------------------------------------------------------------------'
+        echo "1. This host (local)"
+        echo "2. Another host (via SSH)"
+        echo ""
+        choice=$(choose_number "Choose an endpoint option" "1" "2" "1")
 
-            echo ""
-            echo '-------------------------------------------------------------------------------'
-            echo "Select the endpoint where to replicate domain '$src_vm'"
-            echo '-------------------------------------------------------------------------------'
-            echo "1. This host (local)"
-            echo "2. Another host (via SSH)"
-            echo ""
-            choice=$(choose_number "Choose an endpoint option" "1" "2" "1")
+        case $choice in
 
-            case $choice in
+            1)
+                endpoint="local"
+                echo "Destination endpoint will be this same host"
+                break
+            ;;
 
-                1)
-                    endpoint="local"
-                    echo "Destination endpoint will be this same host"
-                    break
-                ;;
+            2)
+                endpoint="remote"
 
-                2)
-                    endpoint="remote"
+                # Ask for SSH login:
+                while true; do
 
-                    # Ask for SSH login:
-                    while true; do
+                    read -p "Provide a valid SSH login (and optionally, port) where domain '$src_vm' will be replicated (e.g. '-p2222 user@hostname'): " remote_server
 
-                        read -p "Provide a valid SSH login (and optionally, port) where domain '$src_vm' will be replicated (e.g. '-p2222 user@hostname'): " remote_server
+                    if [[ $remote_server == *@* ]]; then
 
-                        if [[ $remote_server == *@* ]]; then
+                        # Grabs server separately:
+                        remote_server_name=$(echo $remote_server | cut -d'@' -f2)
 
-                            # Grabs server separately:
-                            remote_server_name=$(echo $remote_server | cut -d'@' -f2)
+                        # Test remote host connectivity and libvirt:
+                        ssh $SSH_OPTIONS $remote_server "exit 0"
+                        remote_server_status=$?
 
-                            # Test remote host connectivity and libvirt:
-                            ssh $SSH_OPTIONS $remote_server "exit 0"
-                            remote_server_status=$?
+                        if [[ $remote_server_status -eq 0 ]]; then
 
-                            if [[ $remote_server_status -eq 0 ]]; then
+                            # Server returns the command status sent. Looks up for libvirt API:
+                            remote_api_version=$(ssh $SSH_OPTIONS $remote_server 'echo $(virsh --version)')
+                            remote_api_status=$?
 
-                                # Server returns the command status sent. Looks up for libvirt API:
-                                remote_api_version=$(ssh $SSH_OPTIONS $remote_server 'echo $(virsh --version)')
-                                remote_api_status=$?
+                            if [[ $remote_api_status -eq 0 ]]; then
 
-                                if [[ $remote_api_status -eq 0 ]]; then
+                                echo ""
+                                echo "Host $remote_server_name contacted successfully (Libvirt version: $remote_api_version)"
 
-                                    echo ""
-                                    echo "Host $remote_server_name contacted successfully (Libvirt version: $remote_api_version)"
+                                # Gets the list of VMs from $remote_server to discard duplicates on the remote endpoint:
+                                vms_list=($(ssh $SSH_OPTIONS $remote_server "virsh list --all --persistent --name"))
 
-                                    # Gets the list of VMs from $remote_server to discard duplicates on the remote endpoint:
-                                    vms_list=($(ssh $SSH_OPTIONS $remote_server "virsh list --all --persistent --name"))
-
-                                    # Breaks both loops:
-                                    break 2
-
-                                else
-                                    echo "ERROR: Cannot connect with remote Libvirt service located at $remote_server_name (Libvirt exit code: $remote_api_status)"
-                                fi
+                                # Breaks the loop:
+                                break
 
                             else
-                                echo "ERROR: Cannot connect with host '$remote_server_name' (SSH exit code: $remote_server_status)"
+                                echo "ERROR: Cannot connect with remote Libvirt service located at $remote_server_name (Libvirt exit code: $remote_api_status)"
                             fi
 
                         else
-                            echo "ERROR: Incorrect syntax for endpoint '$remote_server'. It must be an SSH valid login"
+                            echo "ERROR: Cannot connect with host '$remote_server_name' (SSH exit code: $remote_server_status)"
                         fi
-                    done
-                ;;
-            esac
-        done
+
+                    else
+                        echo "ERROR: Incorrect syntax for endpoint '$remote_server'. It must be an SSH valid login"
+                    fi
+                done
+            ;;
+        esac
 
         # Asks the user for a name to be used for the New VM:
         # -----------------------------------------------------------------------------
@@ -276,9 +272,6 @@ if [[ -z $@ ]]; then
                     echo "Disk image path for ${vm_drives_list[$i]} set to ${dest_vm_img_paths_list[$i]}"
                 done
             fi
-
-        else
-            echo "Domain '$src_vm' has no writable disks that can be replicated"
         fi
 
         # Additional options to set CPU, RAM, MAC addresses, etc. can be added here:
@@ -291,28 +284,36 @@ if [[ -z $@ ]]; then
 
                 echo ""
                 echo '-------------------------------------------------------------------------------'
-                echo "Options for NIC ${src_macaddr_list[$i]}"
+                echo "Options for NIC #${#src_macaddr_list[$i]} (MAC Address: ${src_macaddr_list[$i]}):"
                 echo '-------------------------------------------------------------------------------'
-                echo -e "\n1. Keep current MAC Address, as is"
-                echo -e "2. Assign a Random MAC Address"
-                echo -e "3. Set a Custom MAC Address\n"
+                echo -e "1. Assign a random MAC address"
+                echo -e "2. Set a custom MAC address"
+                echo -e "3. Keep the same MAC address as in '$src_vm' (choose at your own risk)\n"
 
                 choice=$(choose_number "Choose the desired action to perform" "1" "3")
 
                 case $choice in
 
                     1)
-                        dest_macaddr_list+=(${src_macaddr_list[$i]})
+                        dest_macaddr_list+=($(gen_random_macaddr))
+                        echo "NIC #${#src_macaddr_list[@]} set to '${dest_macaddr_list[@]}'"
                     ;;
 
                     2)
-                        dest_macaddr_list+=($(gen_random_macaddr))
-                        echo "NIC #${#src_macaddr_list[@]} will be set to '${dest_macaddr_list[@]}'"
+                        read -p "Insert the 3 last values for the custom MAC address, separated by colons (e.g. 0f:1e:2d): " custom_mac
+
+                        while [[ -z $(grep -E "^([0-9A-Fa-f]{2}[:]){3}$)" <<< $custom_mac) ]]; do
+                            read -p "Invalid values or syntax. Insert the 3 last values for the custom MAC address: " custom_mac
+                        done
+
+                        dest_macaddr_list+=("52:54:00:${custom_mac}")
                     ;;
 
                     3)
-                        read -p "Insert the 3 LAST values of the custom MAC address (e.g. 0f:1e:2d): " custom_mac
-                        dest_macaddr_list+=("52:54:00:${custom_mac^^}")
+                        dest_macaddr_list+=(${src_macaddr_list[$i]})
+                        echo "NIC #${#src_macaddr_list[@]} will keep same address as in '$src_vm'"
+                    ;;
+
                 esac
 
                 ((i++))
@@ -324,7 +325,9 @@ if [[ -z $@ ]]; then
         # Beginning of modification on $vm_definitions_file
         # -----------------------------------------------------------------------------
 
-        echo "Processing parameters for VM '$dest_vm'..."
+        read -n1 -s -r -p $'Press any key to continue, or Ctrl+C to Cancel...\n' key
+
+        echo -e "Processing parameters for VM '$dest_vm'..."
 
         # Dumps $src_vm definitions apart, and apply changes:
         # -----------------------------------------------------------------------------
