@@ -107,7 +107,7 @@ if [[ -z $@ ]]; then
                 # Ask for SSH login:
                 while true; do
 
-                    read -p "Provide a valid SSH login (and optionally, port) where domain '$src_vm' will be replicated (e.g. '-p2222 user@hostname'): " remote_server
+                    read -p "Provide an SSH login where domain '$src_vm' will be replicated (e.g. user@hostname): " remote_server
 
                     if [[ $remote_server == *@* ]]; then
 
