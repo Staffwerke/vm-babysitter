@@ -183,7 +183,7 @@ if [[ -z $@ ]]; then
                         && copy_disks=$(yes_no "NOTICE: Domain '$src_vm' is currently $src_vm_state. It will be temporarily SHUT DOWN until the process had finished. ARE YOU SURE YOU WANT TO PROCEED? ('yes' to confirm)" "no")
 
                     [[ $copy_disks == yes ]] \
-                        && echo "Disk images will be provisioned"
+                        && echo "Disk images will be provisioned" \
                         || { echo -e "\nReplication cancelled by user\n"; exit; }
                 ;;
 
