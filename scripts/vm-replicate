@@ -145,7 +145,8 @@ if [[ -z $@ ]]; then
 
         # Asks the user for a name to be used for the New VM:
         # -----------------------------------------------------------------------------
-        read -p "\nChoose a name for the domain that will be replicated: " dest_vm
+        echo ""
+        read -p "Choose a name for the domain that will be replicated: " dest_vm
 
         while [[ $dest_vm == $(grep -o -e "$dest_vm" <<< "${vms_list[@]}") ]]; do
 
@@ -169,7 +170,7 @@ if [[ -z $@ ]]; then
                     src_vm_state=$(domain_state $src_vm)
 
                     [[  $src_vm_state != "shut off" ]] \
-                        && copy_disks=$(yes_no "NOTICE: Domain '$src_vm' is currently $src_vm_state. It will be temporarily SHUT DOWN until the process had finished. ARE YOU SURE YOU WANT TO PROCEED? ('yes' to confirm)" "no")
+                        && copy_disks=$(yes_no "NOTICE: Domain '$src_vm' is currently $src_vm_state. It will be temporarily shut down while disk(s) are replicated. Are you sure to continue?" "no")
 
                     [[ $copy_disks == yes ]] \
                         && echo "Disk images will be provisioned" \
