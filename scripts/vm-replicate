@@ -93,7 +93,6 @@ if [[ -z $@ ]]; then
             1)
                 endpoint="local"
                 echo "Destination endpoint will be this same host"
-                break
             ;;
 
             2)
