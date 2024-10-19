@@ -1,10 +1,5 @@
 #!/bin/bash
 
-# Variables:
-# -----------------------------------------------------------------------------
-# Temporal path to store files (as .xml):
-working_path="/tmp/.$(basename $0).tmp"
-
 show_info()
 {
 cat << end_of_info
@@ -330,6 +325,9 @@ if [[ -z $@ ]]; then
 
         # Dumps $src_vm definitions apart, and apply changes:
         # -----------------------------------------------------------------------------
+
+        # Temporal path to store files (as .xml):
+        working_path="/tmp/$(basename $0)"
 
         # Create the temporary folder to be used:
         mkdir -p $working_path
