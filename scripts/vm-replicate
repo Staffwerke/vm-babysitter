@@ -302,7 +302,7 @@ if [[ -z $@ ]]; then
                     2)
                         read -p "Insert the 3 last values for the custom MAC address, separated by colons (e.g. 0f:1e:2d): " custom_mac
 
-                        while [[ -z $(grep -E "^([0-9A-Fa-f]{2}[:]){3}$)" <<< $custom_mac) ]]; do
+                        while [[ -z $(grep -E "^([0-9A-Fa-f]{2}[:]){2}([0-9A-Fa-f]{2})$" <<< $custom_mac) ]]; do
                             read -p "Invalid values or syntax. Insert the 3 last values for the custom MAC address: " custom_mac
                         done
 
