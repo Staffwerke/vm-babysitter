@@ -1131,7 +1131,7 @@ optional_crontab
 
             # Start all VMs that was, either declared in VM_AUTOSTART_LIST and have not started yet, or if any is in POWERON_REQUIRED_VMS_LIST:
             #------------------------------------------------------------------------------
-            [[ -n ${POWERON_REQUIRED_VMS_LIST[@]} || $FIRST_AUTOSTART_COMPLETED != true ]] && autostart_domains
+            [[ -n ${POWERON_REQUIRED_VMS_LIST[@]} ]] || [[ -n $VM_AUTOSTART_LIST && $FIRST_AUTOSTART_COMPLETED != true ]] && autostart_domains
 
             # Create new backup chains for VMs that require it:
             #------------------------------------------------------------------------------
