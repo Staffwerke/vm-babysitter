@@ -506,40 +506,67 @@ if [[ -z $@ ]]; then
 
         # Finally, defines the VM in QEMU/KVM and cleanses temporal files:
         # -----------------------------------------------------------------------------
+        case $endpoint in
 
-         if [[ $endpoint == local ]]; then
+            local) # Defines VM directly:
 
-            # When local, defines VM directly:
-            &> /dev/null virsh define $vm_definitions_file
-            vm_define_status=$?
+                &> /dev/null virsh define $vm_definitions_file
+                vm_define_status=$?
+            ;;
 
-         elif [[ $endpoint == remote ]]; then
+            remote) # Copy vm_definitions_file to the same path of the first image disk, or at /tmp if no disk paths are defined:
 
-            # When remote, transfers $vm_definitions_file to the host, defines it and fetches the state of the operation:
-            remote_vm_definitions_file="/tmp/$(basename $vm_definitions_file)"
-            scp $SSH_OPTIONS $vm_definitions_file $remote_server:$remote_vm_definitions_file
-            ssh $SSH_OPTIONS $remote_server "&> /dev/null virsh define $remote_vm_definitions_file"
-            vm_define_status=$?
+                [[ -n ${dest_vm_img_paths_list[@]} ]] \
+                    && remote_vm_definitions_file="/$(dirname ${dest_vm_img_paths_list[0]})/$(basename $vm_definitions_file)"
+                    || remote_vm_definitions_file="/tmp/$(basename $vm_definitions_file)"
 
-            # And then deletes the transferred file:
-            ssh $SSH_OPTIONS $remote_server "rm -f $remote_vm_definitions_file"
-        fi
+                scp $SSH_OPTIONS $vm_definitions_file $remote_server:$remote_vm_definitions_file
 
-        if [[ $vm_define_status -eq 0 ]]; then
+                # Then define the domain and get its exit code:
+                ssh $SSH_OPTIONS $remote_server "&> /dev/null virsh define $remote_vm_definitions_file"
+                vm_define_status=$?
+            ;;
 
-            echo ""
-            echo "VM $dest_vm replicated at $endpoint endpoint successfully!"
-            rm -rf $working_path
-            status=0
-        else
-            echo "ERROR: Could not define VM $dest_vm to QEMU/KVM. Check $working_path in order to see what could be wrong"
-        fi
+        esac
+
+        case $vm_define_status in
+
+            0)  # Success:
+                case $endpoint in
+
+                    local)  echo "Domain '$dest_vm' was replicated successfully"
+                    ;;
+
+                    remote) # Deletes the transferred file:
+                            ssh $SSH_OPTIONS $remote_server "rm -f $remote_vm_definitions_file"
+                            echo "Domain '$dest_vm' was replicated at server '$remote_server' successfully"
+                   ;;
+                esac
+
+                # Delete temporal workdir:
+                rm -rf $working_path
+
+                # Set successful as exit code:
+                status=0
+            ;;
+
+            *)  # Fail:
+                case $endpoint in
+
+                    local) echo "ERROR: Libvirt could not define domain '$dest_vm'. Check the logs and XML definition file at $working_path (virsh define exit code: $vm_define_status)"
+                    ;;
+
+                    remote) "ERROR: Remote Libvirt could not define domain '$dest_vm' at server '$remote_server'. Check the logs on that host, and XML definition file at  $remote_vm_definitions_file (virsh define exit code: $vm_define_status)"
+                    ;;
+                esac
+            ;;
+        esac
 
     else
         echo "ERROR: No persistent Virtual Machines detected! (is libvirt service running?)"
     fi
-else
 
+else
     # Argument(s) detected. By now, only shows the help and exits:
     show_info
 
