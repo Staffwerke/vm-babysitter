@@ -425,12 +425,12 @@ if [[ -z $@ ]]; then
                             # Unmounts the remote folder after completion:
                             umount $workdir_path/remote
                         else
-                            echo "ERROR: Cannot mount the remote folder on host '$remote_server_name' to replicate '$(basename $image_path)'. Skipped"
+                            echo "ERROR: Cannot mount the remote folder on host '$remote_server_name' to replicate '$(basename $image_path)'"
                         fi
                     fi
 
                     # Notifies about success or fail of each disk image provisioning for dest_domain:
-                    [[ $image_path_exit_code -eq 0 ]] && echo "$image_path provisioned successfully" || echo "ERROR: Failed provisioning $image_path."
+                    [[ $image_path_exit_code -eq 0 ]] && echo "Disk image '$image_path' provisioned successfully" || echo "ERROR: Failed provisioning disk image '$image_path'"
 
                     ((i++))
                 done
