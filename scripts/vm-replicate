@@ -380,9 +380,6 @@ if [[ -z $@ ]]; then
 
             if [[ $(domain_state $src_domain) != "shut off" ]]; then
 
-                # Mark $src_domain  to be turned on after the copy:
-                src_domain_was_on=1
-
                 # Shut down the domain and await for it, for an exit code:
                 domain_shutdown $src_domain --wait $VM_WAIT_TIME
                 shutdown_exit_code=$?
@@ -391,7 +388,7 @@ if [[ -z $@ ]]; then
                 shutdown_exit_code=0
             fi
 
-            if [[ $shutdown_exit_code -eq 0 ]]; then
+            if [[ -z $shutdown_exit_code || $shutdown_exit_code -eq 0 ]]; then
 
                 echo ""
                 # -----------------------------------------------------------------------------
@@ -437,15 +434,12 @@ if [[ -z $@ ]]; then
 
                     ((i++))
                 done
-            else
-                echo "ERROR: VM '$src_domain' could not be properly powered off. Aborting disk image provisioning"
-            fi
-
-            if [ ! -z $src_domain_was_on ]; then
 
                 # Starts src_domain if it was previously running before the copy:
-                echo "Powering on domain '$src_domain'..."
-                domain_start $src_domain --nowait
+                [[ -n $shutdown_exit_code ]] && domain_start $src_domain --nowait
+
+            else
+                echo "ERROR: VM '$src_domain' could not be properly powered off. Aborting disk image provisioning"
             fi
         fi
 
