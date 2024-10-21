@@ -32,9 +32,9 @@ source /usr/local/bin/vm-functions
 status=1
 if [[ -z $@ ]]; then
 
-    # -----------------------------------------------------------------------------
+    # =============================================================================
     # Beginning of interactive part:
-    # -----------------------------------------------------------------------------
+    # =============================================================================
 
     #show_info
 
@@ -61,7 +61,7 @@ if [[ -z $@ ]]; then
             ((i++))
         done
 
-        echo -e "Total domains found in this host: ${#vms_list[@]}\n"
+        echo -e "\Total domains found in this host: ${#vms_list[@]}"
 
         # Asks the user to choose a VM to clone:
         # -----------------------------------------------------------------------------
@@ -71,11 +71,10 @@ if [[ -z $@ ]]; then
         src_vm="${vms_list[(( $choice - 1 ))]}"                     # Domain name
         vm_ram_list=(${vm_ram_list[(( $choice - 1 ))]})             # Max RAM (in KiB)
         vm_drives_list=(${vm_drives_list[(( $choice - 1 ))]})       # List of drives (targets)
-        src_macaddr_list=(${src_macaddr_list[(( $choice - 1 ))]})           # List of NIC's MAC address(es)
-
+        src_macaddr_list=(${src_macaddr_list[(( $choice - 1 ))]})   # List of NIC's MAC address(es)
         src_vm_img_paths_list=($(domain_img_paths_list $src_vm))    # Path(s) to disk image file(s)
 
-        echo -e "Domain '$src_vm' selected for replication\n"
+        echo -e "\nDomain '$src_vm' selected for replication\n"
 
         # Asks the user to replicate onto local, or remote VM:
         # -----------------------------------------------------------------------------
@@ -89,13 +88,12 @@ if [[ -z $@ ]]; then
 
         case $choice in
 
-            1)
-                endpoint="local"
+            1)  endpoint="local"
                 echo "Destination endpoint will be this same host"
             ;;
 
-            2)
-                endpoint="remote"
+            2)  endpoint="remote"
+                echo "Destination endpoint will be on anothr host"
 
                 # Ask for SSH login:
                 while true; do
@@ -119,8 +117,7 @@ if [[ -z $@ ]]; then
 
                             if [[ $remote_api_status -eq 0 ]]; then
 
-                                echo ""
-                                echo "Host $remote_server_name contacted successfully (Libvirt version: $remote_api_version)"
+                                echo "Host '$remote_server_name' contacted successfully (Libvirt version: $remote_api_version)"
 
                                 # Gets the list of VMs from $remote_server to discard duplicates on the remote endpoint:
                                 vms_list=($(ssh $SSH_OPTIONS $remote_server "virsh list --all --persistent --name"))
@@ -157,7 +154,7 @@ if [[ -z $@ ]]; then
 
         if [[ -n ${vm_drives_list[@]} ]]; then
 
-            # Asks the user for copying disks from $src_vm for $dest_vm
+            # Asks the user for copying disks from src_vm for dest_vm
             # -----------------------------------------------------------------------------
             echo ""
             copy_disks=$(yes_no "Replicate the disk image(s): [${vm_drives_list[@]// /,}] from '$src_vm' into '$dest_vm'?" "yes")
@@ -182,12 +179,12 @@ if [[ -z $@ ]]; then
 
                     # Asks the user for checking / modifying paths:
                     # -----------------------------------------------------------------------------
-                    check_paths=$(yes_no "Check anyway, and possibly redefine image disk path(s) for domain '$dest_vm'?" "yes")
+                    check_paths=$(yes_no "Check anyway, and possibly redefine image disk path(s) into domain '$dest_vm' definitions?" "yes")
             esac
 
             if [[ $copy_disks == yes ]] || [[ $check_paths == yes ]]; then
 
-                # When disk images are to be copied, or the user wants to check / redefine new paths for $dest_vm
+                # When disk images are to be copied, or the user wants to check / redefine new paths for dest_vm
 
                 # Shows the possible options and ways to modify them:
                 # -----------------------------------------------------------------------------
@@ -224,7 +221,7 @@ if [[ -z $@ ]]; then
                     fi
 
                     echo ""
-                    choice=$(choose_number "Choose the desired action to perform" "1" "$menu_option")
+                    choice=$(choose_number "Choose which action to perform" "1" "$menu_option")
 
                     case $choice in
 
@@ -249,14 +246,14 @@ if [[ -z $@ ]]; then
 
                             elif [[ $copy_disks == yes ]] || [[ $endpoint == remote ]]; then
 
-                                # proposed_path IS NOT plausible. copy_disks was set to 'no' or endpoint set to 'remote'
+                                # proposed_path isn't plausible. copy_disks was set to 'no' or endpoint set to 'remote'
                                 # User has set to keep path:
                                 dest_vm_img_paths_list+=($path)
                             fi
                         ;;
 
                         3)
-                                # proposed_path IT IS plausible. copy_disks was set to 'no' or endpoint set to 'remote'
+                                # proposed_path it's plausible. copy_disks was set to 'no' or endpoint set to 'remote'
                                 # User has set to keep path:
                                 dest_vm_img_paths_list+=($path)
                         ;;
@@ -277,7 +274,7 @@ if [[ -z $@ ]]; then
 
                 echo ""
                 echo '-------------------------------------------------------------------------------'
-                echo "Options for NIC #${#src_macaddr_list[$i]} (MAC Address: ${src_macaddr_list[$i]}):"
+                echo "Options for NIC #${#src_macaddr_list[@]} (MAC Address: ${src_macaddr_list[$i]}):"
                 echo '-------------------------------------------------------------------------------'
                 echo -e "1. Set a custom MAC address"
                 echo -e "2. Assign a random MAC address"
@@ -311,19 +308,18 @@ if [[ -z $@ ]]; then
                 ((i++))
             done
         fi
-        # -----------------------------------------------------------------------------
+        # =============================================================================
         # End of interactive part
-        # -----------------------------------------------------------------------------
-        # Beginning of modification on $vm_definitions_file
-        # -----------------------------------------------------------------------------
-
+        # =============================================================================
         read -n1 -s -r -p $'\nPress any key to continue, or Ctrl+C to Cancel...\n' key
 
-        echo -e "Processing parameters for VM '$dest_vm'..."
-
-        # Dumps $src_vm definitions apart, and apply changes:
         # -----------------------------------------------------------------------------
+        # Beginning of modification on $vm_definitions_file
+        echo '-------------------------------------------------------------------------------'
+        echo -e "Processing all user defined parameters for domain '$dest_vm'..."
 
+        # Dumps src_vm definitions apart, and apply changes:
+        # -----------------------------------------------------------------------------
         # Temporal path to store files (as .xml):
         working_path="/tmp/$(basename $0)"
 
@@ -336,31 +332,26 @@ if [[ -z $@ ]]; then
         # Dumps current VMs XML file to a temporal location:
         virsh dumpxml --inactive --security-info $src_vm > $vm_definitions_file
 
-        # Replaces VM name ($src_vm by $dest_vm):
+        # Replaces VM name (src_vm by dest_vm):
         # -----------------------------------------------------------------------------
         sed -i -e "s|<name>$src_vm</name>|<name>$dest_vm</name>|" $vm_definitions_file
 
         # Replaces VM UUID (randomized):
         # -----------------------------------------------------------------------------
-
-        # UUID of $src_vm:
+        # UUID of src_vm:
         src_uuid=$(domain_id $src_vm)
 
         # Random UUID to replace the original one:
         dest_uuid=$(uuidgen)
 
-        # Replaces all matches of $src_uuid for $dest_uuid.
+        # Replaces all matches of src_uuid for dest_uuid.
         # On Unraid and possibly other OSes, changes the path of persistent Nvram file, if exists:
         sed -i -e "s|$src_uuid|$dest_uuid|g" $vm_definitions_file
 
         # Replaces MAC addresses for (qemu/kvm) randomized ones:
         # -----------------------------------------------------------------------------
-
         i=0
         for mac in ${src_macaddr_list[@]}; do
-
-            # Creates a random MAC addr for the given $src_vm MAC
-            dest_macaddr_list+=($(gen_random_macaddr))
 
             # Replaces matching listed mac for a random one:
             sed -i -e "s|<mac address='$mac'/>|<mac address='${dest_macaddr_list[$i]}'/>|" $vm_definitions_file
@@ -378,14 +369,11 @@ if [[ -z $@ ]]; then
         done
 
         # -----------------------------------------------------------------------------
-        # End of modifications on $vm_definitions_file.
-        # -----------------------------------------------------------------------------
-        # Beginning of file copy:
-        # -----------------------------------------------------------------------------
+        # End of modifications on vm_definitions_file.
+        echo -e "Done.\n"
 
         # When defined by the user, replicates disk images:
         # -----------------------------------------------------------------------------
-
         if [[ $copy_disks == yes ]]; then
 
             if [[ $(domain_state $src_vm) != "shut off" ]]; then
@@ -393,17 +381,19 @@ if [[ -z $@ ]]; then
                 # Mark $src_vm  to be turned on after the copy:
                 src_vm_was_on=1
 
-                # Shuts down $src_vm
-                domain_shutdown $src_vm
+                # Shut down the domain and await for it, for an exit code:
+                domain_shutdown $src_vm --wait $VM_WAIT_TIME
+                shutdown_exit_code=$?
 
-                # Gets the status of the operation:
-                shutdown_status=$?
             else
-                shutdown_status=0
+                shutdown_exit_code=0
             fi
 
-            if [[ $shutdown_status -eq 0 ]]; then
+            if [[ $shutdown_exit_code -eq 0 ]]; then
 
+                echo ""
+                # -----------------------------------------------------------------------------
+                # Beginning of file copy:
                 i=0
                 for image_path in ${dest_vm_img_paths_list[@]}; do
 
@@ -440,7 +430,7 @@ if [[ -z $@ ]]; then
                         fi
                     fi
 
-                    # Notifies about success or fail of each disk image provisioning for $dest_vm:
+                    # Notifies about success or fail of each disk image provisioning for dest_vm:
                     [[ $image_path_status -eq 0 ]] && echo "$image_path provisioned successfully" || echo "ERROR: Failed provisioning $image_path."
 
                     ((i++))
@@ -451,8 +441,8 @@ if [[ -z $@ ]]; then
 
             if [ ! -z $src_vm_was_on ]; then
 
-                # Starts $src_vm if it was previously running before the copy:
-                echo "Powering on $src_vm..."
+                # Starts src_vm if it was previously running before the copy:
+                echo "Powering on domain '$src_vm'..."
                 domain_start $src_vm --nowait
             fi
         fi
@@ -463,7 +453,7 @@ if [[ -z $@ ]]; then
         if [ ! -z $src_vm_nvram_path ]; then
 
             # Source VM requires nvram file to work, therefore it has to be provisioned:
-            echo "Persistent Nvram file detected. Attempting provisioning..."
+            echo-e  "\nPersistent Nvram file detected. Attempting provisioning..."
 
             # Get nvram file path of the VM that will be replicated (from its xml definition file)
             # On Unraid, file name will change with uuid replacement on new XML definitions file made in previous step
@@ -498,13 +488,15 @@ if [[ -z $@ ]]; then
                 ;;
 
                 # There were errors copying nvram file:
-                *) echo "WARNING: Nvram file provisioning failed! You need to source this file manually (and possibly edit $dest_vm config) in order to make it run (status: $nvram_copy_status)"
+                *) echo "WARNING: Nvram file provisioning failed! You need to source this file manually (and possibly edit domain '$dest_vm' config) in order to make it run (cp/scp exit code: $nvram_copy_status)"
                 ;;
             esac
         fi
 
         # Finally, defines the VM in QEMU/KVM and cleanses temporal files:
         # -----------------------------------------------------------------------------
+        echo -e "\nDefining new domain '$dest_vm' onto $endpoint endpoint..."
+
         case $endpoint in
 
             local) # Defines VM directly:
@@ -537,8 +529,9 @@ if [[ -z $@ ]]; then
                     ;;
 
                     remote) # Deletes the transferred file:
-                            ssh $SSH_OPTIONS $remote_server "rm -f $remote_vm_definitions_file"
-                            echo "Domain '$dest_vm' was replicated at server '$remote_server' successfully"
+
+                        ssh $SSH_OPTIONS $remote_server "rm -f $remote_vm_definitions_file"
+                        echo "Domain '$dest_vm' was replicated at server '$remote_server' successfully"
                    ;;
                 esac
 
