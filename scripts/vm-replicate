@@ -6,14 +6,15 @@ cat << end_of_help
 
  $(basename $0) -- Replicates a given virtual machine onto a local or remote endpoint
 
- USAGE: $(basename $0) [ -h | --help ]
+ USAGE: [SSH_OPTIONS=...] $(basename $0) [ -h | --help ]
 
  REQUIREMENTS:
     - libvirt service running (in all involved hosts)
     - qemu-img (this host)
     - ssh, scp and sshfs (this host)
     - ssh server (remote host)
-    - Both hosts must be set with proper SSH keys based authentication, in ways this host can connect with the other directly.
+    - Both hosts must be set with proper SSH keys based authentication, in ways this host can connect with the other directly
+    - If run standalone (e.g. outside the container), env var SSH_OPTIONS must be set, as of for vm-babysitter defaults.
 
  INSTRUCTIONS:
     - Run without arguments. A series of options and questions will be presented, and must be answered
@@ -317,13 +318,11 @@ if [[ -z $@ ]]; then
         # End of interactive part:
         # =============================================================================
 
-        # -----------------------------------------------------------------------------
-        # Modification on dest_domain_definitions_xml_file
-        # -----------------------------------------------------------------------------
         echo '-------------------------------------------------------------------------------'
         echo -e "Processing all user defined parameters for domain '$dest_domain'..."
 
-        # Temporal path to store files (as .xml):
+        # Temporal path to store files and mount remote folders.
+        # It must have read and write permissions, or the entire process will fail:
         workdir_path="/tmp/$(basename $0)"
 
         # Create the temporary folder to be used:
@@ -335,12 +334,17 @@ if [[ -z $@ ]]; then
         # Dumps current VMs XML file to a temporal location:
         virsh dumpxml --inactive --security-info $src_domain > $dest_domain_definitions_xml_file
 
+        # -----------------------------------------------------------------------------
+        # Modification on dest_domain_definitions_xml_file
+        # -----------------------------------------------------------------------------
+
         # Replaces VM name (src_domain by dest_domain):
         # -----------------------------------------------------------------------------
         sed -i -e "s|<name>$src_domain</name>|<name>$dest_domain</name>|" $dest_domain_definitions_xml_file
 
-        # Replaces VM UUID (randomized):
         # -----------------------------------------------------------------------------
+        # Replaces VM UUID for a randomized one:
+
         # UUID of src_domain:
         src_domain_uuid=$(domain_id $src_domain)
 
@@ -374,6 +378,7 @@ if [[ -z $@ ]]; then
         # -----------------------------------------------------------------------------
         # Disk image(s) replication:
         # -----------------------------------------------------------------------------
+
         if [[ $copy_all_disks == yes ]]; then
 
             echo '-------------------------------------------------------------------------------'
@@ -469,7 +474,7 @@ if [[ -z $@ ]]; then
         fi
 
         # -----------------------------------------------------------------------------
-        # Copy of NVRAM files (if any):
+        # Copy of NVRAM binaries:
         # -----------------------------------------------------------------------------
 
         # Tries to get an nvram file path of the VM that will be replicated:
@@ -518,8 +523,9 @@ if [[ -z $@ ]]; then
         fi
 
         # -----------------------------------------------------------------------------
-        # Defines the VM in QEMU/KVM and cleanses temporal files:
+        # Define the VM at the chosen endpoint:
         # -----------------------------------------------------------------------------
+
         echo '-------------------------------------------------------------------------------'
         echo -e "Defining new domain '$dest_domain' onto $chosen_endpoint endpoint..."
 
@@ -591,5 +597,5 @@ elif [[ $@ == -h || $@ == --help ]]; then
     show_help
 
 else
-    echo -e "Unknown argument(s) '$@'\nUsage: $(basename $0) [ -h | --help ]\n"
+    echo -e "Unknown argument(s) '$@'\nUsage: [SSH_OPTIONS=...] $(basename $0) [ -h | --help ]\n"
 fi
