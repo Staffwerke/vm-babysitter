@@ -275,7 +275,7 @@ if [[ -z $@ ]]; then
 
                             while [[ $manual_path != /* ]]; do
 
-                                read -p "Invalid path '$manual_path'. It must be an absolute path: " manual_path
+                                read -p "Invalid path: '$manual_path'. It must be an absolute path: " manual_path
                             done
 
                             dest_domain_img_paths+=($manual_path)
