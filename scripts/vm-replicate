@@ -575,7 +575,7 @@ if [[ -z $@ ]]; then
         echo "ERROR: No persistent Virtual Machines detected! (is libvirt service running?)"
     fi
 
-elif [[ $@ == -h || $@ == --help ]]
+elif [[ $@ == -h || $@ == --help ]]; then
 
     # Show help:
     show_help
