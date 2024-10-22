@@ -181,17 +181,17 @@ if [[ -z $@ ]]; then
                         done
 
                         dest_macaddrs+=("52:54:00:${custom_mac}")
-                        echo -e "\nNIC #${#dest_macaddrs[@]} manually set to '${dest_macaddrs[$i]}'\n"
+                        echo -e "NIC #${#dest_macaddrs[@]} manually set to '${dest_macaddrs[$i]}'\n"
                     ;;
 
                     2)
                         dest_macaddrs+=($(gen_random_macaddr))
-                        echo -e "\nNIC #${#dest_macaddrs[@]} automatically set to '${dest_macaddrs[$i]}'\n"
+                        echo -e "NIC #${#dest_macaddrs[@]} automatically set to '${dest_macaddrs[$i]}'\n"
                     ;;
 
                     3)
                         dest_macaddrs+=(${src_macaddrs[$i]})
-                        echo -e "\nNIC #${#dest_macaddrs[@]} will be the same as for domain '$src_domain'\n"
+                        echo -e "NIC #${#dest_macaddrs[@]} will be the same as for domain '$src_domain'\n"
                     ;;
                 esac
 
@@ -319,7 +319,7 @@ if [[ -z $@ ]]; then
 
         echo -e "\n"
         echo "==============================================================================="
-        echo -e "Processing all user defined parameters for domain '$dest_domain'..."
+        echo -e "Processing all user defined parameters for domain '$dest_domain'...\n"
 
         # Temporal path to store files and mount remote folders.
         # It must have read and write permissions, or the entire process will fail:
@@ -506,15 +506,15 @@ if [[ -z $@ ]]; then
             case $nvram_copy_exit_code in
 
                 # As no exit_code is given, logic assumes files are identical and no copy was made:
-                '') echo "Source and destination Nvram file paths are identical in $chosen_endpoint endpoint ($src_domain_nvram_path) so nothing was copied\n"
+                '') echo -e "Source and destination Nvram file paths are identical in $chosen_endpoint endpoint ($src_domain_nvram_path) so nothing was copied\n"
                 ;;
 
                 # Local or remote copy was successful:
-                0) echo "Persistent Nvram binary successfully provisioned to $chosen_endpoint endpoint as '$dest_domain_nvram_path'"
+                0) echo -e "Persistent Nvram binary successfully provisioned to $chosen_endpoint endpoint as '$dest_domain_nvram_path'\n"
                 ;;
 
                 # There were errors copying nvram file:
-                *) echo "WARNING: There were issues provisioning correspondent Nvram file. Manual provision (and possibly edition of domain '$dest_domain' config) will be required (Latest exit code: $nvram_copy_exit_code)"
+                *) echo -e "WARNING: There were issues provisioning correspondent Nvram file. Manual provision (and possibly edition of domain '$dest_domain' config) will be required (Latest exit code: $nvram_copy_exit_code)\n"
                 ;;
             esac
         fi
@@ -527,26 +527,21 @@ if [[ -z $@ ]]; then
 
         case $chosen_endpoint in
 
-            local) # Defines VM directly:
-
-                &> /dev/null virsh define $dest_domain_definitions_xml_file
-                domain_define_exit_code=$?
+            local)  # Defines VM directly:
+                    virsh define $dest_domain_definitions_xml_file
+                    domain_define_exit_code=$?
             ;;
 
-            remote)
-
-                # Define where dest_domain_definitions_xml_file will be copied, depending if disk image paths are or not defined:
-                [[ -n ${dest_domain_img_paths[@]} ]] \
+            remote) # Define where dest_domain_definitions_xml_file will be copied, depending if disk image paths are or not defined:
+                    [[ -n ${dest_domain_img_paths[@]} ]] \
                     && remote_dest_domain_definitions_xml_file="/$(dirname ${dest_domain_img_paths[0]})/$(basename $dest_domain_definitions_xml_file)" \
                     || remote_dest_domain_definitions_xml_file="/tmp/$(basename $dest_domain_definitions_xml_file)"
 
-
-                # Then copy, define the domain and get its exit code:
-                scp $SSH_OPTIONS $dest_domain_definitions_xml_file $remote_server_login:$remote_dest_domain_definitions_xml_file && \
-                ssh $SSH_OPTIONS $remote_server_login "&> /dev/null virsh define $remote_dest_domain_definitions_xml_file"
-                domain_define_exit_code=$?
+                    # Then copy, define the domain and get its exit code:
+                    scp $SSH_OPTIONS $dest_domain_definitions_xml_file $remote_server_login:$remote_dest_domain_definitions_xml_file && \
+                    ssh $SSH_OPTIONS $remote_server_login "virsh define $remote_dest_domain_definitions_xml_file"
+                    domain_define_exit_code=$?
             ;;
-
         esac
 
         case $domain_define_exit_code in
@@ -558,9 +553,8 @@ if [[ -z $@ ]]; then
                     ;;
 
                     remote) # Deletes the transferred file:
-
-                        ssh $SSH_OPTIONS $remote_server_login "rm -f $remote_dest_domain_definitions_xml_file"
-                        echo -e "Domain '$dest_domain' was defined at server '$remote_server_login' successfully\n"
+                            ssh $SSH_OPTIONS $remote_server_login "rm -f $remote_dest_domain_definitions_xml_file"
+                            echo -e "Domain '$dest_domain' was defined at server '$remote_server_login' successfully\n"
                    ;;
                 esac
 
@@ -571,7 +565,7 @@ if [[ -z $@ ]]; then
             *)  # Fail:
                 case $chosen_endpoint in
 
-                    local) echo -e "ERROR: Libvirt could not define domain '$dest_domain'. Check libvirt logs and $dest_domain_definitions_xml_file (virsh define exit code: $domain_define_exit_code)\n"
+                    local)  echo -e "ERROR: Libvirt could not define domain '$dest_domain'. Check libvirt logs and $dest_domain_definitions_xml_file (virsh define exit code: $domain_define_exit_code)\n"
                     ;;
 
                     remote) echo -e "ERROR: Libvirt could not define domain '$dest_domain' at server '$remote_server_name'. Check libvirt logs onto that host, and $remote_dest_domain_definitions_xml_file (virsh define exit code: $domain_define_exit_code)\n"
