@@ -148,7 +148,7 @@ if [[ -z $@ ]]; then
         # Asks the user for a name for the new domain:
         # -----------------------------------------------------------------------------
         echo ""
-        read -p "Choose a name for the domain that will be replicated: " dest_domain
+        read -p "Choose a name for the new domain that will be replicated from '$src_domain': " dest_domain
 
         while [[ $dest_domain == $(grep -o -e "$dest_domain" <<< "${dest_domains_list[@]}") ]]; do
 
@@ -310,7 +310,7 @@ if [[ -z $@ ]]; then
             fi
         fi
 
-        read -n1 -s -r -p $'\nPress any key to continue, or Ctrl+C to Cancel...\n' key
+        read -n1 -s -r -p $'\nPress any key to start the replication, or Ctrl+C to Cancel...\n' key
 
         # =============================================================================
         # End of interactive part
@@ -385,9 +385,6 @@ if [[ -z $@ ]]; then
                 # Shut down the domain and await for it, for an exit code:
                 domain_shutdown $src_domain --wait $VM_WAIT_TIME
                 shutdown_exit_code=$?
-
-            else
-                shutdown_exit_code=0
             fi
 
             if [[ -z $shutdown_exit_code || $shutdown_exit_code -eq 0 ]]; then
