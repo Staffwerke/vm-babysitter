@@ -451,7 +451,7 @@ if [[ -z $@ ]]; then
                     ((i++))
                 done
 
-                [[ $copy_failed == true ]] echo -e "\nWARNING: There were issues copying at least one disk image. Manual provision will be required for such failed ones"
+                [[ $copy_failed == true ]] && echo -e "\nWARNING: There were issues copying at least one disk image. Manual provision will be required for such failed ones"
 
                 # Starts src_domain if it was previously running before the copy:
                 [[ -n $shutdown_exit_code ]] && domain_start $src_domain --nowait
