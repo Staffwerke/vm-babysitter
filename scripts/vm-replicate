@@ -311,13 +311,14 @@ if [[ -z $@ ]]; then
             fi
         fi
 
-        read -n1 -s -r -p $'Press any key to start the replication process (or Ctrl+C to Cancel\n)' key
+        read -n1 -s -r -p $'Press any key to start the replication process (or Ctrl+C to Cancel)' key
 
         # =============================================================================
         # End of interactive part:
         # =============================================================================
 
-        echo '-------------------------------------------------------------------------------'
+        echo -e "\n"
+        echo "==============================================================================="
         echo -e "Processing all user defined parameters for domain '$dest_domain'..."
 
         # Temporal path to store files and mount remote folders.
@@ -379,8 +380,6 @@ if [[ -z $@ ]]; then
         # -----------------------------------------------------------------------------
 
         if [[ $copy_all_disks == yes ]]; then
-
-            echo '-------------------------------------------------------------------------------'
 
             # -----------------------------------------------------------------------------
             # Turn off src_domain (if running):
@@ -483,7 +482,6 @@ if [[ -z $@ ]]; then
 
 
             # Source VM requires nvram file to work, therefore it has to be provisioned:
-            echo '-------------------------------------------------------------------------------'
             echo -e  "Provisioning detected Nvram binary..."
 
             # Get nvram file path of the VM that will be replicated (from its xml definition file)
@@ -525,7 +523,6 @@ if [[ -z $@ ]]; then
         # Define the VM at the chosen endpoint:
         # -----------------------------------------------------------------------------
 
-        echo '-------------------------------------------------------------------------------'
         echo -e "Defining new domain '$dest_domain' onto $chosen_endpoint endpoint..."
 
         case $chosen_endpoint in
