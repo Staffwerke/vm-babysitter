@@ -396,9 +396,14 @@ if [[ -z $@ ]]; then
                     if [[ $chosen_endpoint == local ]]; then
 
                         # Creates folder and dumps a copy of the disk image with qemu-img convert:
-                        mkdir -p $(dirname $image_path) && \
-                        qemu-img convert -p -O qcow2 ${src_domain_img_paths[$i]} $image_path \ &&
-                        qemu_img_exit_code=$?
+                        mkdir -p $(dirname $image_path)
+
+                        if [[ $? -eq 0 ]]; then
+
+                            # Will only proceed if destination folder exists or could be created:
+                            qemu-img convert -p -O qcow2 ${src_domain_img_paths[$i]} $image_path
+                            qemu_img_exit_code=$?
+                        fi
 
                     elif [[ $chosen_endpoint == remote ]]; then
 
