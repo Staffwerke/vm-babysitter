@@ -523,15 +523,16 @@ if [[ -z $@ ]]; then
                 domain_define_exit_code=$?
             ;;
 
-            remote) # Copy dest_domain_definitions_xml_file to the same path of the first image disk, or at /tmp if no disk paths are defined:
+            remote)
 
+                # Define where dest_domain_definitions_xml_file will be copied, depending if disk image paths are or not defined:
                 [[ -n ${dest_domain_img_paths[@]} ]] \
                     && remote_dest_domain_definitions_xml_file="/$(dirname ${dest_domain_img_paths[0]})/$(basename $dest_domain_definitions_xml_file)" \
                     || remote_dest_domain_definitions_xml_file="/tmp/$(basename $dest_domain_definitions_xml_file)"
 
-                scp $SSH_OPTIONS $dest_domain_definitions_xml_file $remote_server_login:$remote_dest_domain_definitions_xml_file
 
-                # Then define the domain and get its exit code:
+                # Then copy, define the domain and get its exit code:
+                scp $SSH_OPTIONS $dest_domain_definitions_xml_file $remote_server_login:$remote_dest_domain_definitions_xml_file && \
                 ssh $SSH_OPTIONS $remote_server_login "&> /dev/null virsh define $remote_dest_domain_definitions_xml_file"
                 domain_define_exit_code=$?
             ;;
