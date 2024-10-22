@@ -347,7 +347,7 @@ if [[ -z $@ ]]; then
         dest_domain_uuid=$(uuidgen)
 
         # Replaces all matches of src_domain_uuid for dest_domain_uuid.
-        # On Unraid and possibly other OSes, changes the path of persistent Nvram file, if exists:
+        # At least on Unraid OS, Nvram file, if exists, its name matches with uuid:
         sed -i -e "s|$src_domain_uuid|$dest_domain_uuid|g" $dest_domain_definitions_xml_file
 
         # -----------------------------------------------------------------------------
@@ -430,12 +430,12 @@ if [[ -z $@ ]]; then
                     # Notifies about success or fail of each disk image provisioning for dest_domain:
                     case $qemu_img_exit_code in
 
-                        0)  echo "Disk image '$image_path' provisioned successfully"
-                        ;;
-
                         '') echo "An error occurred before to start provisioning disk image '$image_path'"
                             # Mark the process as partial (or totally failed):
                             copy_failed=true
+                        ;;
+
+                        0)  echo "Disk image '$image_path' provisioned successfully"
                         ;;
 
                         *)  echo "An unexpected error occurred while provisioning disk image '$image_path' (Qemu-img exit code: $qemu_img_exit_code)"
@@ -470,7 +470,7 @@ if [[ -z $@ ]]; then
         # Tries to get an nvram file path of the VM that will be replicated:
         src_domain_nvram_path=$(domain_nvram_path $src_domain)
 
-        if [ ! -z $src_domain_nvram_path ]; then
+        if [[ -n $src_domain_nvram_path ]]; then
 
             # Source VM requires nvram file to work, therefore it has to be provisioned:
             echo -e  "\nPersistent Nvram file detected. Attempting provisioning..."
@@ -480,21 +480,18 @@ if [[ -z $@ ]]; then
             # (Other OSes might behave in similar way, but this has not been tested):
             dest_domain_nvram_path=$(domain_nvram_path $dest_domain_definitions_xml_file)
 
-            if [[ $chosen_endpoint == local ]]; then
+            if [[ $chosen_endpoint == local && $src_domain_nvram_path != $dest_domain_nvram_path ]]; then
 
-                if [[ $src_domain_nvram_path != $dest_domain_nvram_path ]]; then
-
-                    # When chosen_endpoint is local and both nvram file paths differ, copy the source nvram file with the new destination name:
-                    cp -f $src_domain_nvram_path $dest_domain_nvram_path
-                    nvram_copy_exit_code=$?
-                fi
+                # When chosen_endpoint is local and both nvram file paths differ, copy the source nvram file with the new destination name:
+                cp -f $src_domain_nvram_path $dest_domain_nvram_path
+                nvram_copy_exit_code=$?
 
             elif [[ $chosen_endpoint == remote ]]; then
 
-                    # Create directory (in case also doesn't exists) and if success, copy source nvram as dest nvram:
-                    ssh $SSH_OPTIONS $remote_server_login "mkdir -p $(dirname $dest_domain_nvram_path)" && \
-                    scp $SSH_OPTIONS $src_domain_nvram_path $remote_server_login:$dest_domain_nvram_path
-                    nvram_copy_exit_code=$?
+                # Create directory (in case also doesn't exists) and if success, copy source nvram as dest nvram:
+                ssh $SSH_OPTIONS $remote_server_login "mkdir -p $(dirname $dest_domain_nvram_path)" && \
+                scp $SSH_OPTIONS $src_domain_nvram_path $remote_server_login:$dest_domain_nvram_path
+                nvram_copy_exit_code=$?
             fi
 
             case $nvram_copy_exit_code in
@@ -508,7 +505,7 @@ if [[ -z $@ ]]; then
                 ;;
 
                 # There were errors copying nvram file:
-                *) echo "WARNING: Nvram file provisioning failed! You need to source this file manually (and possibly edit domain '$dest_domain' config) in order to make it run (cp/scp exit code: $nvram_copy_exit_code)"
+                *) echo "WARNING: There were issues provisioning correspondent Nvram file. Manual provision (and possibly edition of domain '$dest_domain' config) will be required  (Latest exit code: $nvram_copy_exit_code)"
                 ;;
             esac
         fi
