@@ -554,6 +554,9 @@ if [[ -z $@ ]]; then
             ;;
         esac
 
+        # Notify about script's end:
+        echo -e "\n$(basename $0): Finished\n"
+
     else
         echo "ERROR: No persistent Virtual Machines detected! (is libvirt service running?)"
     fi
@@ -566,5 +569,4 @@ else
     vm_replicate_status=0
 fi
 
-echo -e "\n$(basename $0): Finished\n"
 exit $vm_replicate_status
