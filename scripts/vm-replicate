@@ -207,24 +207,25 @@ if [[ -z $@ ]]; then
             # Asks the user for copying disks from src_domain for dest_domain
             copy_all_disks=$(yes_no "Replicate the disk image(s): [${src_domain_drives[@]// /,}] from '$src_domain' into '$dest_domain'?" "yes")
 
-            [[  $src_domain_state != "shut off" ]] \
-                && copy_all_disks=$(yes_no "NOTICE: Domain '$src_domain' is currently $src_domain_state. It will be temporarily shut down while disk(s) are replicated. Are you sure to continue with disk replication?" "no")
+            if [[ $copy_all_disks == yes ]]; then
+
+                # Looks for the VM state and notifies about a sudden shutdown (necessary to perform disk replication):
+                src_domain_state=$(domain_state $src_domain)
+
+                # Ask confirmation again before to proceed, since domain has to be shut down for disk image provisioning:
+                [[  $src_domain_state != "shut off" ]] \
+                    && copy_all_disks=$(yes_no "NOTICE: Domain '$src_domain' is currently $src_domain_state. It will be temporarily shut down while disk(s) are replicated. Are you sure to continue with disk replication?" "no")
+            fi
 
             case $copy_all_disks in
 
-                yes)
-
-                    # Looks for the VM state and notifies about a sudden shutdown (necessary to perform disk replication):
-                    src_domain_state=$(domain_state $src_domain)
-                    echo "All disk image(s) will be provisioned" \
+                yes)    echo "All disk image(s) will be provisioned" \
                 ;;
 
-                no)
-                    echo "No disk image(s) will be provisioned. Manual provision will be required"
+                no) echo "No disk image(s) will be provisioned. Manual provision will be required"
 
-                    # -----------------------------------------------------------------------------
                     # Asks the user for checking / modifying paths:
-                    edit_dest_img_paths=$(yes_no "Check anyway, and possibly redefine image disk path(s) into domain '$dest_domain' definitions?" "yes")
+                    edit_dest_img_paths=$(yes_no "Check anyway (and possibly redefine) disk image path(s) for the new domain '$dest_domain' before diskless replication?" "yes")
             esac
 
             if [[ $copy_all_disks == yes ]] || [[ $edit_dest_img_paths == yes ]]; then
