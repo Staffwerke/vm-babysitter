@@ -35,7 +35,7 @@ if [[ -z $@ ]]; then
     # Interactive mode:
     # =============================================================================
 
-    echo -e "\nScanning for available Domains...\n"
+    echo -e "\nScanning for available Domains..."
     src_domains_list=($(domains_list))
 
     # -----------------------------------------------------------------------------
@@ -60,7 +60,7 @@ if [[ -z $@ ]]; then
             ((i++))
         done
 
-        echo -e "\Total domains found in this host: ${#src_domains_list[@]}"
+        echo -e "\nTotal domains found in this host: ${#src_domains_list[@]}"
 
         # -----------------------------------------------------------------------------
         # Asks the user to choose a domain to clone:
@@ -80,7 +80,7 @@ if [[ -z $@ ]]; then
         # Asks the user where to replicate the chosen domain. If local, or remotely:
         # -----------------------------------------------------------------------------
         echo '-------------------------------------------------------------------------------'
-        echo "Select the endpoint where to replicate domain '$src_domain'"
+        echo "Select an endpoint where to replicate domain '$src_domain'"
         echo '-------------------------------------------------------------------------------'
         echo -e "1. This host (local)"
         echo -e "2. Another host (via SSH)\n"
@@ -91,11 +91,11 @@ if [[ -z $@ ]]; then
 
             1)  chosen_endpoint="local"
                 dest_domains_list=(${src_domains_list[@]})
-                echo "Destination endpoint will be this same host"
+                echo -e "Destination endpoint will be this same host\n"
             ;;
 
             2)  chosen_endpoint="remote"
-                echo "Destination endpoint will be on another host"
+                echo -e "Destination endpoint will be on another host\n"
 
                 # Ask for SSH login:
                 while true; do
@@ -119,7 +119,7 @@ if [[ -z $@ ]]; then
 
                             if [[ $remote_api_exit_code -eq 0 ]]; then
 
-                                echo "Host '$remote_server_name' contacted successfully (Libvirt version: $remote_api_version)"
+                                echo -e "Host '$remote_server_name' contacted successfully (Libvirt version: $remote_api_version)\n"
 
                                 # Gets the list of VMs from remote_server_login to discard duplicates on the remote endpoint:
                                 dest_domains_list=($(ssh $SSH_OPTIONS $remote_server_login "virsh list --all --persistent --name"))
@@ -128,15 +128,15 @@ if [[ -z $@ ]]; then
                                 break
 
                             else
-                                echo "ERROR: Cannot connect with Libvirt service located at server '$remote_server_name' (Libvirt exit code: $remote_api_exit_code)"
+                                echo -e "ERROR: Cannot connect with Libvirt service located at server '$remote_server_name' (Libvirt exit code: $remote_api_exit_code)\n"
                             fi
 
                         else
-                            echo "ERROR: Cannot connect with host '$remote_server_name' (SSH exit code: $remote_server_login_exit_code)"
+                            echo -e "ERROR: Cannot connect with host '$remote_server_name' (SSH exit code: $remote_server_login_exit_code)\n"
                         fi
 
                     else
-                        echo "ERROR: Incorrect syntax for endpoint '$remote_server_login'. It must be an SSH valid login"
+                        echo -e "ERROR: Incorrect syntax for endpoint '$remote_server_login'. It must be an SSH valid login\n"
                     fi
                 done
             ;;
@@ -145,13 +145,12 @@ if [[ -z $@ ]]; then
         # -----------------------------------------------------------------------------
         # Asks the user for a name for the new domain:
         # -----------------------------------------------------------------------------
-        echo ""
         read -p "Choose a name for the new domain that will be replicated from '$src_domain': " dest_domain
 
         while [[ $dest_domain == $(grep -o -e "$dest_domain" <<< "${dest_domains_list[@]}") ]]; do
 
             # Ask for a different name if the domain already exists on the list
-            read -p "Domain '$dest_domain' already exists at the chosen endpoint. Choose a different name: " dest_domain
+            read -p "Domain '$dest_domain' already exists at the $chosen_endpoint chosen endpoint. Choose a different name: " dest_domain
         done
 
         # -----------------------------------------------------------------------------
@@ -186,12 +185,12 @@ if [[ -z $@ ]]; then
 
                     2)
                         dest_macaddrs+=($(gen_random_macaddr))
-                        echo "NIC #${#dest_macaddrs[@]} set to '${dest_macaddrs[$i]}'"
+                        echo -e "\nNIC #${#dest_macaddrs[@]} set to '${dest_macaddrs[$i]}'\n"
                     ;;
 
                     3)
                         dest_macaddrs+=(${src_macaddrs[$i]})
-                        echo "NIC #${#dest_macaddrs[@]} will keep same address as in '$src_domain'"
+                        echo -e "\nNIC #${#dest_macaddrs[@]} will keep same address as in '$src_domain'\n"
                     ;;
                 esac
 
@@ -206,7 +205,6 @@ if [[ -z $@ ]]; then
 
             # -----------------------------------------------------------------------------
             # Asks the user for copying disks from src_domain for dest_domain
-            echo ""
             copy_all_disks=$(yes_no "Replicate the disk image(s): [${src_domain_drives[@]// /,}] from '$src_domain' into '$dest_domain'?" "yes")
 
             [[  $src_domain_state != "shut off" ]] \
