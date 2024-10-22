@@ -307,7 +307,7 @@ if [[ -z $@ ]]; then
             fi
         fi
 
-        read -n1 -s -r -p $'\nPress any key to start the replication, or Ctrl+C to Cancel...\n' key
+        read -n1 -s -r -p $'\nPress any key to start the replication, or Ctrl+C to Cancel...' key
 
         # =============================================================================
         # End of interactive part
@@ -316,6 +316,7 @@ if [[ -z $@ ]]; then
         # -----------------------------------------------------------------------------
         # Modification on dest_domain_definitions_xml_file
         # -----------------------------------------------------------------------------
+        echo ""
         echo '-------------------------------------------------------------------------------'
         echo -e "Processing all user defined parameters for domain '$dest_domain'..."
 
@@ -367,8 +368,6 @@ if [[ -z $@ ]]; then
             ((i++))
         done
 
-        echo -e "Done.\n"
-
         # -----------------------------------------------------------------------------
         # Disk image(s) replication:
         # -----------------------------------------------------------------------------
@@ -392,7 +391,7 @@ if [[ -z $@ ]]; then
                 for image_path in ${dest_domain_img_paths[@]}; do
 
                     # Copies the image disk only when conditions apply:
-                    echo -e "\nReplicating '${src_domain_img_paths[$i]}' as '$image_path' on $chosen_endpoint endpoint..."
+                    echo -e "\nReplicating '${src_domain_img_paths[$i]}' as '$image_path' onto $chosen_endpoint endpoint..."
 
                     if [[ $chosen_endpoint == local ]]; then
 
@@ -470,7 +469,7 @@ if [[ -z $@ ]]; then
         if [[ -n $src_domain_nvram_path ]]; then
 
             # Source VM requires nvram file to work, therefore it has to be provisioned:
-            echo -e  "\nPersistent Nvram file detected. Attempting provisioning..."
+            echo -e  "\nProvisioning detected Nvram..."
 
             # Get nvram file path of the VM that will be replicated (from its xml definition file)
             # On Unraid, file name will change with uuid replacement on new XML definitions file made in previous step
@@ -502,7 +501,7 @@ if [[ -z $@ ]]; then
                 ;;
 
                 # There were errors copying nvram file:
-                *) echo "WARNING: There were issues provisioning correspondent Nvram file. Manual provision (and possibly edition of domain '$dest_domain' config) will be required  (Latest exit code: $nvram_copy_exit_code)"
+                *) echo "WARNING: There were issues provisioning correspondent Nvram file. Manual provision (and possibly edition of domain '$dest_domain' config) will be required (Latest exit code: $nvram_copy_exit_code)"
                 ;;
             esac
         fi
@@ -541,13 +540,13 @@ if [[ -z $@ ]]; then
             0)  # Success:
                 case $chosen_endpoint in
 
-                    local)  echo "Domain '$dest_domain' was replicated successfully"
+                    local)  echo "Domain '$dest_domain' was defined successfully"
                     ;;
 
                     remote) # Deletes the transferred file:
 
                         ssh $SSH_OPTIONS $remote_server_login "rm -f $remote_dest_domain_definitions_xml_file"
-                        echo "Domain '$dest_domain' was replicated at server '$remote_server_login' successfully"
+                        echo "Domain '$dest_domain' was defined at server '$remote_server_login' successfully"
                    ;;
                 esac
 
