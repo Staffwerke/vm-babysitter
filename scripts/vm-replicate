@@ -161,19 +161,16 @@ if [[ -z $@ ]]; then
             echo ""
             copy_all_disks=$(yes_no "Replicate the disk image(s): [${src_domain_drives[@]// /,}] from '$src_domain' into '$dest_domain'?" "yes")
 
+            [[  $src_domain_state != "shut off" ]] \
+                && copy_all_disks=$(yes_no "NOTICE: Domain '$src_domain' is currently $src_domain_state. It will be temporarily shut down while disk(s) are replicated. Are you sure to continue with disk replication?" "no")
+
             case $copy_all_disks in
 
                 yes)
 
                     # Looks for the VM state and notifies about a sudden shutdown (necessary to perform disk replication):
                     src_domain_state=$(domain_state $src_domain)
-
-                    [[  $src_domain_state != "shut off" ]] \
-                        && copy_all_disks=$(yes_no "NOTICE: Domain '$src_domain' is currently $src_domain_state. It will be temporarily shut down while disk(s) are replicated. Are you sure to continue?" "no")
-
-                    [[ $copy_all_disks == yes ]] \
-                        && echo "Disk images will be provisioned" \
-                        || { echo -e "\nReplication cancelled by user\n"; exit; }
+                    echo "All disk image(s) will be provisioned" \
                 ;;
 
                 no)
@@ -185,8 +182,6 @@ if [[ -z $@ ]]; then
             esac
 
             if [[ $copy_all_disks == yes ]] || [[ $edit_dest_img_paths == yes ]]; then
-
-                # When disk images are to be copied, or the user wants to check / redefine new paths for dest_domain
 
                 # Shows the possible options and ways to modify them:
                 # -----------------------------------------------------------------------------
@@ -203,7 +198,6 @@ if [[ -z $@ ]]; then
                     echo "Options for disk ${src_domain_drives[$i]} (source: $path)"
                     echo '-------------------------------------------------------------------------------'
                     echo "$menu_option. Set the disk image path to a custom location and name"
-
 
                     # Attempts to find a NEW path matching by VM name:
                     if [[ $path != ${path//$src_domain/$dest_domain} ]]; then
