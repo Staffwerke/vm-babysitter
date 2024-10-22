@@ -47,19 +47,18 @@ if [[ -z $@ ]]; then
 
         # Proceeds if libvirt doesn't report an error, and if there is, at least, one non-trasient domain:
         echo '-------------------------------------------------------------------------------'
-        printf "%3s %-31s %6s %-19s %s \n" "#" "Domain" "MB RAM" "Drives" "MAC Addresses"
+        printf "%3s %-31s %-19s %s \n" "#" "Domain" "Drives" "MAC Addresses"
         echo '-------------------------------------------------------------------------------'
 
         i=0
-        for vm in "${src_domains_list[@]}"; do
+        for domain in "${src_domains_list[@]}"; do
 
             # Get lists with drives and MAC addresses in each VM that can be restored:
-            src_domains_drives_list+=("$(domain_drives_list $vm)")
-            src_domains_ram_list+=("$(domain_getmem $vm --max)")
-            src_macaddr_list+=("$(domain_macaddr_list $vm)")
+            src_domains_drives_list+=("$(domain_drives_list $domain)")
+            src_macaddr_list+=("$(domain_macaddr_list $domain)")
 
             # Shows each VM found, including the restorable drives and MACs:
-            printf "%3s %-31s %6s %-19s %s \n" "$(($i+1))" "$vm" "$((${src_domains_ram_list[$i]} / 1024))" "${src_domains_drives_list[$i]:-"None"}" "${src_macaddr_list[$i]:-"None"}"
+            printf "%3s %-31s %-19s %s \n" "$(($i+1))" "$domain" "${src_domains_drives_list[$i]:-"None"}" "${src_macaddr_list[$i]:-"None"}"
             ((i++))
         done
 
@@ -506,7 +505,7 @@ if [[ -z $@ ]]; then
             local) # Defines VM directly:
 
                 &> /dev/null virsh define $dest_domain_definitions_xml_file
-                vm_define_exit_code=$?
+                domain_define_exit_code=$?
             ;;
 
             remote) # Copy dest_domain_definitions_xml_file to the same path of the first image disk, or at /tmp if no disk paths are defined:
@@ -519,12 +518,12 @@ if [[ -z $@ ]]; then
 
                 # Then define the domain and get its exit code:
                 ssh $SSH_OPTIONS $remote_server_login "&> /dev/null virsh define $remote_dest_domain_definitions_xml_file"
-                vm_define_exit_code=$?
+                domain_define_exit_code=$?
             ;;
 
         esac
 
-        case $vm_define_exit_code in
+        case $domain_define_exit_code in
 
             0)  # Success:
                 case $chosen_endpoint in
@@ -549,10 +548,10 @@ if [[ -z $@ ]]; then
             *)  # Fail:
                 case $chosen_endpoint in
 
-                    local) echo "ERROR: Libvirt could not define domain '$dest_domain'. Check the logs and XML definition file at $workdir_path (virsh define exit code: $vm_define_exit_code)"
+                    local) echo "ERROR: Libvirt could not define domain '$dest_domain'. Check the logs and XML definition file at $workdir_path (virsh define exit code: $domain_define_exit_code)"
                     ;;
 
-                    remote) echo "ERROR: Remote Libvirt could not define domain '$dest_domain' at server '$remote_server_name'. Check the logs on that host, and XML definition file at  $remote_dest_domain_definitions_xml_file (virsh define exit code: $vm_define_exit_code)"
+                    remote) echo "ERROR: Remote Libvirt could not define domain '$dest_domain' at server '$remote_server_name'. Check the logs on that host, and XML definition file at  $remote_dest_domain_definitions_xml_file (virsh define exit code: $domain_define_exit_code)"
                     ;;
                 esac
             ;;
