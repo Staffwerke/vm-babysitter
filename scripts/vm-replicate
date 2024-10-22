@@ -22,10 +22,6 @@ cat << end_of_info
 end_of_info
 }
 
-# -----------------------------------------------------------------------------
-# Main execution:
-# -----------------------------------------------------------------------------
-
 # Load functions:
 source /usr/local/bin/vm-functions
 
@@ -34,14 +30,15 @@ vm_replicate_status=1
 if [[ -z $@ ]]; then
 
     # =============================================================================
-    # Beginning of interactive part:
+    # Interactive mode:
     # =============================================================================
-
-    #show_info
 
     echo -e "\nScanning for available Domains...\n"
     src_domains_list=($(domains_list))
 
+    # -----------------------------------------------------------------------------
+    # Show all available domains:
+    # -----------------------------------------------------------------------------
     if [[ $? -eq 0 && ${#src_domains_list[@]} -gt 0 ]]; then
 
         # Proceeds if libvirt doesn't report an error, and if there is, at least, one non-trasient domain:
@@ -64,7 +61,8 @@ if [[ -z $@ ]]; then
 
         echo -e "\Total domains found in this host: ${#src_domains_list[@]}"
 
-        # Asks the user to choose a VM to clone:
+        # -----------------------------------------------------------------------------
+        # Asks the user to choose a domain to clone:
         # -----------------------------------------------------------------------------
         user_choice=$(choose_number "Choose a domain to be replicated" "1" "${#src_domains_list[@]}")
 
@@ -77,7 +75,8 @@ if [[ -z $@ ]]; then
 
         echo -e "\nDomain '$src_domain' selected for replication\n"
 
-        # Asks the user to replicate onto local, or remote VM:
+        # -----------------------------------------------------------------------------
+        # Asks the user where to replicate the chosen domain. If local, or remotely:
         # -----------------------------------------------------------------------------
         echo '-------------------------------------------------------------------------------'
         echo "Select the endpoint where to replicate domain '$src_domain'"
@@ -142,7 +141,8 @@ if [[ -z $@ ]]; then
             ;;
         esac
 
-        # Asks the user for a name to be used for the New VM:
+        # -----------------------------------------------------------------------------
+        # Asks the user for a name for the new domain:
         # -----------------------------------------------------------------------------
         echo ""
         read -p "Choose a name for the domain that will be replicated: " dest_domain
@@ -150,14 +150,61 @@ if [[ -z $@ ]]; then
         while [[ $dest_domain == $(grep -o -e "$dest_domain" <<< "${dest_domains_list[@]}") ]]; do
 
             # Ask for a different name if the domain already exists on the list
-            # (fetched at the beginning or when a remote endpoint was chosen):
             read -p "Domain '$dest_domain' already exists at the chosen endpoint. Choose a different name: " dest_domain
         done
 
+        # -----------------------------------------------------------------------------
+        # MAC Adress(es) section:
+        # -----------------------------------------------------------------------------
+        if [[ -n ${src_macaddrs[@]} ]]; then
+
+            i=0
+            for nic in ${src_macaddrs[@]}; do
+
+                echo ""
+                echo '-------------------------------------------------------------------------------'
+                echo "Options for NIC #${#src_macaddrs[@]} (MAC Address: ${src_macaddrs[$i]}):"
+                echo '-------------------------------------------------------------------------------'
+                echo -e "1. Set a custom MAC address"
+                echo -e "2. Assign a random MAC address"
+                echo -e "3. Keep the same MAC address as in '$src_domain' (choose at your own risk)\n"
+
+                user_choice=$(choose_number "Choose the desired action to perform" "1" "3")
+
+                case $user_choice in
+
+                    1)
+                        read -p "Insert the 3 last hexadecimal values for the custom MAC address separated by colons (e.g. 0f:1e:2d): " custom_mac
+
+                        while [[ -z $(grep -E "^([0-9A-Fa-f]{2}[:]){2}([0-9A-Fa-f]{2})$" <<< $custom_mac) ]]; do
+                            read -p "Invalid values or syntax. Insert 3 hexadecimal values separated by colons for the custom MAC address: " custom_mac
+                        done
+
+                        dest_macaddrs+=("52:54:00:${custom_mac}")
+                    ;;
+
+                    2)
+                        dest_macaddrs+=($(gen_random_macaddr))
+                        echo "NIC #${#dest_macaddrs[@]} set to '${dest_macaddrs[$i]}'"
+                    ;;
+
+                    3)
+                        dest_macaddrs+=(${src_macaddrs[$i]})
+                        echo "NIC #${#dest_macaddrs[@]} will keep same address as in '$src_domain'"
+                    ;;
+                esac
+
+                ((i++))
+            done
+        fi
+
+        # -----------------------------------------------------------------------------
+        # Disk image(s) section:
+        # -----------------------------------------------------------------------------
         if [[ -n ${src_domain_drives[@]} ]]; then
 
-            # Asks the user for copying disks from src_domain for dest_domain
             # -----------------------------------------------------------------------------
+            # Asks the user for copying disks from src_domain for dest_domain
             echo ""
             copy_all_disks=$(yes_no "Replicate the disk image(s): [${src_domain_drives[@]// /,}] from '$src_domain' into '$dest_domain'?" "yes")
 
@@ -176,15 +223,15 @@ if [[ -z $@ ]]; then
                 no)
                     echo "No disk image(s) will be provisioned. It must be provided manually"
 
-                    # Asks the user for checking / modifying paths:
                     # -----------------------------------------------------------------------------
+                    # Asks the user for checking / modifying paths:
                     edit_dest_img_paths=$(yes_no "Check anyway, and possibly redefine image disk path(s) into domain '$dest_domain' definitions?" "yes")
             esac
 
             if [[ $copy_all_disks == yes ]] || [[ $edit_dest_img_paths == yes ]]; then
 
-                # Shows the possible options and ways to modify them:
                 # -----------------------------------------------------------------------------
+                # Shows the possible options and ways to modify them:
                 i=0
                 for path in ${src_domain_img_paths[@]}; do
 
@@ -260,62 +307,18 @@ if [[ -z $@ ]]; then
             fi
         fi
 
-        # Additional options to set CPU, RAM, MAC addresses, etc. can be added here:
-        # -----------------------------------------------------------------------------
+        read -n1 -s -r -p $'\nPress any key to continue, or Ctrl+C to Cancel...\n' key
 
-        if [[ -n ${src_macaddrs[@]} ]]; then
-
-            i=0
-            for nic in ${src_macaddrs[@]}; do
-
-                echo ""
-                echo '-------------------------------------------------------------------------------'
-                echo "Options for NIC #${#src_macaddrs[@]} (MAC Address: ${src_macaddrs[$i]}):"
-                echo '-------------------------------------------------------------------------------'
-                echo -e "1. Set a custom MAC address"
-                echo -e "2. Assign a random MAC address"
-                echo -e "3. Keep the same MAC address as in '$src_domain' (choose at your own risk)\n"
-
-                user_choice=$(choose_number "Choose the desired action to perform" "1" "3")
-
-                case $user_choice in
-
-                    1)
-                        read -p "Insert the 3 last hexadecimal values for the custom MAC address separated by colons (e.g. 0f:1e:2d): " custom_mac
-
-                        while [[ -z $(grep -E "^([0-9A-Fa-f]{2}[:]){2}([0-9A-Fa-f]{2})$" <<< $custom_mac) ]]; do
-                            read -p "Invalid values or syntax. Insert 3 hexadecimal values separated by colons for the custom MAC address: " custom_mac
-                        done
-
-                        dest_macaddrs+=("52:54:00:${custom_mac}")
-                    ;;
-
-                    2)
-                        dest_macaddrs+=($(gen_random_macaddr))
-                        echo "NIC #${#dest_macaddrs[@]} set to '${dest_macaddrs[$i]}'"
-                    ;;
-
-                    3)
-                        dest_macaddrs+=(${src_macaddrs[$i]})
-                        echo "NIC #${#dest_macaddrs[@]} will keep same address as in '$src_domain'"
-                    ;;
-                esac
-
-                ((i++))
-            done
-        fi
         # =============================================================================
         # End of interactive part
         # =============================================================================
-        read -n1 -s -r -p $'\nPress any key to continue, or Ctrl+C to Cancel...\n' key
 
         # -----------------------------------------------------------------------------
-        # Beginning of modification on $dest_domain_definitions_xml_file
+        # Modification on dest_domain_definitions_xml_file
+        # -----------------------------------------------------------------------------
         echo '-------------------------------------------------------------------------------'
         echo -e "Processing all user defined parameters for domain '$dest_domain'..."
 
-        # Dumps src_domain definitions apart, and apply changes:
-        # -----------------------------------------------------------------------------
         # Temporal path to store files (as .xml):
         workdir_path="/tmp/$(basename $0)"
 
@@ -344,8 +347,8 @@ if [[ -z $@ ]]; then
         # On Unraid and possibly other OSes, changes the path of persistent Nvram file, if exists:
         sed -i -e "s|$src_domain_uuid|$dest_domain_uuid|g" $dest_domain_definitions_xml_file
 
-        # Replaces MAC addresses for (qemu/kvm) randomized ones:
         # -----------------------------------------------------------------------------
+        # Replaces MAC addresses for (qemu/kvm) randomized ones:
         i=0
         for mac in ${src_macaddrs[@]}; do
 
@@ -354,8 +357,8 @@ if [[ -z $@ ]]; then
             ((i++))
         done
 
-        # When defined by the user, Replaces disk image paths:
         # -----------------------------------------------------------------------------
+        # When defined by the user, Replaces disk image paths:
         i=0
         for path in ${dest_domain_img_paths[@]}; do
 
@@ -364,14 +367,16 @@ if [[ -z $@ ]]; then
             ((i++))
         done
 
-        # -----------------------------------------------------------------------------
-        # End of modifications on dest_domain_definitions_xml_file.
         echo -e "Done.\n"
 
-        # When defined by the user, replicates disk images:
+        # -----------------------------------------------------------------------------
+        # Disk image(s) replication:
         # -----------------------------------------------------------------------------
         if [[ $copy_all_disks == yes ]]; then
 
+            # -----------------------------------------------------------------------------
+            # Turn off src_domain (if running):
+            # -----------------------------------------------------------------------------
             if [[ $(domain_state $src_domain) != "shut off" ]]; then
 
                 # Shut down the domain and await for it, for an exit code:
@@ -437,6 +442,10 @@ if [[ -z $@ ]]; then
             fi
         fi
 
+        # -----------------------------------------------------------------------------
+        # Copy of NVRAM files (if any):
+        # -----------------------------------------------------------------------------
+
         # Tries to get an nvram file path of the VM that will be replicated:
         src_domain_nvram_path=$(domain_nvram_path $src_domain)
 
@@ -483,7 +492,8 @@ if [[ -z $@ ]]; then
             esac
         fi
 
-        # Finally, defines the VM in QEMU/KVM and cleanses temporal files:
+        # -----------------------------------------------------------------------------
+        # Defines the VM in QEMU/KVM and cleanses temporal files:
         # -----------------------------------------------------------------------------
         echo -e "\nDefining new domain '$dest_domain' onto $chosen_endpoint endpoint..."
 
