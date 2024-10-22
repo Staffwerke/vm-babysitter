@@ -411,7 +411,7 @@ if [ -z $@ ]; then
 
                     # Adds the drive to the restored_drives list:
                     restored_drives+=($drive)
-                    echo "INFO: Image Drive '$drive' has been successfuly restored!"
+                    echo "INFO: Image Drive '$drive' has been successfully restored!"
                 else
 
                     # Removes any incomplete image, if exists:

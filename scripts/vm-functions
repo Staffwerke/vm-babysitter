@@ -202,7 +202,7 @@ domain_nvram_path()
 
 #------------------------------------------------------------------------------
 # Attempts a full power cycle onto a given domain, waiting for a determined '--wait' time in seconds (default is 60 secs).
-# Returns '0' if success, '1' if it fails and '2' if domain has not shut off successfuly after --wait-time seconds
+# Returns '0' if success, '1' if it fails and '2' if domain has not shut off successfully after --wait-time seconds
 #------------------------------------------------------------------------------
 domain_powercycle()
 {
