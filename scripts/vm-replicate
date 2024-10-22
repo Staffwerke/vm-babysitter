@@ -1,10 +1,12 @@
 #!/bin/bash
 
-show_info()
+show_help()
 {
-cat << end_of_info
+cat << end_of_help
 
  $(basename $0) -- Replicates a given virtual machine onto a local or remote endpoint
+
+ USAGE: $(basename $0) [ -h | --help ]
 
  REQUIREMENTS:
     - libvirt service running (in all involved hosts)
@@ -14,20 +16,22 @@ cat << end_of_info
     - Both hosts must be set with proper SSH keys based authentication, in ways this host can connect with the other directly.
 
  INSTRUCTIONS:
-    - A series of options and questions will be presented, and must be answered
+    - Run without arguments. A series of options and questions will be presented, and must be answered
     - You will be asked for confirmation before to start the process
-    - Once completed, it will display the final result about the operation.
+    - Once completed, it will display the final result about the operation
+    - To exit anytime, press 'Ctrl+C' (might leave leftovers once the replication process has begun).
 
 (Maintainer: Adrián Parilli <adrian.parilli@staffwerke.de>)
-end_of_info
+end_of_help
 }
 
 # Load functions:
 source /usr/local/bin/vm-functions
 
-vm_replicate_status=1
 
 if [[ -z $@ ]]; then
+
+    vm_replicate_status=1
 
     # =============================================================================
     # Interactive mode:
@@ -561,12 +565,13 @@ if [[ -z $@ ]]; then
         echo "ERROR: No persistent Virtual Machines detected! (is libvirt service running?)"
     fi
 
-else
-    # Argument(s) detected. By now, only shows the help and exits:
-    show_info
+elif [[ $@ == -h || $@ == --help ]]
 
-    echo "Run this script without arguments to start the interactive mode. Exited."
-    vm_replicate_status=0
+    # Show help:
+    show_help
+
+else
+    echo -e "Unknown argument(s) '$@'\nUsage: $(basename $0) [ -h | --help ]"
 fi
 
 exit $vm_replicate_status
