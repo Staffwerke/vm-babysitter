@@ -224,7 +224,7 @@ if [[ -z $@ ]]; then
                 ;;
 
                 no)
-                    echo "No disk image(s) will be provisioned. It must be provided manually"
+                    echo "No disk image(s) will be provisioned. Manual provision will be required"
 
                     # -----------------------------------------------------------------------------
                     # Asks the user for checking / modifying paths:
@@ -389,50 +389,71 @@ if [[ -z $@ ]]; then
 
             if [[ -z $shutdown_exit_code || $shutdown_exit_code -eq 0 ]]; then
 
-                echo ""
                 # -----------------------------------------------------------------------------
                 # Beginning of file copy:
                 i=0
                 for image_path in ${dest_domain_img_paths[@]}; do
 
                     # Copies the image disk only when conditions apply:
-                    echo "Replicating '${src_domain_img_paths[$i]}' as '$image_path' on $chosen_endpoint endpoint..."
+                    echo -e "\nReplicating '${src_domain_img_paths[$i]}' as '$image_path' on $chosen_endpoint endpoint..."
 
                     if [[ $chosen_endpoint == local ]]; then
 
                         # Creates folder and dumps a copy of the disk image with qemu-img convert:
-                        mkdir -p $(dirname $image_path)
-                        qemu-img convert -p -O qcow2 ${src_domain_img_paths[$i]} $image_path
-                        image_path_exit_code=$?
+                        mkdir -p $(dirname $image_path) && \
+                        qemu-img convert -p -O qcow2 ${src_domain_img_paths[$i]} $image_path \ &&
+                        qemu_img_exit_code=$?
 
                     elif [[ $chosen_endpoint == remote ]]; then
 
-                        # Creates remote folder and creates local mountpoint:
+                        # Creates a temporal folder to mount the remote endpoint next:
                         mkdir -p $workdir_path/remote
-                        ssh $SSH_OPTIONS $remote_server_login "mkdir -p $(dirname $image_path)"
 
-                        # And mounts the remote folder and dumps with qemu-img convert directly.
+                        # Creates the remote folder, and mounts it via sshfs.
                         # (sshfs is not compatible with option '-q', so must be filtered from SSH_OPTIONS):
+                        ssh $SSH_OPTIONS $remote_server_login "mkdir -p $(dirname $image_path)" && \
                         sshfs $remote_server_login:$(dirname $image_path) $workdir_path/remote ${SSH_OPTIONS/-q /}
 
                         if [[ $? -eq 0 ]]; then
 
                             # Will only replicate the disk if mount of remote endpoint is successful:
                             qemu-img convert -p -O qcow2 ${src_domain_img_paths[$i]} $workdir_path/remote/$(basename $image_path)
-                            image_path_exit_code=$?
+                            qemu_img_exit_code=$?
 
                             # Unmounts the remote folder after completion:
                             umount $workdir_path/remote
                         else
-                            echo "ERROR: Cannot mount the remote folder on host '$remote_server_name' to replicate '$(basename $image_path)'"
+                            echo "ERROR: Could not create and/or mount the remote folder at host '$remote_server_name' to replicate '$(basename $image_path)'"
                         fi
                     fi
 
                     # Notifies about success or fail of each disk image provisioning for dest_domain:
-                    [[ $image_path_exit_code -eq 0 ]] && echo "Disk image '$image_path' provisioned successfully" || echo "ERROR: Failed provisioning disk image '$image_path'"
+                    case $qemu_img_exit_code in
+
+                        0)  echo "Disk image '$image_path' provisioned successfully"
+                        ;;
+
+                        '') echo "An error occurred before to start provisioning disk image '$image_path'"
+                            # Mark the process as partial (or totally failed):
+                            copy_failed=true
+                        ;;
+
+                        *)  echo "An unexpected error occurred while provisioning disk image '$image_path' (Qemu-img exit code: $qemu_img_exit_code)"
+
+                            # Mark the process as partial (or totally failed):
+                            copy_failed=true
+
+                            # Attempt to delete the failed image:
+                            [[ $chosen_endpoint == local ]] \
+                                && rm -f $image_path \
+                                || ssh $SSH_OPTIONS $remote_server_login "rm -f $image_path"
+                        ;;
+                    esac
 
                     ((i++))
                 done
+
+                [[ $copy_failed == true ]] echo -e "\nWARNING: There were issues copying at least one disk image. Manual provision will be required for such failed ones"
 
                 # Starts src_domain if it was previously running before the copy:
                 [[ -n $shutdown_exit_code ]] && domain_start $src_domain --nowait
