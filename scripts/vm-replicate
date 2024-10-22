@@ -31,8 +31,6 @@ source /usr/local/bin/vm-functions
 
 if [[ -z $@ ]]; then
 
-    vm_replicate_status=1
-
     # =============================================================================
     # Interactive mode:
     # =============================================================================
@@ -556,9 +554,6 @@ if [[ -z $@ ]]; then
 
                 # Delete temporal workdir:
                 rm -rf $workdir_path
-
-                # Set successful as exit code:
-                vm_replicate_status=0
             ;;
 
             *)  # Fail:
@@ -588,5 +583,3 @@ elif [[ $@ == -h || $@ == --help ]]
 else
     echo -e "Unknown argument(s) '$@'\nUsage: $(basename $0) [ -h | --help ]"
 fi
-
-exit $vm_replicate_status
