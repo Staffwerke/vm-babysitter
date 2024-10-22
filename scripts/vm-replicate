@@ -9,10 +9,10 @@ cat << end_of_help
  USAGE: [SSH_OPTIONS=...] $(basename $0) [ -h | --help ]
 
  REQUIREMENTS:
-    - libvirt service running (in all involved hosts)
-    - qemu-img (this host)
-    - ssh, scp and sshfs (this host)
-    - ssh server (remote host)
+    - Libvirt service running (in all involved hosts)
+    - Qemu Utils (this host)
+    - SSH, SCP and SSHFS (this host)
+    - SSH server (remote host)
     - Both hosts must be set with proper SSH keys based authentication, in ways this host can connect with the other directly
     - If run standalone (e.g. outside the container), env var SSH_OPTIONS must be set, as of for vm-babysitter defaults.
 
@@ -22,7 +22,6 @@ cat << end_of_help
     - Once completed, it will display the final result about the operation
     - To exit anytime, press 'Ctrl+C' (might leave leftovers once the replication process has begun).
 
-(Maintainer: Adrián Parilli <adrian.parilli@staffwerke.de>)
 end_of_help
 }
 
@@ -85,7 +84,7 @@ if [[ -z $@ ]]; then
         echo -e "1. This host (local)"
         echo -e "2. Another host (via SSH)\n"
 
-        user_choice=$(choose_number "Choose an option" "1" "2" "1")
+        user_choice=$(choose_number "Choose an endpoint" "1" "2" "1")
 
         case $user_choice in
 
@@ -164,13 +163,13 @@ if [[ -z $@ ]]; then
             for nic in ${src_macaddrs[@]}; do
 
                 echo '-------------------------------------------------------------------------------'
-                echo "Options for NIC #${#src_macaddrs[@]} (MAC Address: ${src_macaddrs[$i]}):"
+                echo "Select an action for NIC #${#src_macaddrs[@]} (MAC Address: ${src_macaddrs[$i]}):"
                 echo '-------------------------------------------------------------------------------'
                 echo -e "1. Set a custom MAC address"
                 echo -e "2. Assign a random MAC address"
                 echo -e "3. Keep the same MAC address as in '$src_domain' (choose at your own risk)\n"
 
-                user_choice=$(choose_number "Choose the desired action to perform" "1" "3")
+                user_choice=$(choose_number "Choose an action" "1" "3" "2")
 
                 case $user_choice in
 
@@ -207,7 +206,7 @@ if [[ -z $@ ]]; then
 
             # -----------------------------------------------------------------------------
             # Asks the user for copying disks from src_domain for dest_domain
-            copy_all_disks=$(yes_no "Replicate the disk image(s): [${src_domain_drives[@]// /,}] from '$src_domain' into '$dest_domain'?" "yes")
+            copy_all_disks=$(yes_no "Replicate disk image(s) '${src_domain_drives[@]// /,}' from '$src_domain' into '$dest_domain'?" "yes")
 
             if [[ $copy_all_disks == yes ]]; then
 
@@ -267,7 +266,7 @@ if [[ -z $@ ]]; then
                     fi
 
                     echo ""
-                    user_choice=$(choose_number "Choose an option" "1" "$menu_option")
+                    user_choice=$(choose_number "Choose an option" "1" "$menu_option" "1")
 
                     case $user_choice in
 
@@ -312,7 +311,7 @@ if [[ -z $@ ]]; then
             fi
         fi
 
-        read -n1 -s -r -p $'Press any key to start the replication process (or Ctrl+C to Cancel)' key
+        read -n1 -s -r -p $'Press any key to start the replication process (or Ctrl+C to Cancel\n)' key
 
         # =============================================================================
         # End of interactive part:
@@ -597,5 +596,5 @@ elif [[ $@ == -h || $@ == --help ]]; then
     show_help
 
 else
-    echo -e "Unknown argument(s) '$@'\nUsage: [SSH_OPTIONS=...] $(basename $0) [ -h | --help ]\n"
+    echo -e "Unknown argument(s) '$@' Usage: [SSH_OPTIONS=...] $(basename $0) [ -h | --help ]\n"
 fi
