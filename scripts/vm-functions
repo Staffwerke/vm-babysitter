@@ -859,7 +859,7 @@ choose_number()
         local min_choice=$2
         local max_choice=$3
         if [[ ! -z $4 ]] || [[ $min_choice -eq $max_choice ]]; then
-            local default_choice=" (defaults to '$4')"
+            local default_choice=" (default: $4)"
         fi
         local choice
 
