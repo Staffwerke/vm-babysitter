@@ -579,10 +579,10 @@ if [[ -z $@ ]]; then
                 *)  # Fail:
                     case $chosen_endpoint in
 
-                        local)  echo -e "ERROR: Libvirt could not define domain '$dest_domain' from config stored at '$dest_domain_definitions_xml_file' (virsh define exit code: $domain_define_exit_code)."
+                        local)  echo -e "ERROR: Libvirt could not define domain '$dest_domain' (virsh define exit code: $domain_define_exit_code)\n"
                         ;;
 
-                        remote) echo -e "ERROR: Libvirt could not define domain '$dest_domain' at server '$remote_server_name' from config stored at '$remote_dest_domain_definitions_xml_file' (virsh define exit code: $domain_define_exit_code)"
+                        remote) echo -e "ERROR: Libvirt could not define domain '$dest_domain' at server '$remote_server_name' (virsh define exit code: $domain_define_exit_code)\n"
                         ;;
                     esac
                 ;;
