@@ -213,14 +213,17 @@ if [[ -z $@ ]]; then
                 # Looks for the VM state and notifies about a sudden shutdown (necessary to perform disk replication):
                 src_domain_state=$(domain_state $src_domain)
 
-                # Ask confirmation again before to proceed, since domain has to be shut down for disk image provisioning:
-                [[  $src_domain_state != "shut off" ]] \
-                    && copy_all_disks=$(yes_no "NOTICE: Domain '$src_domain' is currently $src_domain_state. It will be temporarily shut down while disk(s) are replicated. Are you sure to continue with disk replication?" "no")
+                if [[  $src_domain_state != "shut off" ]]; then
+
+                    # Ask confirmation again before to proceed, since domain has to be shut down for disk image provisioning:
+                    echo -e "\nNOTICE: Domain '$src_domain' is currently $src_domain_state. In order to proceed with disk replication, it will be automatically shut down during the process, and restarted once it is finished"
+                    && copy_all_disks=$(yes_no "Are you agree with this action to continue with disk replication?" "no")
+                fi
             fi
 
             case $copy_all_disks in
 
-                yes)    echo -e "All disk image(s) will be provisioned\n" \
+                yes)    echo -e "All disk image(s) will be provisioned\n"
                 ;;
 
                 no)     echo -e "No disk image(s) will be provisioned (manual provision will be required)\n"
@@ -265,8 +268,13 @@ if [[ -z $@ ]]; then
                         echo "$menu_option. Keep the disk image path unchanged: $path"
                     fi
 
+                    # Default choice is always '2' if exists, otherwise it's '1':
+                    [[ $menu_option -ge 2 ]] \
+                        && default_option=2 \
+                        || default_option=1
+
                     echo ""
-                    user_choice=$(choose_number "Choose an option" "1" "$menu_option" "1")
+                    user_choice=$(choose_number "Choose an option" "1" "$menu_option" "$default_option")
 
                     case $user_choice in
 
@@ -534,7 +542,7 @@ if [[ -z $@ ]]; then
 
             remote) # Define where dest_domain_definitions_xml_file will be copied, depending if disk image paths are or not defined:
                     [[ -n ${dest_domain_img_paths[@]} ]] \
-                    && remote_dest_domain_definitions_xml_file="/$(dirname ${dest_domain_img_paths[0]})/$(basename $dest_domain_definitions_xml_file)" \
+                    && remote_dest_domain_definitions_xml_file="$(dirname ${dest_domain_img_paths[0]})/$(basename $dest_domain_definitions_xml_file)" \
                     || remote_dest_domain_definitions_xml_file="/tmp/$(basename $dest_domain_definitions_xml_file)"
 
                     # Then copy, define the domain and get its exit code:
@@ -565,10 +573,10 @@ if [[ -z $@ ]]; then
             *)  # Fail:
                 case $chosen_endpoint in
 
-                    local)  echo -e "ERROR: Libvirt could not define domain '$dest_domain'. Check libvirt logs and $dest_domain_definitions_xml_file (virsh define exit code: $domain_define_exit_code)\n"
+                    local)  echo -e "ERROR: Libvirt could not define domain '$dest_domain' (virsh define exit code: $domain_define_exit_code)\n"
                     ;;
 
-                    remote) echo -e "ERROR: Libvirt could not define domain '$dest_domain' at server '$remote_server_name'. Check libvirt logs onto that host, and $remote_dest_domain_definitions_xml_file (virsh define exit code: $domain_define_exit_code)\n"
+                    remote) echo -e "ERROR: Libvirt could not define domain '$dest_domain' at server '$remote_server_name' (virsh define exit code: $domain_define_exit_code)\n"
                     ;;
                 esac
             ;;
