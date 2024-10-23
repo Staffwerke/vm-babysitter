@@ -335,7 +335,7 @@ if [ -z $@ ]; then
 # -----------------------------------------------------------------------------
 
         # Shutdown $vm_name
-        domain_shutdown $vm_name
+        domain_shutdown $vm_name --wait $WAIT_TIME
 
         if [[ $? == 0 ]]; then
 
@@ -370,29 +370,21 @@ if [ -z $@ ]; then
 
                     if [[ -f $img_path/$old_img_name ]]; then
 
-                        if [[ $keep_old_disks ]]; then
-
-                            echo "INFO: Old disk image at $img_path saved as '$old_img_name'"
-                        else
-
-                            # Removes the old image before to be replaced by the new one:
-                            rm -f $img_path/$img_name
-                        fi
+                        # Notify about the old image saved, or delete accordingly:
+                        [[ $keep_old_disks ]] \
+                            && echo "INFO: Old disk image at $img_path saved as '$old_img_name'" \
+                            || rm -f $img_path/$old_img_name
                     fi
 
                     # Adds the drive to the restored_drives list:
                     restored_drives+=($drive)
                     echo "INFO: Image Drive '$drive' has been successfully restored!"
                 else
+                    # Removes any incomplete image, if exists:
+                    [[ -f $img_path/$img_name ]] && rm -f $img_path/$image_name
 
-                    if [[ -f $img_path/$img_name ]]; then
-
-                        # Removes any incomplete image, if exists:
-                        rm -f $img_path/$image_name
-
-                        # Restore previous existing image
-                        mv $img_path/$old_img_name $img_path/$img_name
-                    fi
+                    # Restore previous existing image:
+                    [[ -f $img_path/$old_img_name ]] && mv $img_path/$old_img_name $img_path/$img_name
 
                     # Adds the drive to the failed_drives list:
                     failed_drives+=($drive)
