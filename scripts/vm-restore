@@ -368,7 +368,7 @@ if [ -z $@ ]; then
 
                     echo "INFO: Stream of drive $drive successfully transferred"
 
-                    if [[ -f $img_path/$img_name ]]; then
+                    if [[ -f $img_path/$old_img_name ]]; then
 
                         if [[ $keep_old_disks ]]; then
 
@@ -408,7 +408,7 @@ if [ -z $@ ]; then
             if [[ ${#restored_drives[@]} -eq ${#selected_drives[@]} ]]; then
 
                 echo "Querying libvirt for old checkpoints..."
-                domain_delete_checkpoints_metadata $vm_name --all
+                domain_delete_checkpoints$vm_name --all --metadata
 
                 echo ""
                 echo "INFO: Restoration of Virtual Machine '$vm_name' has been successfully completed!"
