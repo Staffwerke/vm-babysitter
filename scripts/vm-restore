@@ -49,45 +49,16 @@ end_of_help
 # -----------------------------------------------------------------------------
 restore_vm()
 {
-local restore_status=1
-local restore_vm_command="/usr/local/bin/virtnbdrestore"
-local action="restore"
-local full_backup_path="$1"
-local full_restoration_path="$2"
-local point_in_time="--until $3"
-local drive_to_restore="-d $4"
+    local restore_status=1
+    local full_backup_path="$1"
+    local full_restoration_path="$2"
+    local point_in_time="--until $3"
+    local drive_to_restore="-d $4"
 
-local full_restore_vm_command="$restore_vm_command -i $full_backup_path -a $action -o $full_restoration_path $point_in_time $drive_to_restore"
+    virtnbdrestore -i $full_backup_path -o $full_restoration_path $point_in_time $drive_to_restore
+    restore_status=$?
 
-if [[ -x $restore_vm_command ]] ; then
-
-    # When virtnbdbackup is installed locally, attempt a to recovery via local scripts:
-    $full_restore_vm_command
-    #echo "Simulation of local execution: $full_restore_vm_command"
-else
-
-    # Otherwise, use virtnbdbackup-docker to perform the operation:
-
-    # Docker source image:
-    local src_image="adrianparilli/virtnbdbackup-docker:latest"
-
-    # Name of the Docker container to be used in this operation (based upon backup and drive names):
-    local docker_name=$(echo $full_backup_path | rev | cut -d'/' -f1 | rev)
-
-    # Common bind mounts for all Operating Systems:
-    local bind_mounts=" -v $full_backup_path:$full_backup_path -v $full_restoration_path:$full_restoration_path -v /var/tmp:/var/tmp"
-
-    # Filters kernel with matching string "Unraid" and pass specific mount points. By now, all other Operating systems are mounted in the same way:
-    [[ ! -z $(uname  -r | grep -e "-Unraid$") ]] && bind_mounts+=" -v /var/run:/run -v /var/lock:/run/lock" || bind_mounts+=" -v /run:/run"
-
-    # Runs Docker!
-    docker run --rm --name $action-$docker_name $bind_mounts $src_image $full_restore_vm_command
-    #echo "Simulation of docker execution: docker run --rm --name $action-$docker_name $bind_mounts $src_image $full_restore_vm_command"
-fi
-
-restore_status=$?
-
-return $restore_status
+    return $restore_status
 }
 
 # -----------------------------------------------------------------------------
@@ -379,6 +350,15 @@ if [ -z $@ ]; then
                 img_name=$(basename ${vm_img_paths_list[$i]})
                 img_path=$(dirname ${vm_img_paths_list[$i]})
 
+                if [[ -f $img_path/$img_name ]]; then
+
+                    # Saves the old disk image with a different name:
+                    old_img_name="$img_name.$(last_modified $img_path/$img_name)"
+                    old_img_name=${old_img_name// /_}
+
+                    mv $img_path/$img_name $img_path/$old_img_name
+                fi
+
                 # Retrieves the correspondent drive according the chosen options,
                 # to the same directory where original image disk is, using the same drive name (e.g. 'hdc')
                 restore_vm $backup_path $img_path $checkpoint_index $drive
@@ -392,31 +372,27 @@ if [ -z $@ ]; then
 
                         if [[ $keep_old_disks ]]; then
 
-                            # Saves the old disk image with a different name:
-                            old_img_name="$img_name.$(last_modified $img_path/$img_name)"
-                            old_img_name=${old_img_name// /_}
-
-                            mv $img_path/$img_name $img_path/$old_img_name
                             echo "INFO: Old disk image at $img_path saved as '$old_img_name'"
                         else
 
                             # Removes the old image before to be replaced by the new one:
                             rm -f $img_path/$img_name
                         fi
-                    else
-                        echo "WARNING: Disk image ($img_name) was not found at $img_path (it will be replaced directly by the restored backup)"
                     fi
-
-                    # Renames the retrieved image to its correspondent name as of libvirt definitions (name and path):
-                    mv $img_path/$drive $img_path/$img_name
 
                     # Adds the drive to the restored_drives list:
                     restored_drives+=($drive)
                     echo "INFO: Image Drive '$drive' has been successfully restored!"
                 else
 
-                    # Removes any incomplete image, if exists:
-                    rm -f $img_path/$drive
+                    if [[ -f $img_path/$img_name ]]; then
+
+                        # Removes any incomplete image, if exists:
+                        rm -f $img_path/$image_name
+
+                        # Restore previous existing image
+                        mv $img_path/$old_img_name $img_path/$img_name
+                    fi
 
                     # Adds the drive to the failed_drives list:
                     failed_drives+=($drive)
