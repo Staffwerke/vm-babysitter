@@ -216,7 +216,7 @@ if [[ -z $@ ]]; then
                 if [[  $src_domain_state != "shut off" ]]; then
 
                     # Ask confirmation again before to proceed, since domain has to be shut down for disk image provisioning:
-                    echo -e "\nNOTICE: Domain '$src_domain' is currently $src_domain_state!\In order to proceed with disk replication, it will be automatically shut down during the process, and restarted once this had finished\n"
+                    echo -e "\nNOTICE: Domain '$src_domain' is currently $src_domain_state!\nIn order to proceed with disk replication, it will be automatically shut down during the process, and restarted once this had finished\n"
 
                     copy_all_disks=$(yes_no "Are you agree with this action to continue with disk replication?" "no")
                 fi
@@ -351,7 +351,7 @@ if [[ -z $@ ]]; then
             # -----------------------------------------------------------------------------
             # Modification on dest_domain_definitions_xml_file
             # -----------------------------------------------------------------------------
-            echo -e "Merging all user defined parameters for domain '$dest_domain' into new config..."
+            echo -e "Merging all user defined parameters for domain '$dest_domain' into new config...\n"
 
             # Replaces VM name (src_domain by dest_domain):
             # -----------------------------------------------------------------------------
@@ -582,7 +582,7 @@ if [[ -z $@ ]]; then
                         local)  echo -e "ERROR: Libvirt could not define domain '$dest_domain' from config stored at '$dest_domain_definitions_xml_file' (virsh define exit code: $domain_define_exit_code)."
                         ;;
 
-                        remote) echo -e "ERROR: Libvirt could not define domain '$dest_domain' at server '$remote_server_name' from config stored at '$remote_dest_domain_definitions_xml_file', (virsh define exit code: $domain_define_exit_code)"
+                        remote) echo -e "ERROR: Libvirt could not define domain '$dest_domain' at server '$remote_server_name' from config stored at '$remote_dest_domain_definitions_xml_file' (virsh define exit code: $domain_define_exit_code)"
                         ;;
                     esac
                 ;;
