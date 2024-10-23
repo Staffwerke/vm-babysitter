@@ -217,7 +217,7 @@ if [[ -z $@ ]]; then
 
                     # Ask confirmation again before to proceed, since domain has to be shut down for disk image provisioning:
                     echo -e "\nNOTICE: Domain '$src_domain' is currently $src_domain_state. In order to proceed with disk replication, it will be automatically shut down during the process, and restarted once it is finished"
-                    && copy_all_disks=$(yes_no "Are you agree with this action to continue with disk replication?" "no")
+                    copy_all_disks=$(yes_no "Are you agree with this action to continue with disk replication?" "no")
                 fi
             fi
 
