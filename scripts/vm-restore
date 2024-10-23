@@ -203,7 +203,7 @@ if [ -z $@ ]; then
 
         echo "${#checkpoints_list[@]} Checkpoints found for backup '$backup_name':"
 
-         if [[ ${#checkpoints_list[@]} -gt 1 ]]; then
+         #if [[ ${#checkpoints_list[@]} -gt 1 ]]; then
 
 # Step 4: If multiple checkpoints are found, asks the user to choose a specific checkpoint to restore:
 # -----------------------------------------------------------------------------
@@ -243,12 +243,12 @@ if [ -z $@ ]; then
                     read -p "$choice : Invalid choice. Please choose a number of the list [0-$(( ${#checkpoints_list[@]} - 1 ))]: " choice
                 fi
             done
-        else
+        #else
 
-            echo "INFO: No incremental backups detected in '$backup_name', the (only) existing backup will be used..."
-            checkpoint_index="${checkpoints_list[@]}"
-            checkpoint_date=$(last_modified $backup_path/$backup_name/checkpoints/${checkpoints_list[$checkpoint_index]}.xml)
-        fi
+            #echo "INFO: No incremental backups detected in '$backup_name', the (only) existing backup will be used..."
+            #checkpoint_index="${checkpoints_list[@]}"
+            #checkpoint_date=$(last_modified $backup_path/$backup_name/checkpoints/${checkpoints_list[$checkpoint_index]}.xml)
+        #fi
 
         echo ""
         echo "Checkpoint selected: '$checkpoint_index' (Saved at $checkpoint_date)"
