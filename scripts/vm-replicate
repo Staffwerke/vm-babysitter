@@ -118,7 +118,7 @@ if [[ -z $@ ]]; then
 
                             if [[ $remote_api_exit_code -eq 0 ]]; then
 
-                                echo -e "\nHost '$remote_server_name' contacted successfully (Libvirt version: $remote_api_version)\n"
+                                echo -e "Host '$remote_server_name' contacted successfully (Libvirt version: $remote_api_version)\n"
 
                                 # Gets the list of VMs from remote_server_login to discard duplicates on the remote endpoint:
                                 dest_domains_list=($(ssh $SSH_OPTIONS $remote_server_login "virsh list --all --persistent --name"))
@@ -327,7 +327,7 @@ if [[ -z $@ ]]; then
 
         echo -e "\n"
         echo "==============================================================================="
-        echo -e "Processing all user defined parameters for domain '$dest_domain'..."
+        echo -e "Dumping '$src_domain' config'..."
 
         # Temporal path to store files and mount remote folders.
         # It must have read and write permissions, or the entire process will fail:
@@ -350,6 +350,7 @@ if [[ -z $@ ]]; then
             # -----------------------------------------------------------------------------
             # Modification on dest_domain_definitions_xml_file
             # -----------------------------------------------------------------------------
+            echo -e "Merging all user defined parameters for domain '$dest_domain' into new config..."
 
             # Replaces VM name (src_domain by dest_domain):
             # -----------------------------------------------------------------------------
@@ -477,7 +478,7 @@ if [[ -z $@ ]]; then
                     [[ $copy_failed == true ]] && echo -e "WARNING: There were issues copying at least one disk image. Manual provision will be required for such failed ones\n"
 
                     # Starts src_domain if it was previously running before the copy:
-                    [[ -n $shutdown_exit_code ]] && domain_start $src_domain --nowait
+                    [[ -n $shutdown_exit_code ]] && { domain_start $src_domain --nowait; echo ""; }
 
                 else
                     echo -e "WARNING: Domain '$src_domain' either failed, or is taking too much into shut down completely. Manual provision will be required for image disk(s)\n"
@@ -591,7 +592,7 @@ if [[ -z $@ ]]; then
             echo -e "$(basename $0): Finished\n"
 
         else
-            echo -e "ERROR: $(basename $0) could not generate a configuration for '$dest_domain', there cannot proceed with replication (virsh dumpxml exit code: $dumpxml_exit_code)\n"
+            echo -e "ERROR: $(basename $0) could not dump configuration from '$src_domain', therefore cannot proceed with replication (virsh dumpxml exit code: $dumpxml_exit_code)\n"
         fi
 
     else
