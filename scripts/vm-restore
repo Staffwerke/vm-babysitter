@@ -408,7 +408,7 @@ if [ -z $@ ]; then
             if [[ ${#restored_drives[@]} -eq ${#selected_drives[@]} ]]; then
 
                 echo "Querying libvirt for old checkpoints..."
-                domain_delete_checkpoints$vm_name --all --metadata
+                domain_delete_checkpoints $vm_name --all --metadata
 
                 echo ""
                 echo "INFO: Restoration of Virtual Machine '$vm_name' has been successfully completed!"
