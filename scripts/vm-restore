@@ -26,7 +26,9 @@ cat << end_of_help
 
  $(basename $0) -- Restores disk image(s) of a virtual machine from saved backups (made with vm-full-backup, vm-inc-backup or virtnbdbackup-auto) up to a selected checkpoint in time.
 
-    USAGE:
+    USAGE: $(basename $0) [ -h | --help ]
+
+    INSTRUCTIONS:
     - It can restore a full system (default option), as well as individual disks or drives
     - Without arguments, it works interactively: A series of options and questions are presented before to actually start the process
     - When everything has been set to ptoceed, awaits for confirmation before to start (restoration may take time, depending on the data volume to restore, hadware speed, etc.)
@@ -99,8 +101,7 @@ status=1
 if [ -z $@ ]; then
 
     # No input parameters enables the interctive mode:
-    show_help
-    read -n1 -s -r -p $'Press any key to continue, or Ctrl+C to Cancel...\n' key
+    #read -n1 -s -r -p $'Press any key to continue, or Ctrl+C to Cancel...\n' key
 
 # Step 1: Asks the user to choose a VM to restore:
 # -----------------------------------------------------------------------------
@@ -453,10 +454,15 @@ if [ -z $@ ]; then
     else
         echo "ERROR: No persistent Virtual Machines detected! (is libvirt service running?)"
     fi
-else
-    # Argument(s) detected. By now, only shows the help and exits:
+
+elif [[ $@ == -h || $@ == --help ]]; then
+
+    # Show help:
     show_help
     status=0
+
+else
+    echo -e "Unknown argument(s) '$@' Usage: $(basename $0) [ -h | --help ]\n"
 fi
 
 exit $status
