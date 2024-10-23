@@ -327,7 +327,7 @@ if [[ -z $@ ]]; then
 
         echo -e "\n"
         echo "==============================================================================="
-        echo -e "Processing all user defined parameters for domain '$dest_domain'...\n"
+        echo -e "Processing all user defined parameters for domain '$dest_domain'..."
 
         # Temporal path to store files and mount remote folders.
         # It must have read and write permissions, or the entire process will fail:
@@ -339,251 +339,260 @@ if [[ -z $@ ]]; then
         # Path to xml definitions file to be processed:
         dest_domain_definitions_xml_file=$workdir_path/$dest_domain.xml
 
-        # Dumps current VMs XML file to a temporal location:
+        # Dumps current VMs XML file to a temporal location and grab exit code of operation:
         virsh dumpxml --inactive --security-info $src_domain > $dest_domain_definitions_xml_file
+        dumpxml_exit_code=$?
 
-        # -----------------------------------------------------------------------------
-        # Modification on dest_domain_definitions_xml_file
-        # -----------------------------------------------------------------------------
+        if [[ $dumpxml_exit_code -eq 0 ]]; then
 
-        # Replaces VM name (src_domain by dest_domain):
-        # -----------------------------------------------------------------------------
-        sed -i -e "s|<name>$src_domain</name>|<name>$dest_domain</name>|" $dest_domain_definitions_xml_file
-
-        # -----------------------------------------------------------------------------
-        # Replaces VM UUID for a randomized one:
-
-        # UUID of src_domain:
-        src_domain_uuid=$(domain_id $src_domain)
-
-        # Random UUID to replace the original one:
-        dest_domain_uuid=$(uuidgen)
-
-        # Replaces all matches of src_domain_uuid for dest_domain_uuid.
-        # At least on Unraid OS, Nvram file, if exists, its name matches with uuid:
-        sed -i -e "s|$src_domain_uuid|$dest_domain_uuid|g" $dest_domain_definitions_xml_file
-
-        # -----------------------------------------------------------------------------
-        # Replaces MAC addresses for (qemu/kvm) randomized ones:
-        i=0
-        for mac in ${src_macaddrs[@]}; do
-
-            # Replaces matching listed mac for a random one:
-            sed -i -e "s|<mac address='$mac'/>|<mac address='${dest_macaddrs[$i]}'/>|" $dest_domain_definitions_xml_file
-            ((i++))
-        done
-
-        # -----------------------------------------------------------------------------
-        # When defined by the user, Replaces disk image paths:
-        i=0
-        for path in ${dest_domain_img_paths[@]}; do
-
-            # Replaces src_domain paths for a dest_domain paths:
-            sed -i -e "s|<source file='${src_domain_img_paths[$i]}'/>|<source file='$path'/>|" $dest_domain_definitions_xml_file
-            ((i++))
-        done
-
-        # -----------------------------------------------------------------------------
-        # Disk image(s) replication:
-        # -----------------------------------------------------------------------------
-
-        if [[ $copy_all_disks == yes ]]; then
+            # With dest_domain_definitions_xml_file, it's plausible to continue the process:
 
             # -----------------------------------------------------------------------------
-            # Turn off src_domain (if running):
+            # Modification on dest_domain_definitions_xml_file
             # -----------------------------------------------------------------------------
-            if [[ $(domain_state $src_domain) != "shut off" ]]; then
 
-                # Shut down the domain and await for it, for an exit code:
-                domain_shutdown $src_domain --wait $VM_WAIT_TIME
-                shutdown_exit_code=$?
-                echo ""
-            fi
+            # Replaces VM name (src_domain by dest_domain):
+            # -----------------------------------------------------------------------------
+            sed -i -e "s|<name>$src_domain</name>|<name>$dest_domain</name>|" $dest_domain_definitions_xml_file
 
-            if [[ -z $shutdown_exit_code || $shutdown_exit_code -eq 0 ]]; then
+            # -----------------------------------------------------------------------------
+            # Replaces VM UUID for a randomized one:
+
+            # UUID of src_domain:
+            src_domain_uuid=$(domain_id $src_domain)
+
+            # Random UUID to replace the original one:
+            dest_domain_uuid=$(uuidgen)
+
+            # Replaces all matches of src_domain_uuid for dest_domain_uuid.
+            # At least on Unraid OS, Nvram file, if exists, its name matches with uuid:
+            sed -i -e "s|$src_domain_uuid|$dest_domain_uuid|g" $dest_domain_definitions_xml_file
+
+            # -----------------------------------------------------------------------------
+            # Replaces MAC addresses for (qemu/kvm) randomized ones:
+            i=0
+            for mac in ${src_macaddrs[@]}; do
+
+                # Replaces matching listed mac for a random one:
+                sed -i -e "s|<mac address='$mac'/>|<mac address='${dest_macaddrs[$i]}'/>|" $dest_domain_definitions_xml_file
+                ((i++))
+            done
+
+            # -----------------------------------------------------------------------------
+            # When defined by the user, Replaces disk image paths:
+            i=0
+            for path in ${dest_domain_img_paths[@]}; do
+
+                # Replaces src_domain paths for a dest_domain paths:
+                sed -i -e "s|<source file='${src_domain_img_paths[$i]}'/>|<source file='$path'/>|" $dest_domain_definitions_xml_file
+                ((i++))
+            done
+
+            # -----------------------------------------------------------------------------
+            # Disk image(s) replication:
+            # -----------------------------------------------------------------------------
+
+            if [[ $copy_all_disks == yes ]]; then
 
                 # -----------------------------------------------------------------------------
-                # Beginning of file copy:
-                i=0
-                for image_path in ${dest_domain_img_paths[@]}; do
+                # Turn off src_domain (if running):
+                # -----------------------------------------------------------------------------
+                if [[ $(domain_state $src_domain) != "shut off" ]]; then
 
-                    # Copies the image disk only when conditions apply:
-                    echo -e "Replicating '${src_domain_img_paths[$i]}' as '$image_path' onto $chosen_endpoint endpoint..."
+                    # Shut down the domain and await for it, for an exit code:
+                    domain_shutdown $src_domain --wait $VM_WAIT_TIME
+                    shutdown_exit_code=$?
+                    echo ""
+                fi
 
-                    if [[ $chosen_endpoint == local ]]; then
+                if [[ -z $shutdown_exit_code || $shutdown_exit_code -eq 0 ]]; then
 
-                        # Creates folder and dumps a copy of the disk image with qemu-img convert:
-                        mkdir -p $(dirname $image_path)
+                    # -----------------------------------------------------------------------------
+                    # Beginning of file copy:
+                    i=0
+                    for image_path in ${dest_domain_img_paths[@]}; do
 
-                        if [[ $? -eq 0 ]]; then
+                        # Copies the image disk only when conditions apply:
+                        echo -e "Replicating '${src_domain_img_paths[$i]}' as '$image_path' onto $chosen_endpoint endpoint..."
 
-                            # Will only proceed if destination folder exists or could be created:
-                            qemu-img convert -p -O qcow2 ${src_domain_img_paths[$i]} $image_path
-                            qemu_img_exit_code=$?
+                        if [[ $chosen_endpoint == local ]]; then
+
+                            # Creates folder and dumps a copy of the disk image with qemu-img convert:
+                            mkdir -p $(dirname $image_path)
+
+                            if [[ $? -eq 0 ]]; then
+
+                                # Will only proceed if destination folder exists or could be created:
+                                qemu-img convert -p -O qcow2 ${src_domain_img_paths[$i]} $image_path
+                                qemu_img_exit_code=$?
+                            fi
+
+                        elif [[ $chosen_endpoint == remote ]]; then
+
+                            # Creates a temporal folder to mount the remote endpoint next:
+                            mkdir -p $workdir_path/remote
+
+                            # Creates the remote folder, and mounts it via sshfs.
+                            # (sshfs is not compatible with option '-q', so must be filtered from SSH_OPTIONS):
+                            ssh $SSH_OPTIONS $remote_server_login "mkdir -p $(dirname $image_path)" && \
+                            sshfs $remote_server_login:$(dirname $image_path) $workdir_path/remote ${SSH_OPTIONS/-q /}
+
+                            if [[ $? -eq 0 ]]; then
+
+                                # Will only replicate the disk if mount of remote endpoint is successful:
+                                qemu-img convert -p -O qcow2 ${src_domain_img_paths[$i]} $workdir_path/remote/$(basename $image_path)
+                                qemu_img_exit_code=$?
+                            fi
                         fi
 
-                    elif [[ $chosen_endpoint == remote ]]; then
+                        # Notifies about success or fail of each disk image provisioning for dest_domain:
+                        case $qemu_img_exit_code in
 
-                        # Creates a temporal folder to mount the remote endpoint next:
-                        mkdir -p $workdir_path/remote
+                            '') echo -e "An error occurred before to start provisioning disk image '$image_path'\n"
+                                # Mark the process as partial (or totally failed):
+                                copy_failed=true
+                            ;;
 
-                        # Creates the remote folder, and mounts it via sshfs.
-                        # (sshfs is not compatible with option '-q', so must be filtered from SSH_OPTIONS):
-                        ssh $SSH_OPTIONS $remote_server_login "mkdir -p $(dirname $image_path)" && \
-                        sshfs $remote_server_login:$(dirname $image_path) $workdir_path/remote ${SSH_OPTIONS/-q /}
+                            0)  echo -e "Disk image '$image_path' was provisioned successfully\n"
+                            ;;
 
-                        if [[ $? -eq 0 ]]; then
+                            *)  echo -e "An unexpected error occurred while provisioning disk image '$image_path' (Qemu-img exit code: $qemu_img_exit_code)\n"
 
-                            # Will only replicate the disk if mount of remote endpoint is successful:
-                            qemu-img convert -p -O qcow2 ${src_domain_img_paths[$i]} $workdir_path/remote/$(basename $image_path)
-                            qemu_img_exit_code=$?
-                        fi
-                    fi
+                                # Mark the process as partial (or totally failed):
+                                copy_failed=true
 
-                    # Notifies about success or fail of each disk image provisioning for dest_domain:
-                    case $qemu_img_exit_code in
+                                # Attempt to delete the failed image:
+                                [[ $chosen_endpoint == local ]] \
+                                    && rm -f $image_path \
+                                    || rm -f $workdir_path/remote/$(basename $image_path)
+                            ;;
+                        esac
 
-                        '') echo -e "An error occurred before to start provisioning disk image '$image_path'\n"
-                            # Mark the process as partial (or totally failed):
-                            copy_failed=true
-                        ;;
+                        # On remote replication, silently unmounts the remote folder after completion:
+                        [[ $chosen_endpoint == remote ]] && umount -q $workdir_path/remote
 
-                        0)  echo -e "Disk image '$image_path' was provisioned successfully\n"
-                        ;;
+                        ((i++))
+                    done
 
-                        *)  echo -e "An unexpected error occurred while provisioning disk image '$image_path' (Qemu-img exit code: $qemu_img_exit_code)\n"
+                    [[ $copy_failed == true ]] && echo -e "WARNING: There were issues copying at least one disk image. Manual provision will be required for such failed ones\n"
 
-                            # Mark the process as partial (or totally failed):
-                            copy_failed=true
+                    # Starts src_domain if it was previously running before the copy:
+                    [[ -n $shutdown_exit_code ]] && domain_start $src_domain --nowait
 
-                            # Attempt to delete the failed image:
-                            [[ $chosen_endpoint == local ]] \
-                                && rm -f $image_path \
-                                || rm -f $workdir_path/remote/$(basename $image_path)
-                        ;;
-                    esac
-
-                    # On remote replication, silently unmounts the remote folder after completion:
-                    [[ $chosen_endpoint == remote ]] && umount -q $workdir_path/remote
-
-                    ((i++))
-                done
-
-                [[ $copy_failed == true ]] && echo -e "WARNING: There were issues copying at least one disk image. Manual provision will be required for such failed ones\n"
-
-                # Starts src_domain if it was previously running before the copy:
-                [[ -n $shutdown_exit_code ]] && domain_start $src_domain --nowait
-
-            else
-                echo -e "WARNING: Domain '$src_domain' either failed, or is taking too much into shut down completely. Manual provision will be required for image disk(s)\n"
-            fi
-        fi
-
-        # -----------------------------------------------------------------------------
-        # Copy of NVRAM binaries:
-        # -----------------------------------------------------------------------------
-
-        # Tries to get an nvram file path of the VM that will be replicated:
-        src_domain_nvram_path=$(domain_nvram_path $src_domain)
-
-        if [[ -n $src_domain_nvram_path ]]; then
-
-
-            # Source VM requires nvram file to work, therefore it has to be provisioned:
-            echo -e  "Provisioning detected Nvram binary..."
-
-            # Get nvram file path of the VM that will be replicated (from its xml definition file)
-            # On Unraid, file name will change with uuid replacement on new XML definitions file made in previous step
-            # (Other OSes might behave in similar way, but this has not been tested):
-            dest_domain_nvram_path=$(domain_nvram_path $dest_domain_definitions_xml_file)
-
-            if [[ $chosen_endpoint == local && $src_domain_nvram_path != $dest_domain_nvram_path ]]; then
-
-                # When chosen_endpoint is local and both nvram file paths differ, copy the source nvram file with the new destination name:
-                cp -f $src_domain_nvram_path $dest_domain_nvram_path
-                nvram_copy_exit_code=$?
-
-            elif [[ $chosen_endpoint == remote ]]; then
-
-                # Create directory (in case also doesn't exists) and if success, copy source nvram as dest nvram:
-                ssh $SSH_OPTIONS $remote_server_login "mkdir -p $(dirname $dest_domain_nvram_path)" && \
-                scp $SSH_OPTIONS $src_domain_nvram_path $remote_server_login:$dest_domain_nvram_path
-                nvram_copy_exit_code=$?
+                else
+                    echo -e "WARNING: Domain '$src_domain' either failed, or is taking too much into shut down completely. Manual provision will be required for image disk(s)\n"
+                fi
             fi
 
-            case $nvram_copy_exit_code in
+            # -----------------------------------------------------------------------------
+            # Copy of NVRAM binaries:
+            # -----------------------------------------------------------------------------
 
-                # As no exit_code is given, logic assumes files are identical and no copy was made:
-                '') echo -e "Source and destination Nvram file paths are identical in $chosen_endpoint endpoint ($src_domain_nvram_path) so nothing was copied\n"
+            # Tries to get an nvram file path of the VM that will be replicated:
+            src_domain_nvram_path=$(domain_nvram_path $src_domain)
+
+            if [[ -n $src_domain_nvram_path ]]; then
+
+
+                # Source VM requires nvram file to work, therefore it has to be provisioned:
+                echo -e  "Provisioning detected Nvram binary..."
+
+                # Get nvram file path of the VM that will be replicated (from its xml definition file)
+                # On Unraid, file name will change with uuid replacement on new XML definitions file made in previous step
+                # (Other OSes might behave in similar way, but this has not been tested):
+                dest_domain_nvram_path=$(domain_nvram_path $dest_domain_definitions_xml_file)
+
+                if [[ $chosen_endpoint == local && $src_domain_nvram_path != $dest_domain_nvram_path ]]; then
+
+                    # When chosen_endpoint is local and both nvram file paths differ, copy the source nvram file with the new destination name:
+                    cp -f $src_domain_nvram_path $dest_domain_nvram_path
+                    nvram_copy_exit_code=$?
+
+                elif [[ $chosen_endpoint == remote ]]; then
+
+                    # Create directory (in case also doesn't exists) and if success, copy source nvram as dest nvram:
+                    ssh $SSH_OPTIONS $remote_server_login "mkdir -p $(dirname $dest_domain_nvram_path)" && \
+                    scp $SSH_OPTIONS $src_domain_nvram_path $remote_server_login:$dest_domain_nvram_path
+                    nvram_copy_exit_code=$?
+                fi
+
+                case $nvram_copy_exit_code in
+
+                    # As no exit_code is given, logic assumes files are identical and no copy was made:
+                    '') echo -e "Source and destination Nvram file paths are identical in $chosen_endpoint endpoint ($src_domain_nvram_path) so nothing was copied\n"
+                    ;;
+
+                    # Local or remote copy was successful:
+                    0) echo -e "Persistent Nvram binary successfully provisioned to $chosen_endpoint endpoint as '$dest_domain_nvram_path'\n"
+                    ;;
+
+                    # There were errors copying nvram file:
+                    *) echo -e "WARNING: There were issues provisioning correspondent Nvram file. Manual provision (and possibly edition of domain '$dest_domain' config) will be required (Latest exit code: $nvram_copy_exit_code)\n"
+                    ;;
+                esac
+            fi
+
+            # -----------------------------------------------------------------------------
+            # Define the VM at the chosen endpoint:
+            # -----------------------------------------------------------------------------
+
+            echo -e "Defining new domain '$dest_domain' onto $chosen_endpoint endpoint..."
+
+            case $chosen_endpoint in
+
+                local)  # Defines VM directly:
+                        virsh define $dest_domain_definitions_xml_file
+                        domain_define_exit_code=$?
                 ;;
 
-                # Local or remote copy was successful:
-                0) echo -e "Persistent Nvram binary successfully provisioned to $chosen_endpoint endpoint as '$dest_domain_nvram_path'\n"
-                ;;
+                remote) # Define where dest_domain_definitions_xml_file will be copied, depending if disk image paths are or not defined:
+                        [[ -n ${dest_domain_img_paths[@]} ]] \
+                        && remote_dest_domain_definitions_xml_file="$(dirname ${dest_domain_img_paths[0]})/$(basename $dest_domain_definitions_xml_file)" \
+                        || remote_dest_domain_definitions_xml_file="/tmp/$(basename $dest_domain_definitions_xml_file)"
 
-                # There were errors copying nvram file:
-                *) echo -e "WARNING: There were issues provisioning correspondent Nvram file. Manual provision (and possibly edition of domain '$dest_domain' config) will be required (Latest exit code: $nvram_copy_exit_code)\n"
+                        # Then copy, define the domain and get its exit code:
+                        scp $SSH_OPTIONS $dest_domain_definitions_xml_file $remote_server_login:$remote_dest_domain_definitions_xml_file && \
+                        ssh $SSH_OPTIONS $remote_server_login "virsh define $remote_dest_domain_definitions_xml_file"
+                        domain_define_exit_code=$?
                 ;;
             esac
+
+            case $domain_define_exit_code in
+
+                0)  # Success:
+                    case $chosen_endpoint in
+
+                        local)  echo -e "Domain '$dest_domain' was defined successfully\n"
+                        ;;
+
+                        remote) # Deletes the transferred file:
+                                ssh $SSH_OPTIONS $remote_server_login "rm -f $remote_dest_domain_definitions_xml_file"
+                                echo -e "Domain '$dest_domain' was defined at server '$remote_server_login' successfully\n"
+                    ;;
+                    esac
+
+                    # Delete temporal workdir:
+                    rm -rf $workdir_path
+                ;;
+
+                *)  # Fail:
+                    case $chosen_endpoint in
+
+                        local)  echo -e "ERROR: Libvirt could not define domain '$dest_domain' (virsh define exit code: $domain_define_exit_code)\n"
+                        ;;
+
+                        remote) echo -e "ERROR: Libvirt could not define domain '$dest_domain' at server '$remote_server_name' (virsh define exit code: $domain_define_exit_code)\n"
+                        ;;
+                    esac
+                ;;
+            esac
+
+            # Notify about script's end, possibly after a long time operation:
+            echo -e "$(basename $0): Finished\n"
+
+        else
+            echo -e "ERROR: $(basename $0) could not generate a configuration for '$dest_domain', there cannot proceed with replication (virsh dumpxml exit code: $dumpxml_exit_code)\n"
         fi
-
-        # -----------------------------------------------------------------------------
-        # Define the VM at the chosen endpoint:
-        # -----------------------------------------------------------------------------
-
-        echo -e "Defining new domain '$dest_domain' onto $chosen_endpoint endpoint..."
-
-        case $chosen_endpoint in
-
-            local)  # Defines VM directly:
-                    virsh define $dest_domain_definitions_xml_file
-                    domain_define_exit_code=$?
-            ;;
-
-            remote) # Define where dest_domain_definitions_xml_file will be copied, depending if disk image paths are or not defined:
-                    [[ -n ${dest_domain_img_paths[@]} ]] \
-                    && remote_dest_domain_definitions_xml_file="$(dirname ${dest_domain_img_paths[0]})/$(basename $dest_domain_definitions_xml_file)" \
-                    || remote_dest_domain_definitions_xml_file="/tmp/$(basename $dest_domain_definitions_xml_file)"
-
-                    # Then copy, define the domain and get its exit code:
-                    scp $SSH_OPTIONS $dest_domain_definitions_xml_file $remote_server_login:$remote_dest_domain_definitions_xml_file && \
-                    ssh $SSH_OPTIONS $remote_server_login "virsh define $remote_dest_domain_definitions_xml_file"
-                    domain_define_exit_code=$?
-            ;;
-        esac
-
-        case $domain_define_exit_code in
-
-            0)  # Success:
-                case $chosen_endpoint in
-
-                    local)  echo -e "Domain '$dest_domain' was defined successfully\n"
-                    ;;
-
-                    remote) # Deletes the transferred file:
-                            ssh $SSH_OPTIONS $remote_server_login "rm -f $remote_dest_domain_definitions_xml_file"
-                            echo -e "Domain '$dest_domain' was defined at server '$remote_server_login' successfully\n"
-                   ;;
-                esac
-
-                # Delete temporal workdir:
-                rm -rf $workdir_path
-            ;;
-
-            *)  # Fail:
-                case $chosen_endpoint in
-
-                    local)  echo -e "ERROR: Libvirt could not define domain '$dest_domain' (virsh define exit code: $domain_define_exit_code)\n"
-                    ;;
-
-                    remote) echo -e "ERROR: Libvirt could not define domain '$dest_domain' at server '$remote_server_name' (virsh define exit code: $domain_define_exit_code)\n"
-                    ;;
-                esac
-            ;;
-        esac
-
-        # Notify about script's end:
-        echo -e "$(basename $0): Finished\n"
 
     else
         echo -e "No persistent Virtual Machines detected! (is libvirt service running?)\n"
