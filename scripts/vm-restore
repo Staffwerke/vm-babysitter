@@ -17,7 +17,7 @@ cat << end_of_help
 
  $(basename $0) -- Restores disk image(s) of a virtual machine from saved backups (made with vm-full-backup, vm-inc-backup or virtnbdbackup-auto) up to a selected checkpoint in time.
 
-    USAGE: $(basename $0) [ -h | --help ]
+    USAGE: $(basename $0) [ -h | --help ] [-s | --source <absolute-path>]
 
     INSTRUCTIONS:
     - It can restore a full system (default option), as well as individual disks or drives
@@ -40,11 +40,46 @@ end_of_help
 # Main execution:
 # -----------------------------------------------------------------------------
 
-status=1
-if [ -z $@ ]; then
+case $1 in
 
-    # No input parameters enables the interctive mode:
-    #read -n1 -s -r -p $'Press any key to continue, or Ctrl+C to Cancel...\n' key
+    '') # When no arguments gien, default backups location is LOCAL_BACKUP_PATH
+        [[ -n $LOCAL_BACKUP_PATH ]] \
+            && backup_path=$LOCAL_BACKUP_PATH \
+            || backup_path="/backups"
+    ;;
+
+    -s|--source) # User provides a custom location for backup_path
+
+        case $2 in
+
+            [/]*)   # Verify the given argument is an existing folder:
+                    [[ -f $2 ]] \
+                        && backup_path="$2"
+                        || { echo -e "ERROR: Path '$2' was not found. Provide a valid path to scan for backups\n"; vm_restore_exit_code=1; }
+            ;;
+
+            *)      # Is not an absolute path:
+                    echo -e "ERROR: '$2' is not an absolute path. Provide a valid path to scan for backups\n"
+                    vm_restore_exit_code=1
+            ;;
+        esac
+    ;;
+
+    -h|--help)  # Show help:
+                show_help
+                vm_restore_exit_code=0
+    ;;
+
+    *)  # Unknown option:
+        echo -e "Unknown argument '$1' Usage: $(basename $0) [ -h | --help ] [-s | --source <absolute-path>]\n"
+        vm_restore_exit_code=1
+    ;;
+esac
+
+if [[ -z $vm_restore_exit_code ]]; then
+
+    # No exit code means the input parameters are correct.
+    # Begin interctive mode:
 
 # Step 1: Asks the user to choose a VM to restore:
 # -----------------------------------------------------------------------------
@@ -394,15 +429,8 @@ if [ -z $@ ]; then
     else
         echo "ERROR: No persistent Virtual Machines detected! (is libvirt service running?)"
     fi
-
-elif [[ $@ == -h || $@ == --help ]]; then
-
-    # Show help:
-    show_help
-    status=0
-
-else
-    echo -e "Unknown argument(s) '$@' Usage: $(basename $0) [ -h | --help ]\n"
 fi
 
-exit $status
+# End program with resulting exit code:
+exit $vm_restore_exit_code
+
