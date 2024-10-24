@@ -492,6 +492,17 @@ domains_list()
 ###############################################################################
 
 #------------------------------------------------------------------------------
+# Returns domain's name from the latest checkpoint of a virtnbdbackup
+# generated folder, passed as an absolute a path (otherwise returns nothing):
+#------------------------------------------------------------------------------
+backup_domain_name()
+{
+
+    latest_vmconfig_file=$(find $1 -maxdepth 1 -name "vmconfig.*.xml" -print0 | xargs -r -0 ls -1 -t | head -1)
+    [[ -n $latest_vmconfig_file ]] && grep -oP '(?<=<name>).*?(?=</name>)' $latest_vmconfig_file
+}
+
+#------------------------------------------------------------------------------
 # Checks data integrity of a backup chain ($1) and return
 # '0' under success, '1' under fail and '256' if no checksum files are found to verify:
 #------------------------------------------------------------------------------
