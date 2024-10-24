@@ -615,14 +615,34 @@ archive_remote_backup()
 # -----------------------------------------------------------------------------
 backup_checkpoints_list()
 {
-    local checkpoint_list=""
     local main_path=$1
-    local cpt_file="$(basename $main_path).cpt"
+    local cpt_file=$(find $main_path -type f -name *.cpt)
 
-    [[ -f $main_path/$cpt_file ]] \
-    && checkpoint_list="$(cat $main_path/$cpt_file | sed -e 's/\[//g' -e 's/\"//g' -e 's/,//g' -e 's/\]//g')"
+    if [[ -n $cpt_file ]]; then
 
-    [[ $2 == --num ]] && echo "$(echo "$checkpoint_list" | wc -w)" || echo "$checkpoint_list"
+        # Backup is incremental. Retrieve a list of checkpoints from cpt_file:
+        local checkpoints_list="$(cat $cpt_file | sed -e 's/\[//g' -e 's/\"//g' -e 's/,//g' -e 's/\]//g')"
+
+        case $2 in
+
+            '') # No second arguments. Return a list of checkpoints by name:
+                echo "$checkpoints_list"
+            ;;
+
+            --num)  # Return the # of checkpoints list:
+                    echo "$(echo $checkpoints_list | wc -w)"
+            ;;
+        esac
+
+    else
+        # Backup is copy and has no checkpoints
+        case $2 in
+
+            --num) # Returns '0', since there is no checkpoints:
+                   echo "0"
+            ;;
+        esac
+    fi
 }
 
 #------------------------------------------------------------------------------
