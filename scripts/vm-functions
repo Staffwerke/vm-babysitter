@@ -123,7 +123,6 @@ domain_exists()
 #------------------------------------------------------------------------------
 domain_getmem()
 {
-
     local max_memory=$(virsh dominfo $1 | grep -e "Max memory:" | rev | cut -d ' ' -f2 | rev)
     local used_memory=$(virsh dominfo $1 | grep -e "Used memory:" | rev | cut -d ' ' -f2 | rev)
     local result
@@ -478,7 +477,6 @@ domain_state()
     echo $(virsh domstate $1)
 }
 
-
 # -----------------------------------------------------------------------------
 # Returns a list with all persistent domains:
 # -----------------------------------------------------------------------------
@@ -490,47 +488,6 @@ domains_list()
 ###############################################################################
 # Backups related Functions:
 ###############################################################################
-
-#------------------------------------------------------------------------------
-# Returns domain's name from the latest checkpoint of a virtnbdbackup
-# generated folder, passed as an absolute a path (otherwise returns nothing):
-#------------------------------------------------------------------------------
-backup_domain_name()
-{
-
-    latest_vmconfig_file=$(find $1 -maxdepth 1 -name "vmconfig.*.xml" -print0 | xargs -r -0 ls -1 -t | head -1)
-    [[ -n $latest_vmconfig_file ]] && grep -oP '(?<=<name>).*?(?=</name>)' $latest_vmconfig_file
-}
-
-#------------------------------------------------------------------------------
-# Checks data integrity of a backup chain ($1) and return
-# '0' under success, '1' under fail and '256' if no checksum files are found to verify:
-#------------------------------------------------------------------------------
-verify_backup_chain()
-{
-    local backup_path=$1
-    local backup_status
-    local backup_status_message
-
-    if [[ ! -z $(find $backup_path -name "*.chksum") ]]; then
-
-        # Cheksums files are available:
-        echo "$domain: Checking backup data integrity..."
-        virtnbdrestore -i $backup_path -o verify
-        backup_status=$?
-
-        [[ $backup_status -eq 0 ]] && backup_status_message="Backup data integrity is OK" || backup_status_message="Backup data integrity check has FAILED"
-
-    else # No checksum data to verify:
-        backup_status=256
-        backup_status_message="Data integrity check cancelled: No checksum files found in backup (saved with an old version of Virtnbdbackup?)"
-    fi
-
-    # Display result:
-    echo "$backup_path: $backup_status_message"
-
-    return $backup_status
-}
 
 # -----------------------------------------------------------------------------
 # Renames a backup folder (backup_path/domain) given as first argument
@@ -651,10 +608,6 @@ archive_remote_backup()
     return $ssh_exit_code
 }
 
-###############################################################################
-# POSIX Related Functions:
-###############################################################################
-
 # -----------------------------------------------------------------------------
 # Retrieves checkpoints listed in .cpt file at a given backup path as first argument.
 # when second argument is '--num', retrieves the number of checkpoints instead of a list.
@@ -672,7 +625,15 @@ backup_checkpoints_list()
     [[ $2 == --num ]] && echo "$(echo "$checkpoint_list" | wc -w)" || echo "$checkpoint_list"
 }
 
-
+#------------------------------------------------------------------------------
+# Returns domain's name from the latest checkpoint of a virtnbdbackup
+# generated folder, passed as an absolute a path (otherwise returns nothing):
+#------------------------------------------------------------------------------
+backup_domain_name()
+{
+    latest_vmconfig_file=$(find $1 -maxdepth 1 -name "vmconfig.*.xml" -print0 | xargs -r -0 ls -1 -t | head -1)
+    [[ -n $latest_vmconfig_file ]] && grep -oP '(?<=<name>).*?(?=</name>)' $latest_vmconfig_file
+}
 
 # -----------------------------------------------------------------------------
 # For a given checkpoint file, returns a string value with (restorable) virtual drives (separated by spaces) (e.g. "hdc hdd")
@@ -681,6 +642,40 @@ backup_restorable_drives_list()
 {
     echo $(grep -e "checkpoint='bitmap'" $1 | cut -d"'" -f2)
 }
+
+#------------------------------------------------------------------------------
+# Checks data integrity of a backup chain ($1) and return
+# '0' under success, '1' under fail and '256' if no checksum files are found to verify:
+#------------------------------------------------------------------------------
+verify_backup_chain()
+{
+    local backup_path=$1
+    local backup_status
+    local backup_status_message
+
+    if [[ ! -z $(find $backup_path -name "*.chksum") ]]; then
+
+        # Cheksums files are available:
+        echo "$domain: Checking backup data integrity..."
+        virtnbdrestore -i $backup_path -o verify
+        backup_status=$?
+
+        [[ $backup_status -eq 0 ]] && backup_status_message="Backup data integrity is OK" || backup_status_message="Backup data integrity check has FAILED"
+
+    else # No checksum data to verify:
+        backup_status=256
+        backup_status_message="Data integrity check cancelled: No checksum files found in backup (saved with an old version of Virtnbdbackup?)"
+    fi
+
+    # Display result:
+    echo "$backup_path: $backup_status_message"
+
+    return $backup_status
+}
+
+###############################################################################
+# POSIX Related Functions:
+###############################################################################
 
 # -----------------------------------------------------------------------------
 # Returns a list of (ordered) bitmaps present into a given disk image:
@@ -697,7 +692,6 @@ disk_image_bitmaps_list()
 # -----------------------------------------------------------------------------
 disk_image_bitmaps_delete()
 {
-
     local bitmaps_list
     local delete_bitmap_status
 
@@ -817,7 +811,6 @@ os_is_unraid()
 # -----------------------------------------------------------------------------
 # From a given list, sorts unordered items lexicographically, with numbers naturally sorted:
 # -----------------------------------------------------------------------------
-
 sort_items()
 {
     echo $@ | xargs -n1 | sort -V | xargs
@@ -826,40 +819,6 @@ sort_items()
 ###############################################################################
 # Display Related Functions;
 ###############################################################################
-
-# -----------------------------------------------------------------------------
-# Prompts a given question to the user, and returns either 'yes' or 'no':
-# -----------------------------------------------------------------------------
-yes_no()
-{
-    local question=$1
-    local default_choice=$2
-    local trailing_string="[yes/no]"
-    local choice
-
-    while true; do
-
-        # Prompts and in case $default_choice was provided, it's displayed with upper caps:
-        read -p "$question ${trailing_string/$default_choice/${default_choice^^}}: " choice
-
-        case $choice in
-
-            yes|YES|no|NO)
-
-                echo ${choice,,}
-                break
-            ;;
-            "")
-                if [ ! -z $default_choice ]; then
-
-                    echo $default_choice
-                    break
-                fi
-            ;;
-        esac
-
-    done
-}
 
 # -----------------------------------------------------------------------------
 # Prompts a given question to the user amd returns a number if is within (also given) parameters:
@@ -895,6 +854,40 @@ choose_number()
                     break
                 fi
         esac
+    done
+}
+
+# -----------------------------------------------------------------------------
+# Prompts a given question to the user, and returns either 'yes' or 'no':
+# -----------------------------------------------------------------------------
+yes_no()
+{
+    local question=$1
+    local default_choice=$2
+    local trailing_string="[yes/no]"
+    local choice
+
+    while true; do
+
+        # Prompts and in case $default_choice was provided, it's displayed with upper caps:
+        read -p "$question ${trailing_string/$default_choice/${default_choice^^}}: " choice
+
+        case $choice in
+
+            yes|YES|no|NO)
+
+                echo ${choice,,}
+                break
+            ;;
+            "")
+                if [ ! -z $default_choice ]; then
+
+                    echo $default_choice
+                    break
+                fi
+            ;;
+        esac
+
     done
 }
 
