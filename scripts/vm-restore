@@ -44,17 +44,17 @@ case $1 in
 
     '') # When no arguments gien, default backups location is LOCAL_BACKUP_PATH
         [[ -n $LOCAL_BACKUP_PATH ]] \
-            && backup_path=$LOCAL_BACKUP_PATH \
-            || backup_path="/backups"
+            && main_backups_path=$LOCAL_BACKUP_PATH \
+            || main_backups_path="/backups"
     ;;
 
-    -s|--source) # User provides a custom location for backup_path
+    -s|--source) # User provides a custom location for main_backups_path
 
         case $2 in
 
             [/]*)   # Verify the given argument is an existing folder:
                     [[ -f $2 ]] \
-                        && backup_path="$2"
+                        && main_backups_path="$2"
                         || { echo -e "ERROR: Path '$2' was not found. Provide a valid path to scan for backups\n"; vm_restore_exit_code=1; }
             ;;
 
@@ -86,88 +86,88 @@ if [[ -z $vm_restore_exit_code ]]; then
 
 # Step 1: Asks the user to choose a VM to restore:
 # -----------------------------------------------------------------------------
-    vms_list=($(virsh list --all --persistent --name))
-    if [ $? == 0 ] && [[ ${#vms_list[@]} -ge 1 ]]; then
+    dest_domains_list=($(virsh list --all --persistent --name))
+    if [ $? == 0 ] && [[ ${#dest_domains_list[@]} -ge 1 ]]; then
 
         # Only proceeds either if libvirt doesn't report an error, and if there are non-trasient VMs:
         echo ""
         echo "Scanning for Virtual Machines..."
         echo ""
-        echo "${#vms_list[@]} VMs found in Host $(cat /etc/hostname):"
+        echo "${#dest_domains_list[@]} VMs found in Host $(cat /etc/hostname):"
         echo '-------------------------------------------------------------------------------'
         printf " %s \t %-15s \t %s \n" "#" "VM Name" "Drives"
         echo '-------------------------------------------------------------------------------'
 
         i=0
-        for vm in "${vms_list[@]}"; do
+        for vm in "${dest_domains_list[@]}"; do
 
             # Gets a list with drives in each VM that can b e restored:
-            vm_drives_list+=("$(domain_drives_list $vm)")
+            dest_domain_drives_list+=("$(domain_drives_list $vm)")
 
             # Shows each VM found, including the restorable drives:
-            printf " %s \t %-15s \t %s \n" "$(( $i + 1))" "$vm" "${vm_drives_list[$i]}"
+            printf " %s \t %-15s \t %s \n" "$(( $i + 1))" "$vm" "${dest_domain_drives_list[$i]}"
             ((i++))
         done
 
-        read -p "Choose the Virtual Machine # in the list [1-${#vms_list[@]}] to be restored: " choice
+        read -p "Choose the Virtual Machine # in the list [1-${#dest_domains_list[@]}] to be restored: " user_choice
 
         while true; do
 
-            if [[ $choice -ge 1 ]] && [[ $choice -le ${#vms_list[@]} ]]; then
+            if [[ $user_choice -ge 1 ]] && [[ $user_choice -le ${#dest_domains_list[@]} ]]; then
 
                 # Saves VM specs that will be used for restoration:
-                vm_name="${vms_list[(( $choice - 1 ))]}"
-                vm_drives_list=(${vm_drives_list[(( $choice - 1 ))]})
-                vm_img_paths_list=($(domain_img_paths_list $vm_name))
+                dest_domain="${dest_domains_list[(( $user_choice - 1 ))]}"
+                dest_domain_drives_list=(${dest_domain_drives_list[(( $user_choice - 1 ))]})
+                domain_img_paths_list=($(domain_img_paths_list $dest_domain))
 
                 break
             else
-                read -p "'$choice' is invalid. Please choose a number of the list [1-${#vms_list[@]}]: " choice
+                read -p "'$user_choice' is invalid. Please choose a number of the list [1-${#dest_domains_list[@]}]: " user_choice
             fi
         done
 
         echo ""
-        echo "Virtual Machine '$vm_name' selected for restoration"
+        echo "Virtual Machine '$dest_domain' selected for restoration"
         echo ""
 
 # Step 2: Asks the user for the main path to backups:
 # -----------------------------------------------------------------------------
-        read -p "Insert the Full path to the Nearest directory containing all backups sub-directories of '$vm_name': " backup_path
+        read -p "Insert the Full path to the Nearest directory containing all backups sub-directories of '$dest_domain': " main_backups_path
 
         while true; do
-            if [[ $backup_path == /* ]] && [ -d $backup_path ]; then
+            if [[ $main_backups_path == /* ]] && [ -d $main_backups_path ]; then
 
-                echo "Scanning for existing backup chains of $vm_name in $backup_path ..."
-                folders_list=$(find $backup_path -type d -name "$vm_name*")
+                echo "Scanning for existing backup chains of $dest_domain in $main_backups_path ..."
+                folders_list=$(find $main_backups_path -type d -name "$dest_domain*")
 
                 i=0
                 for folder in $folders_list; do
                     if [ -f $folder/*.cpt ] && [ -d $folder/checkpoints ]; then
 
                         # If a virtnbdbackup scheme is detected, it is considered a valid backup folder:
-                        backups_list+=("$folder")
+                        src_backups_list+=("$folder")
 
                         # Gets the drives backed up in the main checkpoint:
-                        backup_drives_list+=("$(backup_restorable_drives_list $folder/checkpoints/$checkpoint_name.0.xml)")
+                        src_backup_drives_list+=("$(backup_restorable_drives_list $folder/checkpoints/$checkpoint_name.0.xml)")
 
                         # And finally, creates an ordered list of backup names to be displayed:
-                        backup_names_list+=("$(echo $folder | rev | cut -d '/' -f1 | rev)")
+                        src_backup_names_list+=("$(echo $folder | rev | cut -d '/' -f1 | rev)")
                     fi
                 done
 
                 # Will continue only when at least one valid virtnbdbackup folder has been detected:
-                [ ! -z $backups_list ] && break || read -p "Sorry, no matching backups for '$vm_name' were found in '$backup_path'. Choose a more specific path containing backups: " backup_path
+                [ ! -z $src_backups_list ] && break || read -p "Sorry, no matching backups for '$dest_domain' were found in '$main_backups_path'. Choose a more specific path containing backups: " main_backups_path
 
             else
-                read -p "'$backup_path': Does not exist, is not a directory, or it is a relative path. Verify the path and re-enter it: " backup_path
+                read -p "'$main_backups_path': Does not exist, is not a directory, or it is a relative path. Verify the path and re-enter it: " main_backups_path
             fi
         done
 
         # Shows a list of restorable backups folder to choose:
         echo ""
-        echo "${#backups_list[@]} backups found in '$backup_path':"
+        echo "${#src_backups_list[@]} backups found in '$main_backups_path':"
 
-        if [[ ${#backups_list[@]} -gt 1 ]]; then
+        if [[ ${#src_backups_list[@]} -gt 1 ]]; then
 
 # Step 3: If multiple backups found for certain VM, asks the user to choose a backup to restore:
 # -----------------------------------------------------------------------------
@@ -176,42 +176,42 @@ if [[ -z $vm_restore_exit_code ]]; then
             printf " %s \t %-15s \t %s \n" "#"  "Backup Name" "Drives"
             echo '-------------------------------------------------------------------------------'
             i=0
-            for backup in "${backups_list[@]}"; do
+            for backup in "${src_backups_list[@]}"; do
 
-                printf " %s \t %-15s \t  %s \n" " $(( $i + 1))" "${backup_names_list[$i]}" "${backup_drives_list[$i]}"
+                printf " %s \t %-15s \t  %s \n" " $(( $i + 1))" "${src_backup_names_list[$i]}" "${src_backup_drives_list[$i]}"
                 ((i++))
             done
 
-            read -p "Choose the Backup Number in the list [1-${#backups_list[@]}] you want to restore: " choice
+            read -p "Choose the Backup Number in the list [1-${#src_backups_list[@]}] you want to restore: " user_choice
 
             while true; do
 
-                if [[ $choice -ge 1 ]] && [[ $choice -le ${#backups_list[@]} ]]; then
+                if [[ $user_choice -ge 1 ]] && [[ $user_choice -le ${#src_backups_list[@]} ]]; then
 
                     # Saves Backup specs that will be used later:
-                    backup_path="${backups_list[(( $choice - 1 ))]}"
-                    backup_name="${backup_names_list[(( $choice - 1 ))]}"
-                    backup_drives_list=(${backup_drives_list[(( $choice - 1 ))]})
+                    main_backups_path="${src_backups_list[(( $user_choice - 1 ))]}"
+                    chosen_backup_name="${src_backup_names_list[(( $user_choice - 1 ))]}"
+                    src_backup_drives_list=(${src_backup_drives_list[(( $user_choice - 1 ))]})
                     break
                 else
-                    read -p "'$choice' is invalid. Please choose a number of the list [1-${#backups_list[@]}]: " choice
+                    read -p "'$user_choice' is invalid. Please choose a number of the list [1-${#src_backups_list[@]}]: " user_choice
                 fi
             done
         else
 
-            echo "Backup with name '${backup_names_list[@]}' selected automatically (no other recognizable backups available for VM '$vm_name' in '$backup_path')"
+            echo "Backup with name '${src_backup_names_list[@]}' selected automatically (no other recognizable backups available for VM '$dest_domain' in '$main_backups_path')"
 
-            backup_name="${backup_names_list[@]}"
-            backup_path="${backups_list[@]}"
-            backup_drives_list=(${backup_drives_list[@]})
+            chosen_backup_name="${src_backup_names_list[@]}"
+            main_backups_path="${src_backups_list[@]}"
+            src_backup_drives_list=(${src_backup_drives_list[@]})
         fi
 
         echo ""
         echo "Scanning for checkpoints..."
 
-        checkpoints_list=(`cat $backup_path/*.cpt | sed -e 's/\[//g' -e 's/\"//g' -e 's/,//g' -e 's/\]//g'`)
+        checkpoints_list=(`cat $main_backups_path/*.cpt | sed -e 's/\[//g' -e 's/\"//g' -e 's/,//g' -e 's/\]//g'`)
 
-        echo "${#checkpoints_list[@]} Checkpoints found for backup '$backup_name':"
+        echo "${#checkpoints_list[@]} Checkpoints found for backup '$chosen_backup_name':"
 
          #if [[ ${#checkpoints_list[@]} -gt 1 ]]; then
 
@@ -226,7 +226,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             for checkpoint in "${checkpoints_list[@]}"; do
 
                 # Gets the Date/Time of a given checkpoint into the chosen backup:
-                checkpoint_dates_list+=("$(last_modified $backup_path/checkpoints/$checkpoint.xml)")
+                checkpoint_dates_list+=("$(last_modified $main_backups_path/checkpoints/$checkpoint.xml)")
 
                 # Prints on screen detailed (and tabulated) data for the given checkpoint:
                 printf ' %s \t %-10s \n' "$checkpoint" "${checkpoint_dates_list[$i]}"
@@ -234,62 +234,62 @@ if [[ -z $vm_restore_exit_code ]]; then
             done
 
             default_choice=$(( ${#checkpoints_list[@]} - 1 ))
-            read -p "Choose the Checkpoint Number in the list [0-$default_choice] you want to restore, or press ENTER to select the latest one: " choice
+            read -p "Choose the Checkpoint Number in the list [0-$default_choice] you want to restore, or press ENTER to select the latest one: " user_choice
 
             while true; do
 
-                if [ -z $choice ]; then
+                if [ -z $user_choice ]; then
 
                     checkpoint_index="${checkpoints_list[$default_choice]}"
                     checkpoint_date="${checkpoint_dates_list[$default_choice]}"
                     break
 
-                elif [[ $choice -ge 0 ]] && [[ $choice -le $(( ${#checkpoints_list[@]} -1 )) ]]; then
+                elif [[ $user_choice -ge 0 ]] && [[ $user_choice -le $(( ${#checkpoints_list[@]} -1 )) ]]; then
 
-                    checkpoint_index="${checkpoints_list[$choice]}"
-                    checkpoint_date="${checkpoint_dates_list[$choice]}"
+                    checkpoint_index="${checkpoints_list[$user_choice]}"
+                    checkpoint_date="${checkpoint_dates_list[$user_choice]}"
                     break
                 else
-                    read -p "$choice : Invalid choice. Please choose a number of the list [0-$(( ${#checkpoints_list[@]} - 1 ))]: " choice
+                    read -p "$user_choice : Invalid user_choice. Please choose a number of the list [0-$(( ${#checkpoints_list[@]} - 1 ))]: " user_choice
                 fi
             done
         #else
 
-            #echo "INFO: No incremental backups detected in '$backup_name', the (only) existing backup will be used..."
+            #echo "INFO: No incremental backups detected in '$chosen_backup_name', the (only) existing backup will be used..."
             #checkpoint_index="${checkpoints_list[@]}"
-            #checkpoint_date=$(last_modified $backup_path/$backup_name/checkpoints/${checkpoints_list[$checkpoint_index]}.xml)
+            #checkpoint_date=$(last_modified $main_backups_path/$chosen_backup_name/checkpoints/${checkpoints_list[$checkpoint_index]}.xml)
         #fi
 
         echo ""
         echo "Checkpoint selected: '$checkpoint_index' (Saved at $checkpoint_date)"
         echo ""
 
-        if [[ ${#vm_drives_list[@]} -gt 1 ]] || [[ ${#backup_drives_list[@]} -gt 1 ]]; then
+        if [[ ${#dest_domain_drives_list[@]} -gt 1 ]] || [[ ${#src_backup_drives_list[@]} -gt 1 ]]; then
 
 # Step 5: If multiple drives are found, asks the user for restoring specific ones:
 # -----------------------------------------------------------------------------
 
-            if [[ ${vm_drives_list[@]} == ${backup_drives_list[@]} ]]; then
+            if [[ ${dest_domain_drives_list[@]} == ${src_backup_drives_list[@]} ]]; then
 
                 # Only use case it's when both VM and backup chain, contain identical lists of drives:
-                echo "${#backup_drives_list[@]} restorable drives found at both, VM '$vm_name' and Backup '$backup_name': ${backup_drives_list[@]}"
-                read -p "In order to restore only specific drive(s), insert their names separated by spaces; or just press ENTER to restore all the drives: " chosen_drives
+                echo "${#src_backup_drives_list[@]} restorable drives found at both, VM '$dest_domain' and Backup '$chosen_backup_name': ${src_backup_drives_list[@]}"
+                read -p "In order to restore only specific drive(s), insert their names separated by spaces; or just press ENTER to restore all the drives: " user_selected_drives
 
                 while true; do
 
-                    if [ -z "$chosen_drives" ]; then
+                    if [ -z "$user_selected_drives" ]; then
 
                         # The user has pressed ENTER without specify specific drives:
-                        selected_drives=(${backup_drives_list[@]})
+                        selected_drives=(${src_backup_drives_list[@]})
                         break
                     else
 
                         selected_drives=()
                         invalid_drives=()
-                        for drive in $chosen_drives; do
+                        for drive in $user_selected_drives; do
 
-                            # Verifies the drive name is in $backup_drives_list, and adds if it matches:
-                            [[ ! -z $(echo ${backup_drives_list[@]} | grep -w $drive) ]] && selected_drives+=("$drive") || invalid_drives+=("$drive")
+                            # Verifies the drive name is in $src_backup_drives_list, and adds if it matches:
+                            [[ ! -z $(echo ${src_backup_drives_list[@]} | grep -w $drive) ]] && selected_drives+=("$drive") || invalid_drives+=("$drive")
                         done
 
                         # When at least one invalid drive has been detected, notifies the user and asks for insert drive names correctly:
@@ -300,7 +300,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                         else
 
                             invalid_drives="${invalid_drives[@]}"
-                            read -p "'${invalid_drives// /,}' not found. Specify the exact drives you want to restore (or just ENTER to restore all the drives): " chosen_drives
+                            read -p "'${invalid_drives// /,}' not found. Specify the exact drives you want to restore (or just ENTER to restore all the drives): " user_selected_drives
                         fi
                     fi
                 done
@@ -309,21 +309,21 @@ if [[ -z $vm_restore_exit_code ]]; then
                     # TO DO: Add other use cases (e.g. VM and backup lists of drives don't match, etc.)
             fi
         else
-            selected_drives=(${backup_drives_list[@]})
+            selected_drives=(${src_backup_drives_list[@]})
         fi
 
         echo ""
-        echo "Drives to be restored back at VM '$vm_name': ${selected_drives[@]}"
+        echo "Drives to be restored back at VM '$dest_domain': ${selected_drives[@]}"
 
 # Step 6: Ask for keep or not old backup files:
 # -----------------------------------------------------------------------------
 
         echo ""
-        read -p "Do you want to keep the old disk images? [yes/no]: " choice
+        read -p "Do you want to keep the old disk images? [yes/no]: " user_choice
 
         while true; do
 
-            case $choice in
+            case $user_choice in
 
                 yes|YES)
                     keep_old_disks=1
@@ -333,7 +333,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                     break
                 ;;
                 *)
-                    read -p "Please, write 'yes' or 'no': " choice
+                    read -p "Please, write 'yes' or 'no': " user_choice
                 ;;
             esac
         done
@@ -344,21 +344,21 @@ if [[ -z $vm_restore_exit_code ]]; then
 # Step 7: Perform the restoration:
 # -----------------------------------------------------------------------------
 
-        # Shutdown $vm_name
-        domain_shutdown $vm_name --wait $WAIT_TIME
+        # Shutdown dest_domain
+        domain_shutdown $dest_domain --wait $WAIT_TIME
 
         if [[ $? == 0 ]]; then
 
             echo ""
-            echo "INFO: Restoration of VM '$vm_name' (${selected_drives[@]}) checkpoint '$checkpoint_index' saved at $checkpoint_date in progress..."
+            echo "INFO: Restoration of VM '$dest_domain' (${selected_drives[@]}) checkpoint '$checkpoint_index' saved at $checkpoint_date in progress..."
             i=0
             for drive in ${selected_drives[@]}; do
 
                 echo '-------------------------------------------------------------------------------'
                 echo ""
                 # Current image name and path for $drive:
-                img_name=$(basename ${vm_img_paths_list[$i]})
-                img_path=$(dirname ${vm_img_paths_list[$i]})
+                img_name=$(basename ${domain_img_paths_list[$i]})
+                img_path=$(dirname ${domain_img_paths_list[$i]})
 
                 if [[ -f $img_path/$img_name ]]; then
 
@@ -371,7 +371,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                 # Retrieves the correspondent drive according the chosen options,
                 # to the same directory where original image disk is, using the same drive name (e.g. 'hdc')
-                virtnbdrestore -i $backup_path -o $image_path --until $checkpoint_index -d $drive
+                virtnbdrestore -i $main_backups_path -o $image_path --until $checkpoint_index -d $drive
                 echo ""
 
                 if [[ $? == 0 ]]; then
@@ -410,24 +410,24 @@ if [[ -z $vm_restore_exit_code ]]; then
             if [[ ${#restored_drives[@]} -eq ${#selected_drives[@]} ]]; then
 
                 echo "Querying libvirt for old checkpoints..."
-                domain_delete_checkpoints $vm_name --all --metadata
+                domain_delete_checkpoints $dest_domain --all --metadata
 
                 echo ""
-                echo "INFO: Restoration of Virtual Machine '$vm_name' has been successfully completed!"
+                echo "INFO: Restoration of Virtual Machine '$dest_domain' has been successfully completed!"
                 status=0
 
             elif [[ ${#restored_drives[@]} -gt 1 ]]; then
 
                 echo ""
-                echo "WARNING: Restoration of Virtual Machine '$vm_name' was NOT complete! (Successed: '${restored_drives[@]}' / Failed: '${failed_drives[@]}')"
+                echo "WARNING: Restoration of Virtual Machine '$dest_domain' was NOT complete! (Successed: '${restored_drives[@]}' / Failed: '${failed_drives[@]}')"
                 echo "Check the logs above to determine the cause of the problem, solve it and run this script again (choosing the above failed drives for restoration only)"
                 status=2
             else
-                echo "ERROR: Restoration of Virtual Machine '$vm_name' failed!"
+                echo "ERROR: Restoration of Virtual Machine '$dest_domain' failed!"
                 echo "Check the logs above to determine the cause of the problem, solve it and run this script again (no changes has been made onto the Virtual Machine)"
             fi
         else
-            echo "ERROR: Could not safely start the restoration process because the Virtual Machine '$vm_name' current state ($(domain_state $vm_name)) disallows it!"
+            echo "ERROR: Could not safely start the restoration process because the Virtual Machine '$dest_domain' current state ($(domain_state $dest_domain)) disallows it!"
         fi
     else
         echo "ERROR: No persistent Virtual Machines detected! (is libvirt service running?)"
