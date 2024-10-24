@@ -43,7 +43,7 @@ if [[ -n ${retention_list[@]} ]]; then
 
             # Backup path exists, is not empty and has something aside logs. Proceed with check:
             # Retention policy is set (at least, partially) by the user. Retrieve the number of existing checkpoints in the backup chain:
-            num_of_backup_checkpoints=$(backup_checkpoints_list $LOCAL_BACKUP_PATH/$domain --num)
+            num_of_backup_checkpoints=$(backup_checkpoints_num $LOCAL_BACKUP_PATH/$domain)
 
             case $retention_mode in
 

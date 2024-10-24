@@ -494,7 +494,7 @@ check_backups()
         # If backup was made in 'copy' mode, there are no checkpoints or bitmaps in this VM to delete (and no checkpoints can be added anyway):
         #------------------------------------------------------------------------------
         elif [[ ! -f $LOCAL_BACKUP_PATH/$domain/$domain.cpt \
-        && $(backup_checkpoints_list $LOCAL_BACKUP_PATH/$domain --num) -eq 0 \
+        && $(backup_checkpoints_num $LOCAL_BACKUP_PATH/$domain) -eq 0 \
         && -n $(find $LOCAL_BACKUP_PATH/$domain -type f -name "*.copy.data") ]]; then
 
             no_backup_chain=true

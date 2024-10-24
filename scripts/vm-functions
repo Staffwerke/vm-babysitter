@@ -610,8 +610,7 @@ archive_remote_backup()
 
 # -----------------------------------------------------------------------------
 # Retrieves checkpoints listed in .cpt file at a given backup path as first argument.
-# when second argument is '--num', retrieves the number of checkpoints instead of a list.
-# On copy mode backups, returns nothing, or '0' if --num is requested:
+# On copy mode backups, nothing is returned:
 # -----------------------------------------------------------------------------
 backup_checkpoints_list()
 {
@@ -621,30 +620,35 @@ backup_checkpoints_list()
     if [[ -n $cpt_file ]]; then
 
         # Backup is incremental. Retrieve a list of checkpoints from cpt_file:
-        local checkpoints_list="$(cat $cpt_file | sed -e 's/\[//g' -e 's/\"//g' -e 's/,//g' -e 's/\]//g')"
+        local checkpoints_list=($(cat $cpt_file | sed -e 's/\[//g' -e 's/\"//g' -e 's/,//g' -e 's/\]//g'))
 
-        case $2 in
-
-            '') # No second arguments. Return a list of checkpoints by name:
-                echo "$checkpoints_list"
-            ;;
-
-            --num)  # Return the # of checkpoints list:
-                    echo "$(echo $checkpoints_list | wc -w)"
-            ;;
-        esac
-
-    else
-        # Backup is copy and has no checkpoints
-        case $2 in
-
-            --num) # Returns '0', since there is no checkpoints:
-                   echo "0"
-            ;;
-        esac
+        # Return the # of found checkpoints:
+        echo "${checkpoints_list[@]}"
     fi
 }
 
+# -----------------------------------------------------------------------------
+# Retrieves the number of checkpoints found in .cpt file at a given backup path as first argument.
+# On copy mode backups, returns '0':
+# -----------------------------------------------------------------------------
+backup_checkpoints_num()
+{
+    local main_path=$1
+    local cpt_file=$(find $main_path -type f -name *.cpt)
+
+    if [[ -n $cpt_file ]]; then
+
+        # Backup is incremental. Retrieve checkpoints # from cpt_file:
+        local checkpoints_num=($(cat $cpt_file | sed -e 's/\[//g' -e 's/\"//g' -e 's/,//g' -e 's/\]//g' | wc -w ))
+
+        # Return the # of found checkpoints:
+        echo $checkpoints_num
+
+    else
+        # Most likely, it's a 'copy' backup. Return '0' indicating no checkpoints were found:
+        echo "0"
+    fi
+}
 #------------------------------------------------------------------------------
 # Returns domain's name from the latest checkpoint of a virtnbdbackup
 # generated folder, passed as an absolute a path (otherwise returns nothing):
