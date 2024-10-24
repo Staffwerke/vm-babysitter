@@ -79,7 +79,10 @@ esac
 if [[ -z $vm_restore_exit_code ]]; then
 
     # No exit code means the input parameters are correct.
-    # Begin interctive mode:
+
+    # =============================================================================
+    # Begin interactive mode:
+    # =============================================================================
 
 # Step 1: Asks the user to choose a VM to restore:
 # -----------------------------------------------------------------------------
