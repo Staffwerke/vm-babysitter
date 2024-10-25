@@ -664,7 +664,7 @@ backup_checkpoints_times_list()
 
         for file in $checkpoint_files; do
 
-            checkpoints_times+=($(grep -oP '(?<=<creationTime>).*?(?=<creationTime>)' $file))
+            checkpoints_times+=($(grep -oP '(?<=<creationTime>).*?(?=</creationTime>)' $file))
         done
 
         # Return the list of found checkpoints times:
