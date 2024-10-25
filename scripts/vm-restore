@@ -132,7 +132,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         # Asks the user to choose a backup to restore:
         # -----------------------------------------------------------------------------
         echo ""
-        user_choice=$(choose_number "Choose a backup to be restored" "1" "${#src_backups_list[@]}")
+        user_choice=$(choose_number "Choose a backup to restore" "1" "${#src_backups_list[@]}")
 
         exit
 
