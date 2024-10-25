@@ -98,7 +98,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
         echo -e "\nScanning for Backups in '$main_backups_path'..."
         echo '-------------------------------------------------------------------------------'
-        printf "%3s %-31s %-30s %-30s %s\n" "#" "Backup of" "From date" "To date" "Path"
+        printf "%3s %-31s %-30s %-30s %s\n" "#" "Backup of" "From date ($(date %Z))" "To date ($(date %Z))" "Path"
         echo '-------------------------------------------------------------------------------'
         i=0
         for backup in "${src_backups_list[@]}"; do
@@ -109,10 +109,10 @@ if [[ -z $vm_restore_exit_code ]]; then
             src_backup_domains_list+=($(backup_domain_name $backup))
             src_backup_checkpoints_times_list+=($(backup_checkpoints_times_list $backup))
 
-            first_checkpoint=$(echo ${src_backup_checkpoints_times_list[$i]} | cut -d ' ' -f1)
-            last_checkpoint=$(echo ${src_backup_checkpoints_times_list[$i]} | rev | cut -d ' ' -f1 | rev)
+            first_checkpoint_date=$( date -d @$(echo ${src_backup_checkpoints_times_list[$i]} | cut -d ' ' -f1) "+%Y-%m-%d %H:%M:%S")
+            last_checkpoint_date=$(date -d @$(echo ${src_backup_checkpoints_times_list[$i]} | rev | cut -d ' ' -f1 | rev) "+%Y-%m-%d %H:%M:%S")
 
-            printf "%3s %-31s %-30s %-30s %s\n" "$(( $i + 1))" "${src_backup_domains_list[$i]}" "$(date -d @$first_checkpoint)" "$(date -d @$last_checkpoint)" "${src_backups_list[$i]}"
+            printf "%3s %-31s %-30s %-30s %s\n" "$(( $i + 1))" "${src_backup_domains_list[$i]}" "$first_checkpoint_date" "$last_checkpoint_date" "${src_backups_list[$i]}"
             ((i++))
         done
 
