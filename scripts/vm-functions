@@ -668,7 +668,7 @@ backup_checkpoints_times_list()
         done
 
         # Return the list of found checkpoints times:
-        echo ${checkpoints_times[@]}
+        echo "${checkpoints_times[@]}"
     fi
 }
 
