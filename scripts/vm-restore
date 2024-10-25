@@ -105,7 +105,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
         echo -e "\nRetrieving info from backups at '$main_backups_path'..."
         echo '-------------------------------------------------------------------------------'
-        printf "%3s %-31s %3s  %-19s  %-19s  %s\n" "#" "Backup of" "#Cp" "From date ($(date +%Z))" "To date ($(date +%Z))" "At folder"
+        printf "%3s %-31s %3s  %-19s  %-19s  %s\n" "#" "Backup of" "#Cp" "From date ($(date +%Z))" "To date ($(date +%Z))" "Source folder"
         echo '-------------------------------------------------------------------------------'
         i=0
         for backup in "${src_backups_list[@]}"; do
@@ -124,7 +124,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             last_checkpoint_date=$(date -d @$(echo "${src_backup_times_list[$i]}" | rev | cut -d ' ' -f1 | rev) "+%Y-%m-%d %H:%M:%S")
 
             # Show the line with backup information:
-            printf "%3s %-31s %3s  %-19s  %-19s  %s\n" "$(( $i + 1))" "${src_backup_domains_list[$i]}" "${src_backup_checkpoints_num[$i]}" "$first_checkpoint_date" "$last_checkpoint_date" "${src_backups_list[$i]}"
+            printf "%3s %-31s %3s  %-19s  %-19s  %s\n" "$(( $i + 1))" "${src_backup_domains_list[$i]}" "${src_backup_checkpoints_num[$i]}" "$first_checkpoint_date" "$last_checkpoint_date" "$( basename ${src_backups_list[$i]})"
             ((i++))
         done
 
