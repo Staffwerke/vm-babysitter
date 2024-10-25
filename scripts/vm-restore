@@ -45,7 +45,7 @@ end_of_help
 
 case $1 in
 
-    '') # When no arguments gien, default backups location is LOCAL_BACKUP_PATH
+    '') # When no arguments are given, default backups location is LOCAL_BACKUP_PATH
         [[ -n $LOCAL_BACKUP_PATH ]] \
             && main_backups_path=$LOCAL_BACKUP_PATH \
             || main_backups_path="/backups"
@@ -56,7 +56,7 @@ case $1 in
         case $2 in
 
             [/]*)   # Verify the given argument is an existing folder:
-                    [[ -f $2 ]] \
+                    [[ -d $2 ]] \
                         && main_backups_path="$2" \
                         || { echo -e "ERROR: Path '$2' was not found. Provide a valid path to scan for backups\n"; vm_restore_exit_code=1; }
             ;;
@@ -89,14 +89,21 @@ if [[ -z $vm_restore_exit_code ]]; then
 
     for folder in $(find $main_backups_path -mindepth 1 -maxdepth 1 -type d | sort -u); do
 
-        # Subfolder in main_backups_path contains files, aside of logs (1st time failed backups):
-        [[ -n $(list_extensions $folder | grep -iv log) ]] \
+        # Get a list of file extensions in folder:
+        extensions_list="$(list_extensions $folder)"
+
+        # Extensions 'data' and 'xml' are proof it's a virtnbdbackup type:
+        [[ -n $(grep -x data <<< $extensions_list) && -n $(grep -x xml <<< $extensions_list) ]] \
             && src_backups_list+=($folder)
     done
 
     if [[ -n ${src_backups_list[@]} ]]; then
 
-        echo -e "\nScanning for Backups in '$main_backups_path'..."
+        # -----------------------------------------------------------------------------
+        # Show all restorable backups:
+        # -----------------------------------------------------------------------------
+
+        echo -e "\nRetrieving info from backups at '$main_backups_path'..."
         echo '-------------------------------------------------------------------------------'
         printf "%3s %-31s %3s  %-19s  %-19s  %s\n" "#" "Backup of" "#Cp" "From date ($(date +%Z))" "To date ($(date +%Z))" "At folder"
         echo '-------------------------------------------------------------------------------'
@@ -110,17 +117,28 @@ if [[ -z $vm_restore_exit_code ]]; then
             # Get domain names, # of checkpoints and times of each checkpoint:
             src_backup_domains_list+=("$(backup_domain_name $backup)")
             src_backup_checkpoints_num+=("$(backup_checkpoints_num $backup)")
-            src_backup_checkpoints_times_list+=("$(backup_checkpoints_times_list $backup)")
+            src_backup_times_list+=("$(backup_times_list $backup)")
 
             # Also get first and last checkpoint dates, human readable:
-            first_checkpoint_date=$( date -d @$(echo "${src_backup_checkpoints_times_list[$i]}" | cut -d ' ' -f1) "+%Y-%m-%d %H:%M:%S")
-            last_checkpoint_date=$(date -d @$(echo "${src_backup_checkpoints_times_list[$i]}" | rev | cut -d ' ' -f1 | rev) "+%Y-%m-%d %H:%M:%S")
+            first_checkpoint_date=$( date -d @$(echo "${src_backup_times_list[$i]}" | cut -d ' ' -f1) "+%Y-%m-%d %H:%M:%S")
+            last_checkpoint_date=$(date -d @$(echo "${src_backup_times_list[$i]}" | rev | cut -d ' ' -f1 | rev) "+%Y-%m-%d %H:%M:%S")
 
-            printf "%3 %-31s %3s  %-19s  %-19s  %s" "$(( $i + 1))" "${src_backup_domains_list[$i]}" "${src_backup_checkpoints_num[$i]}" "$first_checkpoint_date" "$last_checkpoint_date" "${src_backups_list[$i]}"
+            # Show the line with backup information:
+            printf "%3s %-31s %3s  %-19s  %-19s  %s\n" "$(( $i + 1))" "${src_backup_domains_list[$i]}" "${src_backup_checkpoints_num[$i]}" "$first_checkpoint_date" "$last_checkpoint_date" "${src_backups_list[$i]}"
             ((i++))
         done
 
+        # -----------------------------------------------------------------------------
+        # Asks the user to choose a backup to restore:
+        # -----------------------------------------------------------------------------
+        echo ""
+        user_choice=$(choose_number "Choose a backup to be restored" "1" "${#src_backups_list[@]}")
+
         exit
+
+    else
+        vm_restore_exit_code=1
+        echo "ERROR: No backups found at path '$main_backups_path'"
     fi
 
 
