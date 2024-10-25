@@ -36,9 +36,12 @@ cat << end_of_help
 end_of_help
 }
 
-# -----------------------------------------------------------------------------
+# #############################################################################
 # Main execution:
+# #############################################################################
+
 # -----------------------------------------------------------------------------
+# Read user parameters:
 
 case $1 in
 
@@ -83,6 +86,39 @@ if [[ -z $vm_restore_exit_code ]]; then
     # =============================================================================
     # Begin interactive mode:
     # =============================================================================
+
+    for folder in $(find $main_backups_path -mindepth 1 -maxdepth 1 -type d); do
+
+        # Subfolder in main_backups_path contains files, aside of logs (1st time failed backups):
+        [[ -n $(list_extensions $folder | grep -iv log) ]] \
+            && src_backups_list+=($folder)
+    done
+
+    if [[ -n ${src_backups_list[@]} ]]; then
+
+        echo -e "\nScanning for Backups in '$main_backups_path'..."
+        echo '-------------------------------------------------------------------------------'
+        printf "%3s %-31s %-30s %-30s %s\n" "#" "Backup of" "From date" "To date" "Path"
+        echo '-------------------------------------------------------------------------------'
+        i=0
+        for backup in "${src_backups_list[@]}"; do
+
+            first_checkpoint=""
+            last_checkpoint=""
+
+            src_backup_domains_list+=($(backup_domain_name $backup))
+            src_backup_checkpoints_times_list+=($(backup_checkpoints_times_list $backup))
+
+            first_checkpoint=$(echo ${src_backup_checkpoints_times_list[$i]} | cut -d ' ' -f1)
+            last_checkpoint=$(echo ${src_backup_checkpoints_times_list[$i]} | rev | cut -d ' ' -f1 | rev)
+
+            printf "%3s %-31s %-30s %-30s %s\n" "$(( $i + 1))" "${src_backup_domains_list[$i]}" "$(date -d @$first_checkpoint)" "$(date -d @$last_checkpoint)" "${src_backups_list[$i]}"
+            ((i++))
+        done
+
+        exit
+    fi
+
 
 # Step 1: Asks the user to choose a VM to restore:
 # -----------------------------------------------------------------------------
