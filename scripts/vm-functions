@@ -650,35 +650,13 @@ backup_checkpoints_num()
     fi
 }
 
-# -----------------------------------------------------------------------------
-# Similar with backup_checkpoints_list but instead retrieves unix creation times all checkpoints listed under /checkpoints folder.
-# On copy mode backups, nothing is returned:
-# -----------------------------------------------------------------------------
-backup_checkpoints_times_list()
-{
-    local main_path=$1
-    local checkpoints_times=()
-    local checkpoint_files=$(find $1/checkpoints -name "virtnbdbackup.*.xml" -print0 | xargs -r -0 ls -1 -t -r)
-
-    if [[ -n $checkpoint_files ]]; then
-
-        for file in $checkpoint_files; do
-
-            checkpoints_times+=($(grep -oP '(?<=<creationTime>).*?(?=</creationTime>)' $file))
-        done
-
-        # Return the list of found checkpoints times:
-        echo "${checkpoints_times[@]}"
-    fi
-}
-
 #------------------------------------------------------------------------------
 # Returns domain's name from the latest checkpoint of a virtnbdbackup
 # generated folder, passed as an absolute a path (otherwise returns nothing):
 #------------------------------------------------------------------------------
 backup_domain_name()
 {
-    latest_vmconfig_file=$(find $1 -maxdepth 1 -name "vmconfig.*.xml" -print0 | xargs -r -0 ls -1 -t | head -1)
+    local latest_vmconfig_file=$(find $1 -maxdepth 1 -name "vmconfig.*.xml" -print0 | xargs -r -0 ls -1 -t | head -1)
     [[ -n $latest_vmconfig_file ]] && grep -oP '(?<=<name>).*?(?=</name>)' $latest_vmconfig_file
 }
 
@@ -688,6 +666,33 @@ backup_domain_name()
 backup_restorable_drives_list()
 {
     echo $(grep -e "checkpoint='bitmap'" $1 | cut -d"'" -f2)
+}
+
+# -----------------------------------------------------------------------------
+# Returns unix creation times all checkpoints listed under /checkpoints folder.
+# If no checkpoints are found, retireves last modification time of (oldest) xml definitions file:
+# -----------------------------------------------------------------------------
+backup_times_list()
+{
+    local main_path=$1
+    local backup_times=()
+    local checkpoint_files=$(find $1/checkpoints -name "virtnbdbackup.*.xml" -print0 | xargs -r -0 ls -1 -t -r)
+
+    if [[ -n $checkpoint_files ]]; then
+
+        for file in $checkpoint_files; do
+
+            backup_times+=($(grep -oP '(?<=<creationTime>).*?(?=</creationTime>)' $file))
+        done
+
+        # Return the list of found checkpoints times:
+        echo "${backup_times[@]}"
+
+    else
+
+        local latest_vmconfig_file=$(find $1 -maxdepth 1 -name "vmconfig.*.xml" -print0 | xargs -r -0 ls -1 -t | head -1)
+        echo "$(date -r $latest_vmconfig_file +%s)"
+    fi
 }
 
 #------------------------------------------------------------------------------
