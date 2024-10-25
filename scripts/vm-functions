@@ -660,7 +660,7 @@ backup_checkpoints_times_list()
     local checkpoints_times=()
     local checkpoint_files=$(find $1/checkpoints -name "virtnbdbackup.*.xml" -print0 | xargs -r -0 ls -1 -t -r)
 
-    if [[ -n $checkpoint_files_list ]]; then
+    if [[ -n $checkpoint_files ]]; then
 
         for file in $checkpoint_files; do
 
