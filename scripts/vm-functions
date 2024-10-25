@@ -622,7 +622,7 @@ backup_checkpoints_list()
         # Backup is incremental. Retrieve a list of checkpoints from cpt_file:
         local checkpoints_list=($(cat $cpt_file | sed -e 's/\[//g' -e 's/\"//g' -e 's/,//g' -e 's/\]//g'))
 
-        # Return the # of found checkpoints:
+        # Return the list of found checkpoints:
         echo "${checkpoints_list[@]}"
     fi
 }
@@ -649,6 +649,29 @@ backup_checkpoints_num()
         echo "0"
     fi
 }
+
+# -----------------------------------------------------------------------------
+# Similar with backup_checkpoints_list but instead retrieves unix creation times all checkpoints listed under /checkpoints folder.
+# On copy mode backups, nothing is returned:
+# -----------------------------------------------------------------------------
+backup_checkpoints_times_list()
+{
+    local main_path=$1
+    local checkpoints_times=()
+    local checkpoint_files=$(find $1/checkpoints -name "virtnbdbackup.*.xml" -print0 | xargs -r -0 ls -1 -t -r)
+
+    if [[ -n $checkpoint_files_list ]]; then
+
+        for file in $checkpoint_files; do
+
+            checkpoints_times+=($(grep -oP '(?<=<creationTime>).*?(?=<creationTime>)' $file))
+        done
+
+        # Return the list of found checkpoints times:
+        echo ${checkpoints_times[@]}
+    fi
+}
+
 #------------------------------------------------------------------------------
 # Returns domain's name from the latest checkpoint of a virtnbdbackup
 # generated folder, passed as an absolute a path (otherwise returns nothing):
