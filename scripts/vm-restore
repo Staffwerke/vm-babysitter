@@ -57,7 +57,7 @@ case $1 in
 
             [/]*)   # Verify the given argument is an existing folder:
                     [[ -f $2 ]] \
-                        && main_backups_path="$2"
+                        && main_backups_path="$2" \
                         || { echo -e "ERROR: Path '$2' was not found. Provide a valid path to scan for backups\n"; vm_restore_exit_code=1; }
             ;;
 
