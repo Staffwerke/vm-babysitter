@@ -105,7 +105,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
         echo -e "\nRetrieving info from backups at '$main_backups_path'..."
         echo '-------------------------------------------------------------------------------'
-        printf "%3s %-31s %3s  %-19s  %-19s  %s\n" "#" "Backup of" "#Cp" "From date ($(date +%Z))" "To date ($(date +%Z))" "Source folder"
+        printf "%3s %-19s %15s  %-19s  %-19s  %s\n" "#" "Backup of" "Checkpoints" "From date ($(date +%Z))" "To date ($(date +%Z))" "Source folder"
         echo '-------------------------------------------------------------------------------'
         i=0
         for backup in "${src_backups_list[@]}"; do
