@@ -896,7 +896,7 @@ choose_number()
 
         read -p "$question [$min_choice-$max_choice]$default_choice: " choice
 
-        if [[ $choice ~= [0-9] && $choice -ge $min_choice && $choice -le $max_choice ]]
+        if [[ $choice ~= [0-9] && $choice -ge $min_choice && $choice -le $max_choice ]]; then
 
             echo $choice
 
