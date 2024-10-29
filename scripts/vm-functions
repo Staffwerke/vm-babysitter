@@ -877,13 +877,21 @@ sort_items()
 # -----------------------------------------------------------------------------
 choose_number()
 {
-        local question=$1
-        local min_choice=$2
-        local max_choice=$3
-        if [[ ! -z $4 ]] || [[ $min_choice -eq $max_choice ]]; then
-            local default_choice=" (default: $4)"
-        fi
         local choice
+        local default
+        local default_choice
+        local max_choice=$3
+        local min_choice=$2
+        local question=$1
+
+        [[ -n $4 ]] \
+            && default=$4 \
+            || [[ $min_choice -eq $max_choice ]] \
+                && default=$max_choice
+        fi
+
+        [[ -n $default ]] && default_choice=" (default: $default)"
+
 
     while true; do
 
@@ -900,9 +908,9 @@ choose_number()
             ;;
 
             "")
-                if [ ! -z $4 ]; then
+                if [[ -n $default ]]; then
 
-                    echo $4
+                    echo $default
                     break
                 fi
         esac
