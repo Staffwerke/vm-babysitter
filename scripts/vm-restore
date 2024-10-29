@@ -145,19 +145,19 @@ if [[ -z $vm_restore_exit_code ]]; then
         # -----------------------------------------------------------------------------
          if [[ $src_backup_checkpoints_num -ge 2 ]]; then
 
-            # Get specific list of checkpoints in src_backup_domain:
-            src_backup_checkpoints_list=($(backup_checkpoints_list $src_backup_domain))
+            # Get specific list of checkpoints in src_backup_path:
+            src_backup_checkpoints_list=($(backup_checkpoints_list $src_backup_path))
 
             # Header to show when there are incremental backups:
             echo -e "\nRetrieving checkpoints list from backup of domain '$src_backup_domain' at '$(basename $src_backup_path)'..."
             echo '-------------------------------------------------------------------------------'
-            printf " %s %-15s \n" "Checkpoint Name" "Saved at ($(date +%Z)):"
+            printf "%3s %-18s  %s\n" "#" "Checkpoint Name" "Saved at ($(date +%Z)):"
             echo '-------------------------------------------------------------------------------'
             i=0
             for checkpoint in "${src_backup_checkpoints_list[@]}"; do
 
                 # Prints on screen detailed (and tabulated) data for the given checkpoint:
-                printf ' %s %-15s \n' "$(($i + 1))" "$checkpoint" "${src_backup_times[$i]}"
+                printf " %s %-18s  %s\n" "$(($i + 1))" "$checkpoint" "${src_backup_times[$i]}"
                 ((i++))
             done
 
