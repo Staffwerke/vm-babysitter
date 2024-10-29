@@ -124,7 +124,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             last_checkpoint_date=$(date -d @$(echo "${src_backup_times_list[$i]}" | rev | cut -d ' ' -f1 | rev) "+%Y-%m-%d %H:%M:%S")
 
             # Show the line with backup information:
-            printf "%3s %-31s %3s  %-19s  %-19s  %s\n" "$(( $i + 1))" "${src_backup_domains_list[$i]}" "${src_backup_checkpoints_num_list[$i]}" "$first_checkpoint_date" "$last_checkpoint_date" "$( basename ${src_backups_list[$i]})"
+            printf "%3s %-31s %3s  %-19s  %-19s  %s\n" "$(( $i + 1))" "${src_backup_domains_list[$i]}" "${src_backup_checkpoints_num_list[$i]}" "$first_checkpoint_date" "$last_checkpoint_date" "$(basename ${src_backups_list[$i]})"
             ((i++))
         done
 
@@ -137,7 +137,45 @@ if [[ -z $vm_restore_exit_code ]]; then
         # Get all chosen backup metadata, from gathered above and directly from functions:
         src_backup_domain=${src_backup_domains_list[$user_choice]}
         src_backup_checkpoints_num=${src_backup_checkpoints_num_list[$user_choice]}
+        src_backup_path=${src_backups_list[$user_choice]}
         src_backup_times=(${src_backup_times_list[$user_choice]})
+
+        # -----------------------------------------------------------------------------
+        # Show multiple checkpoints, if any:
+        # -----------------------------------------------------------------------------
+         if [[ $src_backup_checkpoints_num -ge 2 ]]; then
+
+            # Get specific list of checkpoints in src_backup_domain:
+            src_backup_checkpoints_list=($(backup_checkpoints_list $src_backup_domain))
+
+            # Header to show when there are incremental backups:
+            echo -e "\nRetrieving checkpoints list from backup of domain '$src_backup_domain' at '$(basename $src_backup_path)'..."
+            echo '-------------------------------------------------------------------------------'
+            printf " %s %-15s \n" "Checkpoint Name" "Saved at ($(date +%Z)):"
+            echo '-------------------------------------------------------------------------------'
+            i=0
+            for checkpoint in "${src_backup_checkpoints_list[@]}"; do
+
+                # Prints on screen detailed (and tabulated) data for the given checkpoint:
+                printf ' %s %-15s \n' "$(($i + 1))" "$checkpoint" "${src_backup_times[$i]}"
+                ((i++))
+            done
+
+            # -----------------------------------------------------------------------------
+            # Ask the user to choose a specific checkpoint to restore:
+            # -----------------------------------------------------------------------------
+            echo ""
+            user_choice=$(( $(choose_number "Choose a specific point in time to restore (or press ENTER to select the latest one) :" "1" "${src_backup_checkpoints_num[@]}" "${src_backup_checkpoints_num[@]}") - 1 ))
+
+            # When user_choice is different than the default option, set this variable to be used with virtnbdrestore to control checkpoint restoration:
+            [[ $user_choice -lt ${src_backup_checkpoints_num[@]} ]] && until_checkpoint="--until ${src_backup_checkpoints_list[$user_choice]}"
+
+            echo -e "Backup of domain '$src_backup_domain' located at '$src_backup_path' on checkpoint '${src_backup_checkpoints_list[$user_choice]}' saved at ${src_backup_times[$user_choice]} $(date +%Z), selected for restoration\n"
+
+        else
+            # When only one checkpoint exists, or none at all (copy mode backup), do not display info about checkpoints:
+            echo -e "Backup of domain '$src_backup_domain' located at '$src_backup_path' saved at ${src_backup_times[$user_choice]} $(date +%Z), selected for restoration\n"
+        fi
 
         # Get the (ordered) list of existing domains:
         existing_domains_list=($(domains_list | sort -u))
@@ -145,10 +183,10 @@ if [[ -z $vm_restore_exit_code ]]; then
         if [[ -n ${existing_domains_list[@]} ]]; then
 
             # -----------------------------------------------------------------------------
-            # Ask the user if restore an existing VM, or create a new one:
+            # When available, ask the user if restore an existing domain, or create a new one instead:
             # -----------------------------------------------------------------------------
             # Asks the user for copying disks from src_domain for dest_domain
-            restore_to_existing_domain=$(yes_no "Restore domain's backup '$src_backup_domain' to an existing domain?" "no")
+            restore_to_existing_domain=$(yes_no "Restore this backup to an existing domain?" "no")
 
         else
             # There is no domains that could be restored:
@@ -160,7 +198,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             # -----------------------------------------------------------------------------
             # Ask the user for a name for the new domain:
             # -----------------------------------------------------------------------------
-            read -p "Insert a name for the new domain that will be created, restored from domain's backup '$src_backup_domain': " dest_domain
+            read -p "Insert a name for the new domain, which will be created from backup of domain '$src_backup_domain': " dest_domain
 
             # TODO: Add Qemu/KVM domain name constrains:
             while [[ $dest_domain == $(grep -o -e "$dest_domain" <<< "${existing_domains_list[@]}") ]]; do
