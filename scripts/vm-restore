@@ -136,7 +136,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
         # Get all chosen backup metadata, from gathered above and directly from functions:
         src_backup_domain=${src_backup_domains_list[$user_choice]}
-        src_backup_checkpoints_numt=${src_backup_checkpoints_num_list[$user_choice]}
+        src_backup_checkpoints_num=${src_backup_checkpoints_num_list[$user_choice]}
         src_backup_times=(${src_backup_times_list[$user_choice]})
 
         # Get the (ordered) list of existing domains:
