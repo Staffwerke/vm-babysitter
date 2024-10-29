@@ -888,7 +888,6 @@ choose_number()
             && default=$4 \
             || [[ $min_choice -eq $max_choice ]] \
                 && default=$max_choice
-        fi
 
         [[ -n $default ]] && default_choice=" (default: $default)"
 
