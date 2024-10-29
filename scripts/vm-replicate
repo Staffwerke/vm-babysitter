@@ -149,7 +149,7 @@ if [[ -z $@ ]]; then
         while [[ $dest_domain == $(grep -o -e "$dest_domain" <<< "${dest_domains_list[@]}") ]]; do
 
             # Ask for a different name if the domain already exists on the list
-            read -p "Domain '$dest_domain' already exists at the $chosen_endpoint chosen endpoint. Choose a different name: " dest_domain
+            read -p "Domain '$dest_domain' already exists at the $chosen_endpoint chosen endpoint or is invalid. Choose a different name: " dest_domain
         done
 
         echo -e "New domain will be created as: '$dest_domain'\n"

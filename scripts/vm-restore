@@ -162,11 +162,11 @@ if [[ -z $vm_restore_exit_code ]]; then
             # -----------------------------------------------------------------------------
             read -p "Insert a name for the new domain that will be created, restored from domain's backup '$src_backup_domain': " dest_domain
 
-            # TODO: Add Qemu/KVM domain name contrains:
+            # TODO: Add Qemu/KVM domain name constrains:
             while [[ $dest_domain == $(grep -o -e "$dest_domain" <<< "${existing_domains_list[@]}") ]]; do
 
                 # Ask for a different name if the domain already exists on the list
-                read -p "Domain '$dest_domain' already exists. Choose a different name: " dest_domain
+                read -p "Domain '$dest_domain' already exists or is invalid. Choose a different name: " dest_domain
             done
 
         else # user_choice = 'yes'
