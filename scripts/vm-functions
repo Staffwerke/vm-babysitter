@@ -892,27 +892,22 @@ choose_number()
         [[ -n $default ]] && default_choice=" (default: $default)"
 
 
-    while true; do
+    while [[ -z $choice ]]; do
 
         read -p "$question [$min_choice-$max_choice]$default_choice: " choice
 
-        case $choice in
+        if [[ $choice ~= [0-9] && $choice -ge $min_choice && $choice -le $max_choice ]]
 
-            [0-9])
-                if [[ $choice -ge $min_choice ]] && [[ $choice -le $max_choice ]]; then
+            echo $choice
 
-                    echo $choice
-                    break
-                fi
-            ;;
+        elif [[ -z $choice && -n $default ]]; then
 
-            "")
-                if [[ -n $default ]]; then
+            choice=$default
+            echo $choice
 
-                    echo $default
-                    break
-                fi
-        esac
+        else
+            choice=""
+        fi
     done
 }
 
