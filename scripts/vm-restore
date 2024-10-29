@@ -157,7 +157,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             for checkpoint in "${src_backup_checkpoints_list[@]}"; do
 
                 # Prints on screen detailed (and tabulated) data for the given checkpoint:
-                printf " %s %-18s  %s\n" "$(($i + 1))" "$checkpoint" "${src_backup_times[$i]}"
+                printf "%3s %-18s  %s\n" "$(($i + 1))" "$checkpoint" "$(date -d @$(echo ${src_backup_times[$i]}))"
                 ((i++))
             done
 
