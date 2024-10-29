@@ -194,9 +194,9 @@ if [[ -z $vm_restore_exit_code ]]; then
             # Asks the user to choose a domain to be restored from backup:
             # -----------------------------------------------------------------------------
             echo ""
-            user_choice=$(( $(choose_number "Choose a domain to be replicated" "1" "${#existing_domains_list[@]}") - 1 ))
+            user_choice=$(( $(choose_number "Choose a domain to restore the backup '$src_backup_domain'" "1" "${#existing_domains_list[@]}") - 1 ))
 
-            # Target domain where backup will be restored:
+            # Get the chosen domain, and its metadata:
             dest_domain=${existing_domains_list[$user_choice]}
             dest_domain_drives_list=(${existing_domains_drives_list[$user_choice]})
             dest_domain_img_paths_list=($(domain_img_paths_list $dest_domain))
