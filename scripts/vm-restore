@@ -105,7 +105,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
         echo -e "\nRetrieving info from backups at '$main_backups_path'..."
         echo '-------------------------------------------------------------------------------'
-        printf "%3s %-19s %15s  %-19s  %-19s  %s\n" "#" "Backup of" "Checkpoints" "From date ($(date +%Z))" "To date ($(date +%Z))" "Source folder"
+        printf "%3s %-19s %15s  %-19s  %-19s  %s\n" "#" "Backup of" "Checkpoints" "From date ($(date +%Z))" "To date ($(date +%Z))" "Source directory"
         echo '-------------------------------------------------------------------------------'
         i=0
         for backup in "${src_backups_list[@]}"; do
@@ -139,8 +139,8 @@ if [[ -z $vm_restore_exit_code ]]; then
         src_backup_checkpoints_numt=${src_backup_checkpoints_num_list[$user_choice]}
         src_backup_times=(${src_backup_times_list[$user_choice]})
 
-        # Get the list of existing domains:
-        existing_domains_list=($(domains_list))
+        # Get the (ordered) list of existing domains:
+        existing_domains_list=($(domains_list | sort -u))
 
         if [[ -n ${existing_domains_list[@]} ]]; then
 
@@ -169,7 +169,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                 read -p "Domain '$dest_domain' already exists or is invalid. Choose a different name: " dest_domain
             done
 
-        else # user_choice = 'yes'
+        else # restore_to_existing_domain = 'yes'
 
             # -----------------------------------------------------------------------------
             # Show all available domains:
@@ -198,9 +198,12 @@ if [[ -z $vm_restore_exit_code ]]; then
 
             # Target domain where backup will be restored:
             dest_domain=${existing_domains_list[$user_choice]}
+            dest_domain_drives_list=(${existing_domains_drives_list[$user_choice]})
+            dest_domain_img_paths_list=($(domain_img_paths_list $dest_domain))
         fi
 
-        echo -e "Domains' backup will be created as: '$dest_domain'\n"
+        echo -e "Backup of domain '$src_backup_domain' will be restored onto: '$dest_domain'\n"
+
 
         # Dummy exit to stop the script early, as modifications go by:
         exit
@@ -210,6 +213,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         echo "ERROR: No backups found at path '$main_backups_path'"
     fi
 
+###############################################################################
 
 # Step 1: Asks the user to choose a VM to restore:
 # -----------------------------------------------------------------------------
