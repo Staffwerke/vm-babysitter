@@ -165,17 +165,21 @@ if [[ -z $vm_restore_exit_code ]]; then
             # Ask the user to choose a specific checkpoint to restore:
             # -----------------------------------------------------------------------------
             echo ""
-            user_choice=$(( $(choose_number "Choose a specific point in time to restore (or press ENTER to select the latest one) :" "1" "${src_backup_checkpoints_num[@]}" "${src_backup_checkpoints_num[@]}") - 1 ))
+            user_choice=$(( $(choose_number "Choose a specific point in time to restore (or press ENTER to select the latest one) :" "1" "$src_backup_checkpoints_num" "$src_backup_checkpoints_num") - 1 ))
 
-            # When user_choice is different than the default option, set this variable to be used with virtnbdrestore to control checkpoint restoration:
-            [[ $user_choice -lt ${src_backup_checkpoints_num[@]} ]] && until_checkpoint="--until ${src_backup_checkpoints_list[$user_choice]}"
+            # When user_choice is different than the default option,
+            # set these variables to notify and to be used with virtnbdrestore when restoring (up to chosen checkpoint):
+            if [[ $user_choice -ne $src_backup_checkpoints_num ]]; then
 
-            echo -e "Backup of domain '$src_backup_domain' located at '$src_backup_path' on checkpoint '${src_backup_checkpoints_list[$user_choice]}' saved at ${src_backup_times[$user_choice]} $(date +%Z), selected for restoration\n"
-
-        else
-            # When only one checkpoint exists, or none at all (copy mode backup), do not display info about checkpoints:
-            echo -e "Backup of domain '$src_backup_domain' located at '$src_backup_path' saved at ${src_backup_times[$user_choice]} $(date +%Z), selected for restoration\n"
+                until_checkpoint="--until ${src_backup_checkpoints_list[$user_choice]}"
+                last_save_details="on checkpoint '${src_backup_checkpoints_list[$user_choice]}' saved at $(date -d @$(echo ${src_backup_times[$user_choice]}))"
+            fi
         fi
+
+        # When no checkpoint selection has been done (e.g default option, one or no checkpoints at all, use the following message:
+        [[ -z $last_save_details ]] && saved_date_details="last saved at $(date -d @$(echo "${src_backup_times[@]}"))"
+
+        echo -e "Backup of domain '$src_backup_domain' at '$src_backup_path' ($last_save_details), has been selected for being restored\n"
 
         # Get the (ordered) list of existing domains:
         existing_domains_list=($(domains_list | sort -u))
