@@ -238,10 +238,6 @@ if [[ -z $vm_restore_exit_code ]]; then
             done
         fi
 
-        # Get chosen domain's metadata to be used for restoration:
-        dest_domain_drives_list=(${existing_domains_drives_list[$user_choice]})
-        dest_domain_img_paths_list=($(domain_img_paths_list $dest_domain))
-
         echo -e "Backup of domain '$src_backup_domain' will be restored onto domain: '$dest_domain'\n"
 
         # Dummy exit to stop the script early, as modifications go by:
