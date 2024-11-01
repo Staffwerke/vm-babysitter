@@ -661,11 +661,60 @@ backup_domain_name()
 }
 
 # -----------------------------------------------------------------------------
-# For a given checkpoint file, returns a string value with (restorable) virtual drives (separated by spaces) (e.g. "hdc hdd")
+# Returns info (drives, paths) from a given backup path, optionally at a determined checkpoint:
 # -----------------------------------------------------------------------------
-backup_restorable_drives_list()
+backup_restorable_list()
 {
-    echo $(grep -e "checkpoint='bitmap'" $1 | cut -d"'" -f2)
+    local mode=$1
+    local backup_path=$2
+    local checkpoint=$3
+
+    local checkpoints_list=()
+    local identifier
+    local json_files_list
+    local result=()
+
+    if [[ -z $checkpoint ]]; then
+
+        # No checkpoint was specified. Look for checkpoints inside backup:
+        checkpoints_list=($(backup_checkpoints_list $backup_path))
+
+        if [[ -n ${checkpoints_list[@]} ]]; then
+
+            # When checkpoints are found, defaults to the last one.
+            identifier=${checkpoints_list[-1]}
+
+        else # No checkpoints found. It's a copy backup:
+            identifier="copy"
+        fi
+
+    else
+        identifier=$checkpoint
+    fi
+
+    # Get the list of json files correspoding to the checkpoint (or copy)
+    json_files_list=$(find $backup_path -name "*.$identifier.*.json" -print0 | xargs -r -0 ls -1 -t -r)
+
+    case $mode in
+
+        --drives) # Return a list of restorable drives, based on all json files with the given identifier
+
+            for path in $json_files_list; do
+
+                result+=($(basename $path | cut -d'.' -f1))
+            done
+        ;;
+
+        --paths) # Return a list of restorable paths by grepping the associated filename:
+
+            for path in $json_files_list; do
+
+                result+=($(grep -e "\"filename\":" $path | cut -d '"' -f4))
+            done
+        ;;
+    esac
+
+    echo "${result[@]:-"none"}"
 }
 
 # -----------------------------------------------------------------------------
