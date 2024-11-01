@@ -111,20 +111,20 @@ if [[ -z $vm_restore_exit_code ]]; then
         for backup in "${src_backups_list[@]}"; do
 
             # (Re) initilize variables:
-            first_checkpoint=""
-            last_checkpoint=""
+            first_saved=""
+            last_saved=""
 
             # Get domain names, # of checkpoints and times of each checkpoint:
-            src_backup_domains_list+=("$(backup_domain_name $backup)")
-            src_backup_checkpoints_num_list+=("$(backup_checkpoints_num $backup)")
-            src_backup_times_list+=("$(backup_times_list $backup)")
+            src_domains_list+=("$(backup_domain_name $backup)")
+            src_checkpoints_num_list+=("$(backup_checkpoints_num $backup)")
+            src_dates_list+=("$(backup_times_list $backup)")
 
             # Also get first and last checkpoint dates, human readable:
-            first_checkpoint_date=$( date -d @$(echo "${src_backup_times_list[$i]}" | cut -d ' ' -f1) "+%Y-%m-%d %H:%M:%S")
-            last_checkpoint_date=$(date -d @$(echo "${src_backup_times_list[$i]}" | rev | cut -d ' ' -f1 | rev) "+%Y-%m-%d %H:%M:%S")
+            first_saved_date=$( date -d @$(echo "${src_dates_list[$i]}" | cut -d ' ' -f1) "+%Y-%m-%d %H:%M:%S")
+            last_saved_date=$(date -d @$(echo "${src_dates_list[$i]}" | rev | cut -d ' ' -f1 | rev) "+%Y-%m-%d %H:%M:%S")
 
             # Show the line with backup information:
-            printf "%3s %-31s %3s  %-19s  %-19s  %s\n" "$(( $i + 1))" "${src_backup_domains_list[$i]}" "${src_backup_checkpoints_num_list[$i]}" "$first_checkpoint_date" "$last_checkpoint_date" "$(basename ${src_backups_list[$i]})"
+            printf "%3s %-31s %3s  %-19s  %-19s  %s\n" "$(( $i + 1))" "${src_domains_list[$i]}" "${src_checkpoints_num_list[$i]}" "$first_saved_date" "$last_saved_date" "$(basename ${src_backups_list[$i]})"
             ((i++))
         done
 
@@ -135,29 +135,29 @@ if [[ -z $vm_restore_exit_code ]]; then
         user_choice=$(( $(choose_number "Choose a backup to restore" "1" "${#src_backups_list[@]}") - 1 ))
 
         # Get all chosen backup metadata, from gathered above and directly from functions:
-        src_backup_domain=${src_backup_domains_list[$user_choice]}
-        src_backup_checkpoints_num=${src_backup_checkpoints_num_list[$user_choice]}
-        src_backup_path=${src_backups_list[$user_choice]}
-        src_backup_times=(${src_backup_times_list[$user_choice]})
+        src_domain=${src_domains_list[$user_choice]}
+        src_checkpoints_num=${src_checkpoints_num_list[$user_choice]}
+        src_path=${src_backups_list[$user_choice]}
+        src_times=(${src_dates_list[$user_choice]})
 
         # -----------------------------------------------------------------------------
         # Show multiple checkpoints, if any:
         # -----------------------------------------------------------------------------
-         if [[ $src_backup_checkpoints_num -ge 2 ]]; then
+         if [[ $src_checkpoints_num -ge 2 ]]; then
 
-            # Get specific list of checkpoints in src_backup_path:
-            src_backup_checkpoints_list=($(backup_checkpoints_list $src_backup_path))
+            # Get specific list of checkpoints in src_path:
+            src_checkpoints_list=($(backup_checkpoints_list $src_path))
 
             # Header to show when there are incremental backups:
-            echo -e "\nRetrieving checkpoints list from backup of domain '$src_backup_domain' at '$(basename $src_backup_path)'..."
+            echo -e "\nRetrieving checkpoints list from backup of domain '$src_domain' at '$(basename $src_path)'..."
             echo '-------------------------------------------------------------------------------'
             printf "%3s %-18s  %s\n" "#" "Checkpoint Name" "Saved at ($(date +%Z)):"
             echo '-------------------------------------------------------------------------------'
             i=0
-            for checkpoint in "${src_backup_checkpoints_list[@]}"; do
+            for checkpoint in "${src_checkpoints_list[@]}"; do
 
                 # Prints on screen detailed (and tabulated) data for the given checkpoint:
-                printf "%3s %-18s  %s\n" "$(($i + 1))" "$checkpoint" "$(date -d @$(echo ${src_backup_times[$i]}))"
+                printf "%3s %-18s  %s\n" "$(($i + 1))" "$checkpoint" "$(date -d @$(echo ${src_times[$i]}))"
                 ((i++))
             done
 
@@ -165,51 +165,51 @@ if [[ -z $vm_restore_exit_code ]]; then
             # Ask the user to choose a specific checkpoint to restore:
             # -----------------------------------------------------------------------------
             echo ""
-            user_choice=$(( $(choose_number "Choose a specific point in time to restore (or press ENTER to select the latest one) :" "1" "$src_backup_checkpoints_num" "$src_backup_checkpoints_num") - 1 ))
+            user_choice=$(( $(choose_number "Choose a specific point in time to restore (or press ENTER to select the latest one) :" "1" "$src_checkpoints_num" "$src_checkpoints_num") - 1 ))
 
             # When user_choice is different than the default option,
             # set these variables to notify and to be used with virtnbdrestore when restoring (up to chosen checkpoint):
-            if [[ $user_choice -ne $src_backup_checkpoints_num ]]; then
+            if [[ $user_choice -ne $src_checkpoints_num ]]; then
 
-                specific_checkpoint="${src_backup_checkpoints_list[$user_choice]}"
-                until_specific_checkpoint="--until $specific_checkpoint"
+                chosen_checkpoint="${src_checkpoints_list[$user_choice]}"
+                until_chosen_checkpoint="--until $chosen_checkpoint"
             fi
         fi
 
         # Gets drive(s) and disk path(s) into backup to be restored (at chosen checkpoint, if defined):
-        src_backup_drives_list=($(backup_restorable_list --drives $src_backup_path $specific_checkpoint))
-        src_backup_img_paths_list=($(backup_restorable_list --paths $src_backup_path $specific_checkpoint))
+        src_drives=($(backup_restorable_list --drives $src_path $chosen_checkpoint))
+        src_img_paths=($(backup_restorable_list --paths $src_path $chosen_checkpoint))
 
-        echo -e "Backup of domain '$src_backup_domain' from source '$src_backup_path' ($last_save_details), selected for restoration\n"
+        echo -e "Backup of domain '$src_domain' from source '$src_path' ($last_save_details), selected for restoration\n"
 
         # Get the (ordered) list of existing domains:
         existing_domains_list=($(domains_list | sort -u))
 
-        # Determine if a domain with name name as src_backup_domain exists on this host:
-        if [[ -n $(grep -o -e "$src_backup_domain" <<< "${existing_domains_list[@]}") ]]; then
+        # Determine if a domain with name name as src_domain exists on this host:
+        if [[ -n $(grep -o -e "$src_domain" <<< "${existing_domains_list[@]}") ]]; then
 
-            # A domain with same name as src_backup_domain exists:
+            # A domain with same name as src_domain exists:
             dest_domain_exists=true
 
             # -----------------------------------------------------------------------------
             # Ask the user how or where to restore this backup:
             # -----------------------------------------------------------------------------
             echo '-------------------------------------------------------------------------------'
-            echo -e "A domain with same name exists on this host.\nSelect an action to perform with with backup of domain '$src_backup_domain'"
+            echo -e "A domain with same name exists on this host.\nSelect an action to perform with with backup of domain '$src_domain'"
             echo '-------------------------------------------------------------------------------'
-            echo -e "1. Restore to existing domain '$src_backup_domain', overwriting disk(s) and definitions"
-            echo -e "2. Restore to existing domain '$src_backup_domain', renaming current disk(s) on its current location(s)"
+            echo -e "1. Restore to existing domain '$src_domain', overwriting disk(s) and definitions"
+            echo -e "2. Restore to existing domain '$src_domain', renaming current disk(s) on its current location(s)"
             echo -e "3. Restore to a new domain (it will be created during the process)\n"
 
             user_choice=$(choose_number "Choose an action" "1" "3")
 
             case $user_choice in
 
-                1)  dest_domain=$src_backup_domain
+                1)  dest_domain=$src_domain
                     keep_old_disks=false
                 ;;
 
-                2)  dest_domain=$src_backup_domain
+                2)  dest_domain=$src_domain
                     keep_old_disks=true
                 ;;
 
@@ -219,7 +219,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             esac
 
         else
-            # No domain with same name as src_backup_domain exists:
+            # No domain with same name as src_domain exists:
             dest_domain_exists=false
         fi
 
@@ -228,7 +228,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             # -----------------------------------------------------------------------------
             # Ask the user for a name for the new domain:
             # -----------------------------------------------------------------------------
-            read -p "Insert a name for the new domain, which will be created from backup of domain '$src_backup_domain': " dest_domain
+            read -p "Insert a name for the new domain, which will be created from backup of domain '$src_domain': " dest_domain
 
             # TODO: Add Qemu/KVM domain name constrains:
             while [[ $dest_domain == $(grep -o -e "$dest_domain" <<< "${existing_domains_list[@]}") ]]; do
@@ -240,15 +240,15 @@ if [[ -z $vm_restore_exit_code ]]; then
         elif [[ $dest_domain_exists == true && $user_choice -ne 3 ]]; then
 
             # Fetch image disk(s) info from existing domain:
-            dest_domain_drives_list=($(domain_drives_list $dest_domain))
-            dest_domain_img_paths_list=($(domain_img_paths_list $dest_domain))
-            dest_domain_state=$(domain_state $dest_domain)
+            existing_drives=($(domain_drives_list $dest_domain))
+            existing_img_paths=($(domain_img_paths_list $dest_domain))
+            existing_domain_state=$(domain_state $dest_domain)
 
-            [[ $dest_domain_state != "shut off" ]] \
-                && echo -e "\nNOTICE: Domain '$dest_domain' is currently $dest_domain_state!\nIn order to proceed with restoration, it will be automatically shut down during the process, and restarted once this had finished.\n"
+            [[ $existing_domain_state != "shut off" ]] \
+                && echo -e "\nNOTICE: Domain '$dest_domain' is currently $existing_domain_state!\nIn order to proceed with restoration, it will be automatically shut down during the process, and restarted once this had finished.\n"
         fi
 
-        echo -e "Backup of domain '$src_backup_domain' will be restored onto domain: '$dest_domain'\n"
+        echo -e "Backup of domain '$src_domain' will be restored onto domain: '$dest_domain'\n"
 
         #start_restoration=$(yes_no "Everything is ready to begin! Are you agree to continue with the restoration process?" "no")
 
@@ -262,15 +262,15 @@ if [[ -z $vm_restore_exit_code ]]; then
 
 ###############################################################################
 
-        if [[ ${#dest_domain_drives_list[@]} -gt 1 ]] || [[ ${#src_backup_drives_list[@]} -gt 1 ]]; then
+        if [[ ${#existing_drives[@]} -gt 1 ]] || [[ ${#src_drives[@]} -gt 1 ]]; then
 
 # Step 5: If multiple drives are found, asks the user for restoring specific ones:
 # -----------------------------------------------------------------------------
 
-            if [[ ${dest_domain_drives_list[@]} == ${src_backup_drives_list[@]} ]]; then
+            if [[ ${existing_drives[@]} == ${src_drives[@]} ]]; then
 
                 # Only use case it's when both VM and backup chain, contain identical lists of drives:
-                echo "${#src_backup_drives_list[@]} restorable drives found at both, VM '$dest_domain' and Backup '$chosen_backup_name': ${src_backup_drives_list[@]}"
+                echo "${#src_drives[@]} restorable drives found at both, VM '$dest_domain' and Backup '$chosen_backup_name': ${src_drives[@]}"
                 read -p "In order to restore only specific drive(s), insert their names separated by spaces; or just press ENTER to restore all the drives: " user_selected_drives
 
                 while true; do
@@ -278,7 +278,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                     if [ -z "$user_selected_drives" ]; then
 
                         # The user has pressed ENTER without specify specific drives:
-                        selected_drives=(${src_backup_drives_list[@]})
+                        selected_drives=(${src_drives[@]})
                         break
                     else
 
@@ -286,8 +286,8 @@ if [[ -z $vm_restore_exit_code ]]; then
                         invalid_drives=()
                         for drive in $user_selected_drives; do
 
-                            # Verifies the drive name is in $src_backup_drives_list, and adds if it matches:
-                            [[ ! -z $(echo ${src_backup_drives_list[@]} | grep -w $drive) ]] && selected_drives+=("$drive") || invalid_drives+=("$drive")
+                            # Verifies the drive name is in $src_drives, and adds if it matches:
+                            [[ ! -z $(echo ${src_drives[@]} | grep -w $drive) ]] && selected_drives+=("$drive") || invalid_drives+=("$drive")
                         done
 
                         # When at least one invalid drive has been detected, notifies the user and asks for insert drive names correctly:
@@ -307,7 +307,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                     # TO DO: Add other use cases (e.g. VM and backup lists of drives don't match, etc.)
             fi
         else
-            selected_drives=(${src_backup_drives_list[@]})
+            selected_drives=(${src_drives[@]})
         fi
 
         echo ""
