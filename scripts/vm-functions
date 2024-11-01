@@ -651,7 +651,7 @@ backup_checkpoints_num()
 }
 
 #------------------------------------------------------------------------------
-# Returns domain's name or uuid from domain xml definitions file at backup passed as absolute path.
+# Returns domain's name, uuid or nvram from domain xml definitions file at backup passed as absolute path.
 # If no specific checkpoint is passed, returns data from the latest xml definitions found.
 #------------------------------------------------------------------------------
 backup_domain_info()
@@ -677,7 +677,10 @@ backup_domain_info()
         --name) tag="name"
         ;;
 
-        --uuid) tag="uuid"
+        --id|--uuid) tag="uuid"
+        ;;
+
+        --nvram) tag="nvram"
         ;;
     esac
 
