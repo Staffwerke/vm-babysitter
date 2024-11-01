@@ -651,13 +651,39 @@ backup_checkpoints_num()
 }
 
 #------------------------------------------------------------------------------
-# Returns domain's name from the latest checkpoint of a virtnbdbackup
-# generated folder, passed as an absolute a path (otherwise returns nothing):
+# Returns domain's name or uuid from domain xml definitions file at backup passed as absolute path.
+# If no specific checkpoint is passed, returns data from the latest xml definitions found.
 #------------------------------------------------------------------------------
-backup_domain_name()
+backup_domain_info()
 {
-    local latest_vmconfig_file=$(find $1 -maxdepth 1 -name "vmconfig.*.xml" -print0 | xargs -r -0 ls -1 -t | head -1)
-    [[ -n $latest_vmconfig_file ]] && grep -oP '(?<=<name>).*?(?=</name>)' $latest_vmconfig_file
+    local backup_path=$1
+    local mode=$2
+    local checkpoint=$3
+
+    local vmconfig_file
+    local tag
+    local result
+
+    if [[ -n $checkpoint ]]; then
+
+        vmconfig_file="$backup_path/vmconfig.$checkpoint.xml"
+
+    else
+        vmconfig_file=$(find $backup_path -maxdepth 1 -name "vmconfig.*.xml" -print0 | xargs -r -0 ls -1 -t | head -1)
+    fi
+
+    case $mode in
+
+        --name) tag="name"
+        ;;
+
+        --uuid) tag="uuid"
+        ;;
+    esac
+
+    [[ -f $vmconfig_file ]] && result=$(grep -oP "(?<=<$tag>).*?(?=</$tag>)" $latest_vmconfig_file)
+
+    echo "$result"
 }
 
 # -----------------------------------------------------------------------------
