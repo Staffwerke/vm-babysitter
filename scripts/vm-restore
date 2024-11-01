@@ -138,7 +138,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         src_domain=${src_domains_list[$user_choice]}
         src_checkpoints_num=${src_checkpoints_num_list[$user_choice]}
         src_path=${src_backups_list[$user_choice]}
-        src_times=(${src_dates_list[$user_choice]})
+        src_dates=(${src_dates_list[$user_choice]})
 
         # -----------------------------------------------------------------------------
         # Show multiple checkpoints, if any:
@@ -157,7 +157,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             for checkpoint in "${src_checkpoints_list[@]}"; do
 
                 # Prints on screen detailed (and tabulated) data for the given checkpoint:
-                printf "%3s %-18s  %s\n" "$(($i + 1))" "$checkpoint" "$(date -d @$(echo ${src_times[$i]}))"
+                printf "%3s %-18s  %s\n" "$(($i + 1))" "$checkpoint" "$(date -d @$(echo ${src_dates[$i]}))"
                 ((i++))
             done
 
