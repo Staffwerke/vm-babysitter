@@ -182,7 +182,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         src_imgpaths_list=($(backup_restorable_list --paths $src_path $chosen_checkpoint))
         #src_nvram=$(backup_restorable_list --nvram $src_path $chosen_checkpoint)
 
-        echo -e "Backup of domain '$src_domain' from source '$src_path' ($last_save_details), selected for restoration\n"
+        echo -e "Backup of domain '$src_domain' from source '$src_path', selected for restoration\n"
 
         # -----------------------------------------------------------------------------
         # When applies, compare backup info (name, id, drives, paths, etc.) with existing domains
