@@ -968,7 +968,7 @@ choose_number()
         # overrding defaults if exist (avoiding issues with defaults outside ranges):
         [[ $min_choice -eq $max_choice ]] && default_choice=$max_choice
 
-        [[ -n $default_choice ]] && default_choice_option=" (default: $default)"
+        [[ -n $default_choice ]] && default_choice_option=" (default: $default_choice)"
 
 
     # Prompt message until the user inserts a valid choice:
