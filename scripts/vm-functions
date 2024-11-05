@@ -656,8 +656,8 @@ backup_checkpoints_num()
 #------------------------------------------------------------------------------
 backup_domain_info()
 {
-    local backup_path=$1
-    local mode=$2
+    local mode=$1
+    local backup_path=$2
     local checkpoint=$3
 
     local vmconfig_file
