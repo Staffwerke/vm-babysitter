@@ -182,6 +182,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         src_imgpaths_list=($(backup_restorable_list --paths $src_path $chosen_checkpoint))
         #src_nvram=$(backup_restorable_list --nvram $src_path $chosen_checkpoint)
 
+        [[ -n $chosen_checkpoint ]] && chosen_checkpoint_message=" at checkpoint '$chosen_checkpoint'"
         echo -e "Backup of domain '$src_domain' from source '$src_path', selected for restoration\n"
 
         # -----------------------------------------------------------------------------
@@ -200,14 +201,16 @@ if [[ -z $vm_restore_exit_code ]]; then
             existing_imgpaths_list+=("$(domain_img_paths_list $domain)")
             #existing_nvram_path_list+=($(domain_nvram_path $domain))
 
-            # If any match, Domain's name and uuid are expected to be found only once:
+            # Detect if a domain with same name exists (there can be only one):
             [[ $src_domain == ${existing_domains_list[$i]} ]] && dest_domain_exists=true
-            [[ $src_id == ${existing_ids_list[$i]} ]] && dest_id_exists=true
 
-            # Drives image paths can match, total or partially, and at some scenarios in more than one host:
+            # Detect if any domain with same uuid exists (there can be only one):
+            [[ $src_id == ${existing_ids_list[$i]} ]] && { dest_id_exists=true; dest_id_domain=$domain; }
+
+            # Detect which domain(s) have total or partial match(es) with image path(s):
             if [[ "${src_imgpaths_list[@]}" == "${existing_imgpaths_list[$i]}" ]]; then
 
-                # A domain has exactly same image paths as in chosen backup:
+                # An existing domain has exactly same all image paths as in chosen backup:
                 full_dest_imgpaths_exists=true
                 full_dest_imgpaths_domains_list+=($domain)
 
@@ -216,6 +219,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                     if [[ -n $(grep -o -e "$imgpath" <<< "${existing_imgpaths_list[$i]}") ]]; then
 
+                        # An existing domain has one or more (but not all, or not in same order) image paths as in chosen backup:
                         partial_dest_imgpaths_exists=true
                         partial_dest_imgpaths_domains_list+=($domain)
                     fi
@@ -234,22 +238,40 @@ if [[ -z $vm_restore_exit_code ]]; then
 
         menu_option=1
 
-        # Restore option applicable to all possible cases:
-        echo -e "$menu_option. Restore backup with a different domain name"
+        # Applies to all scenarios (default option):
+        echo -e "$menu_option. Restore backup with a custom domain name"
 
-        if [[ $dest_domain_exists != true && $dest_id_exists != true && $full_dest_imgpaths_exists != true && $partial_dest_imgpaths_exists != true ]]; then
+        if [[ $dest_domain_exists != true && $dest_id_exists != true \
+        && $full_dest_imgpaths_exists != true && $partial_dest_imgpaths_exists != true ]]; then
 
-            # Restore option when no matches were found at all:
+            # Applies when no domain, uuid or image path(s), match with chosen backup:
             ((menu_option++))
-            echo -e "$menu_option. Restore backup as new domain '$src_domain'"
+            echo -e "$menu_option. Restore backup as new domain '$src_domain' (no matches found)"
+        fi
 
-        elif [[ $dest_id_exists == true && $full_dest_imgpaths_exists == true ]]; then
+        if [[ $full_dest_imgpaths_exists == true ]]; then
 
-            # Restore options where uuid, and image paths match perfectly, regardless of domain name:
             for domain in ${full_dest_imgpaths_domains_list[@]}; do
 
+                if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
+
+                    matching_message="full match"
+
+                elif [[ $dest_domain_exists == true && $dest_id_exists != true ]]; then
+
+                    matching_message="name and all path match"
+
+                elif [[ $dest_domain_exists != true && $dest_id_exists == true ]]; then
+
+                    matching_message="uuid and all path match"
+
+                else
+                    matching_message="all path match"
+                fi
+
+                # Applies when at least, all image path(s) coincide (showing which elements match with backup)
                 ((menu_option++))
-                echo -e "$menu_option. Restore backup, replace existing domain '$domain'"
+                echo -e "$menu_option. Restore backup, replacing existing domain '$domain' ($matching_message)"
             done
         fi
 
