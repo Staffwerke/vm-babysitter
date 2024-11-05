@@ -684,7 +684,7 @@ backup_domain_info()
         ;;
     esac
 
-    [[ -f $vmconfig_file ]] && result=$(grep -oP "(?<=<$tag>).*?(?=</$tag>)" $latest_vmconfig_file)
+    [[ -f $vmconfig_file ]] && result=$(grep -oP "(?<=<$tag>).*?(?=</$tag>)" $vmconfig_file)
 
     echo "$result"
 }
