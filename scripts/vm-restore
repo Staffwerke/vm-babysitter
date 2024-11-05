@@ -108,7 +108,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         printf "%3s %-19s %15s  %-19s  %-19s  %s\n" "#" "Backup of" "Checkpoints" "From date ($(date +%Z))" "To date ($(date +%Z))" "Source directory"
         echo '-------------------------------------------------------------------------------'
         i=0
-        for backup in "${src_backups_list[@]}"; do
+        for backup in ${src_backups_list[@]}; do
 
             # (Re) initilize variables:
             first_saved=""
@@ -154,7 +154,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             printf "%3s %-18s  %s\n" "#" "Checkpoint Name" "Saved at ($(date +%Z)):"
             echo '-------------------------------------------------------------------------------'
             i=0
-            for checkpoint in "${src_checkpoints_list[@]}"; do
+            for checkpoint in ${src_checkpoints_list[@]}; do
 
                 # Prints on screen detailed (and tabulated) data for the given checkpoint:
                 printf "%3s %-18s  %s\n" "$(($i + 1))" "$checkpoint" "$(date -d @$(echo ${src_dates_list[$i]}))"
@@ -167,10 +167,10 @@ if [[ -z $vm_restore_exit_code ]]; then
             echo ""
             user_choice=$(( $(choose_number "Choose a specific point in time to restore (or press ENTER to select the latest one) :" "1" "$src_checkpoints_num" "$src_checkpoints_num") - 1 ))
 
-            # When user_choice is different than the default option,
-            # set these variables to notify and to be used with virtnbdrestore when restoring (up to chosen checkpoint):
             if [[ $user_choice -ne $src_checkpoints_num ]]; then
 
+                # When user_choice is different than the default option,
+                # set these variables to notify and to be used with virtnbdrestore when restoring (up to chosen checkpoint):
                 chosen_checkpoint="${src_checkpoints_list[$user_choice]}"
                 until_chosen_checkpoint="--until $chosen_checkpoint"
             fi
