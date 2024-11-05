@@ -229,6 +229,12 @@ if [[ -z $vm_restore_exit_code ]]; then
             ((i++))
         done
 
+        # Set to false all unset boolean variables about existing metadata:
+        [[ -z $dest_domain_exists ]] && dest_domain_exists=false
+        [[ -z $dest_id_exists ]] && dest_domain_exists=false
+        [[ -z $full_dest_imgpaths_exists ]] full_dest_imgpaths_exists=false
+        [[ -z $partial_dest_imgpaths_exists ]] partial_dest_imgpaths_exists=false
+
         # -----------------------------------------------------------------------------
         # Show available options about how to restore this backup:
         # -----------------------------------------------------------------------------
@@ -239,15 +245,14 @@ if [[ -z $vm_restore_exit_code ]]; then
         menu_option=1
 
         # Applies to all scenarios (default option):
-        echo -e "$menu_option. Restore backup with a custom domain name"
+        echo -e "$menu_option. Full restoration with a custom domain name"
 
-        if [[ $dest_domain_exists != true && $dest_id_exists != true \
-        && $full_dest_imgpaths_exists != true && $partial_dest_imgpaths_exists != true ]]; then
+        if [[ $dest_domain_exists == false && $dest_id_exists == false \
+        && $full_dest_imgpaths_exists == false && $partial_dest_imgpaths_exists == false ]]; then
 
-            # Applies when no domain, uuid or image path(s), match with chosen backup:
+            # Applies when no existing domain, uuid or image path(s), match with chosen backup:
             ((menu_option++))
-            echo -e "$menu_option. Restore backup as new domain '$src_domain' (no matches found)"
-        fi
+            echo -e "$menu_option. Full restoration as new domain '$src_domain' (no matches found)"
 
         if [[ $full_dest_imgpaths_exists == true ]]; then
 
@@ -255,24 +260,52 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                 if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
 
-                    matching_message="full match"
+                    matching_message="name, uuid and all disk image(s) match perfectly"
 
-                elif [[ $dest_domain_exists == true && $dest_id_exists != true ]]; then
+                elif [[ $dest_domain_exists == true && $dest_id_exists == false ]]; then
 
-                    matching_message="name and all path match"
+                    matching_message="name and all disk image(s) match"
 
-                elif [[ $dest_domain_exists != true && $dest_id_exists == true ]]; then
+                elif [[ $dest_domain_exists == false && $dest_id_exists == true ]]; then
 
-                    matching_message="uuid and all path match"
+                    matching_message="uuid and all disk image(s) match"
 
                 else
-                    matching_message="all path match"
+                    matching_message="all disk image(s) match"
                 fi
 
-                # Applies when at least, all image path(s) coincide (showing which elements match with backup)
+                # Applies when at least, all image path(s) coincide (showing which elements match with backup):
+                matching_domains_list+=($domain)
                 ((menu_option++))
-                echo -e "$menu_option. Restore backup, replacing existing domain '$domain' ($matching_message)"
+                echo -e "$menu_option. Full restoration over existing domain '$domain' ($matching_message)"
             done
+        fi
+
+        if [[ $partial_dest_imgpaths_exists == true ]]; then
+
+            for domain in ${partial_dest_imgpaths_domains_list[@]}; do
+
+                if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
+
+                    matching_message="domain, uuid and some disk image(s) match"
+
+                elif [[ $dest_domain_exists == true && $dest_id_exists == false ]]; then
+
+                    matching_message="name and some disk image(s) match"
+
+                elif [[ $dest_domain_exists == false && $dest_id_exists == true ]]; then
+
+                    matching_message="uuid and some disk image(s) match"
+
+                else
+                    matching_message="some disk image(s) match"
+                fi
+            done
+
+                # Applies when at least, one image path coincide (showing which elements match with backup):
+                matching_domains_list+=($domain)
+                ((menu_option++))
+                echo -e "$menu_option. Partial restoration of existing domain '$domain' ($matching_message)"
         fi
 
         echo ""
@@ -297,8 +330,10 @@ if [[ -z $vm_restore_exit_code ]]; then
                 dest_domain=$src_domain
             ;;
 
-            *) # user_choice is >= 3, choose the domain at array full_dest_imgpaths_domains_list, at user_choice minus the minimal offset (3):
-                dest_domain=${full_dest_imgpaths_domains_list[$(( $user_choice - 3 ))]}
+            *) # user_choice is >= 3:, choose the domain at array matching_domains_list, at user_choice minus the minimal offset (3):
+
+                dest_domain=${matching_domains_list[$(( $user_choice - 3 ))]}
+            ;;
         esac
 
         echo -e "Backup of domain '$src_domain' will be restored onto domain: '$dest_domain'\n"
