@@ -149,7 +149,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             src_checkpoints_list=($(backup_checkpoints_list $src_path))
 
             # Header to show when there are incremental backups:
-            echo -e "\nRetrieving checkpoints list from backup of domain '$src_domain' at '$(basename $src_path)'..."
+            echo -e "\nRetrieving checkpoints list from backup of domain '$src_domain' at sub-folder '$(basename $src_path)'..."
             echo '-------------------------------------------------------------------------------'
             printf "%3s %-18s  %s\n" "#" "Checkpoint Name" "Saved at ($(date +%Z)):"
             echo '-------------------------------------------------------------------------------'
