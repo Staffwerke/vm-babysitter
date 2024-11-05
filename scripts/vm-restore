@@ -278,7 +278,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                 # Applies when at least, all image path(s) coincide (showing which elements match with backup):
                 matching_domains_list+=($domain)
                 ((menu_option++))
-                echo -e "$menu_option. Full restoration over existing domain '$domain' ($matching_message)"
+                echo -e "$menu_option. Full restoration onto existing domain '$domain' ($matching_message)"
             done
         fi
 
@@ -306,7 +306,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             # Applies when at least, one image path coincide (showing which elements match with backup):
             matching_domains_list+=($domain)
             ((menu_option++))
-            echo -e "$menu_option. Partial restoration of existing domain '$domain' ($matching_message)"
+            echo -e "$menu_option. Partial restoration onto existing domain '$domain' ($matching_message)"
         fi
 
         echo ""
@@ -341,12 +341,52 @@ if [[ -z $vm_restore_exit_code ]]; then
             ;;
         esac
 
-        echo -e "Backup of domain '$src_domain' will be restored onto domain: '$dest_domain'\n"
+        # Customize displayed result according if the choice matches or not an existing domain:
+        [[ $user_choice -lt 3 ]] \
+            && restoration_message="restored onto a new" \
+            || restoration_message="restored onto the already existing"
 
-        #[[ $existing_domain_state != "shut off" ]] \
-                #&& echo -e "\nNOTICE: Domain '$dest_domain' is currently $existing_domain_state!\nIn order to proceed with restoration, it will be automatically shut down during the process, and restarted once this had finished.\n"
+        echo -e "Backup of domain '$src_domain' will be $restoration_message domain with name: '$dest_domain'\n"
 
-        #start_restoration=$(yes_no "Everything is ready to begin! Are you agree to continue with the restoration process?" "no")
+        # -----------------------------------------------------------------------------
+        # TODO: Show available options about specific drive(s) and path(s) how to restore this backup:
+        # -----------------------------------------------------------------------------
+
+        # -----------------------------------------------------------------------------
+        # Ask the user to start the restoration process:
+        # -----------------------------------------------------------------------------
+
+        if [[ $dest_domain == $(grep -o -e "$dest_domain" <<< "${existing_domains_list[@]}") ]]; then
+
+            # When dest_domain exists, get the state of such domain:
+            dest_domain_state=$(domain_state $dest_domain)
+
+            # Notify in advance when dest_domain is not shut off:
+            [[ $dest_domain_state != "shut off" ]] \
+                && start_restoration_message="Domain '$dest_domain' is currently $dest_domain_state. Are you agree with shut down this domain automatically and start the restoration process?"
+        fi
+
+        [[ -z $start_restoration_message ]] \
+            && start_restoration_message="Everything is ready to begin! Are you agree to start the restoration process?"
+
+        start_restoration=$(yes_no "$start_restoration_message" "no")
+
+        if [[ $start_restoration == yes ]]; then
+
+            if [[ -n $dest_domain_state && $dest_domain_state != "shut off" ]]; then
+
+                # Shutdown existing dest_domain that is not shut off:
+                domain_shutdown $dest_domain --wait $WAIT_TIME
+                domain_shutdown_exit_code=$?
+            fi
+
+            if [[ -z $domain_shutdown_exit_code || $domain_shutdown_exit_code -eq 0 ]]; then
+
+                echo -e "\nRestoration of backup from '$src_domain' in progress...\n"
+
+
+            fi
+        fi
 
         # Dummy exit to stop the script early, as modifications go by:
         exit
