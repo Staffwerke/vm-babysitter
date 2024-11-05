@@ -195,9 +195,9 @@ if [[ -z $vm_restore_exit_code ]]; then
         for domain in ${existing_domains_list[@]}; do
 
             # Fetch restoration pertinent info about each existing domain,
-            existing_ids_list+=($(domain_id $domain))
-            existing_drives_list+=($(domain_drives_list $domain))
-            existing_imgpaths_list+=($(domain_img_paths_list $domain))
+            existing_ids_list+=("$(domain_id $domain)")
+            existing_drives_list+=("$(domain_drives_list $domain)")
+            existing_imgpaths_list+=("$(domain_img_paths_list $domain)")
             #existing_nvram_path_list+=($(domain_nvram_path $domain))
 
             # If any match, Domain's name and uuid are expected to be found only once:
