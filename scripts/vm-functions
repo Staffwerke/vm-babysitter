@@ -974,7 +974,7 @@ choose_number()
     # Prompt message until the user inserts a valid choice:
     while [[ -z $choice ]]; do
 
-        read -p "$question [$min_choice-$max_choice]$default_choice: " choice
+        read -p "$question [$min_choice-$max_choice]$default_choice_message: " choice
 
         if [[ $choice =~ [0-9] ]] && [[ $choice -ge $min_choice && $choice -le $max_choice ]]; then
 
