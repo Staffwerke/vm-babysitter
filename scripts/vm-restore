@@ -302,10 +302,10 @@ if [[ -z $vm_restore_exit_code ]]; then
                 fi
             done
 
-                # Applies when at least, one image path coincide (showing which elements match with backup):
-                matching_domains_list+=($domain)
-                ((menu_option++))
-                echo -e "$menu_option. Partial restoration of existing domain '$domain' ($matching_message)"
+            # Applies when at least, one image path coincide (showing which elements match with backup):
+            matching_domains_list+=($domain)
+            ((menu_option++))
+            echo -e "$menu_option. Partial restoration of existing domain '$domain' ($matching_message)"
         fi
 
         echo ""
@@ -326,12 +326,16 @@ if [[ -z $vm_restore_exit_code ]]; then
                 done
             ;;
 
-            2)  # dest_domain is same src_domain:
+            2)  # -----------------------------------------------------------------------------
+                # No matches. dest_domain is same src_domain:
+                # -----------------------------------------------------------------------------
                 dest_domain=$src_domain
             ;;
 
-            *) # user_choice is >= 3:, choose the domain at array matching_domains_list, at user_choice minus the minimal offset (3):
-
+            *) # -----------------------------------------------------------------------------
+               # Total or partial match(es). Choose the domain from array matching_domains_list,
+               # at user_choice minus minimal possible option (3):
+               # -----------------------------------------------------------------------------
                 dest_domain=${matching_domains_list[$(( $user_choice - 3 ))]}
             ;;
         esac
