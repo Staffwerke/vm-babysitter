@@ -229,11 +229,11 @@ if [[ -z $vm_restore_exit_code ]]; then
             ((i++))
         done
 
-        # Set to false all unset boolean variables about existing metadata:
+        # Fill all unset boolean variables about existing metadata to false:
         [[ -z $dest_domain_exists ]] && dest_domain_exists=false
-        [[ -z $dest_id_exists ]] && dest_domain_exists=false
-        [[ -z $full_dest_imgpaths_exists ]] full_dest_imgpaths_exists=false
-        [[ -z $partial_dest_imgpaths_exists ]] partial_dest_imgpaths_exists=false
+        [[ -z $dest_id_exists ]] && dest_id_exists=false
+        [[ -z $full_dest_imgpaths_exists ]] && full_dest_imgpaths_exists=false
+        [[ -z $partial_dest_imgpaths_exists ]] && partial_dest_imgpaths_exists=false
 
         # -----------------------------------------------------------------------------
         # Show available options about how to restore this backup:
