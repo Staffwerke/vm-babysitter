@@ -959,7 +959,7 @@ choose_number()
         local question=$1
         local min_choice=$2
         local max_choice=$3
-        local default_choice $4
+        local default_choice=$4
 
         local default_choice_msg
         local choice
