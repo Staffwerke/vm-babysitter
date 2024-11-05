@@ -253,6 +253,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             # Applies when no existing domain, uuid or image path(s), match with chosen backup:
             ((menu_option++))
             echo -e "$menu_option. Full restoration as new domain '$src_domain' (no matches found)"
+        fi
 
         if [[ $full_dest_imgpaths_exists == true ]]; then
 
