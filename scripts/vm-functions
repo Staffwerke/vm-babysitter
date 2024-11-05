@@ -951,25 +951,27 @@ sort_items()
 ###############################################################################
 
 # -----------------------------------------------------------------------------
-# Prompts a given question to the user amd returns a number if is within (also given) parameters:
+# Prompts a given question to the user, asking for a number within range passed as arguments.
+# When a default is provided and is between range, accepts it as default when user inputs an empty string:
 # -----------------------------------------------------------------------------
 choose_number()
 {
-        local choice
-        local default
-        local default_choice
-        local max_choice=$3
-        local min_choice=$2
         local question=$1
+        local min_choice=$2
+        local max_choice=$3
+        local default_choice $4
 
-        [[ -n $4 ]] \
-            && default=$4 \
-            || [[ $min_choice -eq $max_choice ]] \
-                && default=$max_choice
+        local default_choice_msg
+        local choice
 
-        [[ -n $default ]] && default_choice=" (default: $default)"
+        # Auto set default_choice when no other choices and it has been not specified,
+        # overrding defaults if exist (avoiding issues with defaults outside ranges):
+        [[ $min_choice -eq $max_choice ]] && default_choice=$max_choice
+
+        [[ -n $default_choice ]] && default_choice_msg=" (default: $default)"
 
 
+    # Prompt message until the user inserts a valid choice:
     while [[ -z $choice ]]; do
 
         read -p "$question [$min_choice-$max_choice]$default_choice: " choice
@@ -978,9 +980,9 @@ choose_number()
 
             echo $choice
 
-        elif [[ -z $choice && -n $default ]]; then
+        elif [[ -z $choice && -n $default_choice ]]; then
 
-            choice=$default
+            choice=$default_choice
             echo $choice
 
         else
