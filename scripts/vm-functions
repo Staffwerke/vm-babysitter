@@ -961,20 +961,20 @@ choose_number()
         local max_choice=$3
         local default_choice=$4
 
-        local default_choice_msg
+        local default_choice_option
         local choice
 
         # Auto set default_choice when no other choices and it has been not specified,
         # overrding defaults if exist (avoiding issues with defaults outside ranges):
         [[ $min_choice -eq $max_choice ]] && default_choice=$max_choice
 
-        [[ -n $default_choice ]] && default_choice_msg=" (default: $default)"
+        [[ -n $default_choice ]] && default_choice_option=" (default: $default)"
 
 
     # Prompt message until the user inserts a valid choice:
     while [[ -z $choice ]]; do
 
-        read -p "$question [$min_choice-$max_choice]$default_choice_message: " choice
+        read -p "$question [$min_choice-$max_choice]$default_choice_option: " choice
 
         if [[ $choice =~ [0-9] ]] && [[ $choice -ge $min_choice && $choice -le $max_choice ]]; then
 
