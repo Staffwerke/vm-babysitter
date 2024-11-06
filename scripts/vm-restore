@@ -180,63 +180,81 @@ if [[ -z $vm_restore_exit_code ]]; then
         src_id=$(backup_domain_info --id $src_path)
         src_drives_list=($(backup_restorable_list --drives $src_path $chosen_checkpoint))
         src_imgpaths_list=($(backup_restorable_list --paths $src_path $chosen_checkpoint))
-        #src_nvram=$(backup_restorable_list --nvram $src_path $chosen_checkpoint)
 
         [[ -n $chosen_checkpoint ]] && chosen_checkpoint_message=" at checkpoint '$chosen_checkpoint'"
         echo -e "Backup of domain '$src_domain' from source '$src_path', selected for restoration\n"
 
         # -----------------------------------------------------------------------------
-        # When applies, compare backup info (name, id, drives, paths, etc.) with existing domains
+        # When applies, compare backup info (name, id, drives, paths, etc.) with existing domains:
         # -----------------------------------------------------------------------------
+        echo -e "Analyzing all possible courses of action..."
 
         # Get the (ordered) list of existing domains:
         existing_domains_list=($(domains_list | sort -u))
 
-        i=0
         for domain in ${existing_domains_list[@]}; do
 
-            # Fetch restoration pertinent info about each existing domain,
-            existing_ids_list+=("$(domain_id $domain)")
-            existing_drives_list+=("$(domain_drives_list $domain)")
-            existing_imgpaths_list+=("$(domain_img_paths_list $domain)")
-            #existing_nvram_path_list+=($(domain_nvram_path $domain))
+            drives_list=()
+            imgpaths_list=()
+            partial_drives_list=()
+            partial_imgpaths_list=()
 
             # Detect if a domain with same name exists (there can be only one):
-            [[ $src_domain == ${existing_domains_list[$i]} ]] && dest_domain_exists=true
+            [[ $src_domain == $domain ]] && dest_domain_exists=true
 
             # Detect if any domain with same uuid exists (there can be only one):
-            [[ $src_id == ${existing_ids_list[$i]} ]] && { dest_id_exists=true; dest_id_domain=$domain; }
+            [[ $src_id == $(domain_id $domain) ]] && { dest_id_exists=true; dest_id_domain=$domain; }
 
             # Detect which domain(s) have total or partial match(es) with image path(s):
-            if [[ "${src_imgpaths_list[@]}" == "${existing_imgpaths_list[$i]}" ]]; then
+            imgpaths_list=($(domain_img_paths_list $domain))
+            drives_list=($(domain_drives_list $domain))
 
-                # An existing domain has exactly same all image paths as in chosen backup:
-                full_dest_imgpaths_exists=true
-                full_dest_imgpaths_domains_list+=($domain)
+            if [[ "${src_imgpaths_list[@]}" == "${imgpaths_list[@]}" && "${src_drives_list[@]}" == "${drives_list[@]}"  ]]; then
 
-            else
+                # Domain has exactly the same drives and image paths as in chosen backup.
+
+                # Add domain separated list to display with high priority:
+                full_match_domains_list+=($domain)
+
+                # And add metadata to other lists in order to process during following up processes:
+                matching_domains_list+=($domain)
+                matching_drives_list+=("${drives_list[@]}")
+                matching_imgpaths_list+=("${imgpaths_list[@]}")
+
+            else # Attempt to find partial matches:
+
+                i=0
                 for imgpath in ${src_imgpaths_list[@]}; do
 
-                    if [[ -n $(grep -o -e "$imgpath" <<< "${existing_imgpaths_list[$i]}") ]]; then
+                    if [[ ${src_imgpaths_list[$i]} == ${imgpaths_list[$i]} && ${src_drives_list[$i]} == ${drives_list[$i]} ]]; then
 
-                        # An existing domain has one or more (but not all, or not in same order) image paths as in chosen backup:
-                        partial_dest_imgpaths_exists=true
-                        partial_dest_imgpaths_domains_list+=($domain)
+                        # Domain has at least one matching drive and path as in chosen backup:
+                        partial_imgpaths_list+=($imgpath)
+                        partial_drives_list+=(${drives_list[$i]})
                     fi
-                done
-            fi
 
-            ((i++))
+                    ((i++))
+                done
+
+                if [[ -n ${partial_imgpaths_list[@]} ]]; then
+
+                    # Add domain separated list to display with low priority:
+                    partial_match_domains_list+=($domain)
+
+                    # And add metadata to other lists in order to process during following up processes:
+                    matching_domains_list+=($domain)
+                    matching_drives_list+=("${partial_drives_list[@]}")
+                    matching_imgpaths_list+=("${partial_imgpaths_list[@]}")
+                fi
+            fi
         done
 
         # Fill all unset boolean variables about existing metadata to false:
         [[ -z $dest_domain_exists ]] && dest_domain_exists=false
         [[ -z $dest_id_exists ]] && dest_id_exists=false
-        [[ -z $full_dest_imgpaths_exists ]] && full_dest_imgpaths_exists=false
-        [[ -z $partial_dest_imgpaths_exists ]] && partial_dest_imgpaths_exists=false
 
         # -----------------------------------------------------------------------------
-        # Show available options about how to restore this backup:
+        # Show available actions about how to restore this backup:
         # -----------------------------------------------------------------------------
         echo '-------------------------------------------------------------------------------'
         echo -e "Available actions to perform with backup of domain '$src_domain'"
@@ -247,67 +265,42 @@ if [[ -z $vm_restore_exit_code ]]; then
         # Applies to all scenarios (default option):
         echo -e "$menu_option. Full restoration with a custom domain name"
 
-        if [[ $dest_domain_exists == false && $dest_id_exists == false \
-        && $full_dest_imgpaths_exists == false && $partial_dest_imgpaths_exists == false ]]; then
+        if [[ $dest_domain_exists == false && $dest_id_exists == false && -z ${matching_domains_list[@]} ]]; then
 
             # Applies when no existing domain, uuid or image path(s), match with chosen backup:
             ((menu_option++))
-            echo -e "$menu_option. Full restoration as new domain '$src_domain' (no matches found)"
+            echo -e "$menu_option. Full restoration as new domain '$src_domain' <- no matches found"
         fi
 
-        if [[ $full_dest_imgpaths_exists == true ]]; then
+        for domain in ${full_match_domains_list[@]}; do
 
-            for domain in ${full_dest_imgpaths_domains_list[@]}; do
+            if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
+                matching_message="name, uuid &"
+            elif [[ $dest_domain_exists == true && $dest_id_exists == false ]]; then
+                matching_message="name &"
+            elif [[ $dest_domain_exists == false && $dest_id_exists == true ]]; then
+                matching_message="uuid &"
+            fi
 
-                if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
+            # Applies when at least, all image path(s) coincide (showing which elements match with backup):
+            ((menu_option++))
+            echo -e "$menu_option. Full restoration onto existing domain '$domain' <- $matching_message all disk image(s) match"
+        done
 
-                    matching_message="name, uuid and all disk image(s) match perfectly"
+        for domain in ${partial_match_domains_list[@]}; do
 
-                elif [[ $dest_domain_exists == true && $dest_id_exists == false ]]; then
-
-                    matching_message="name and all disk image(s) match"
-
-                elif [[ $dest_domain_exists == false && $dest_id_exists == true ]]; then
-
-                    matching_message="uuid and all disk image(s) match"
-
-                else
-                    matching_message="all disk image(s) match"
-                fi
-
-                # Applies when at least, all image path(s) coincide (showing which elements match with backup):
-                matching_domains_list+=($domain)
-                ((menu_option++))
-                echo -e "$menu_option. Full restoration onto existing domain '$domain' ($matching_message)"
-            done
-        fi
-
-        if [[ $partial_dest_imgpaths_exists == true ]]; then
-
-            for domain in ${partial_dest_imgpaths_domains_list[@]}; do
-
-                if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
-
-                    matching_message="domain, uuid and some disk image(s) match"
-
-                elif [[ $dest_domain_exists == true && $dest_id_exists == false ]]; then
-
-                    matching_message="name and some disk image(s) match"
-
-                elif [[ $dest_domain_exists == false && $dest_id_exists == true ]]; then
-
-                    matching_message="uuid and some disk image(s) match"
-
-                else
-                    matching_message="some disk image(s) match"
-                fi
-            done
+            if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
+                matching_message="name, uuid &"
+            elif [[ $dest_domain_exists == true && $dest_id_exists == false ]]; then
+                matching_message="name &"
+            elif [[ $dest_domain_exists == false && $dest_id_exists == true ]]; then
+                matching_message="uuid &"
+            fi
 
             # Applies when at least, one image path coincide (showing which elements match with backup):
-            matching_domains_list+=($domain)
             ((menu_option++))
-            echo -e "$menu_option. Partial restoration onto existing domain '$domain' ($matching_message)"
-        fi
+            echo -e "$menu_option. Partial restoration onto existing domain '$domain' <- $matching_message some disk image(s) match"
+        done
 
         echo ""
         user_choice=$(choose_number "Choose an action" "1" "$menu_option" "1")
@@ -315,7 +308,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         case $user_choice in
 
             1)  # -----------------------------------------------------------------------------
-                # Ask the user for a name for the new domain:
+                # Ask the user for a name for the new domain dest_domain:
                 # -----------------------------------------------------------------------------
                 read -p "Insert a name for the new domain, which will be created from backup of domain '$src_domain': " dest_domain
 
@@ -325,26 +318,39 @@ if [[ -z $vm_restore_exit_code ]]; then
                     # Ask for a different name if the domain already exists on the list
                     read -p "Domain '$dest_domain' already exists or is invalid. Choose a different name: " dest_domain
                 done
+
+                # Gets dest_drives_list from source metadata:
+                dest_drives_list=(${src_drives_list[@]})
+
+                # Custom message:
+                restoration_message="restored onto a new"
             ;;
 
             2)  # -----------------------------------------------------------------------------
                 # No matches. dest_domain is same src_domain:
                 # -----------------------------------------------------------------------------
+                # Gets dest_domain and dest_drives_list from source metadata:
                 dest_domain=$src_domain
+                dest_drives_list=(${src_drives_list[@]})
+
+                # Custom message:
+                restoration_message="restored onto a new"
             ;;
 
-            *) # -----------------------------------------------------------------------------
-               # Total or partial match(es). Choose the domain from array matching_domains_list,
-               # at user_choice minus minimal possible option (3):
-               # -----------------------------------------------------------------------------
-                dest_domain=${matching_domains_list[$(( $user_choice - 3 ))]}
+            *)  # -----------------------------------------------------------------------------
+                # Total or partial match(es). Choose the domain from array matching_domains_list,
+                # at user_choice minus minimal possible option (3):
+                # -----------------------------------------------------------------------------
+                dest_index=$(( $user_choice - 3 ))
+
+                # Gets dest_domain and dest_drives_list from matching metadata:
+                dest_domain=${matching_domains_list[$dest_index]}
+                dest_drives_list=(${matching_drives_list[$dest_index]})
+
+                # Custom message:
+                restoration_message="restored onto the already existing"
             ;;
         esac
-
-        # Customize displayed result according if the choice matches or not an existing domain:
-        [[ $user_choice -lt 3 ]] \
-            && restoration_message="restored onto a new" \
-            || restoration_message="restored onto the already existing"
 
         echo -e "Backup of domain '$src_domain' will be $restoration_message domain with name: '$dest_domain'\n"
 
@@ -363,7 +369,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
             # Notify in advance when dest_domain is not shut off:
             [[ $dest_domain_state != "shut off" ]] \
-                && start_restoration_message="Domain '$dest_domain' is currently $dest_domain_state. Are you agree with shut down this domain automatically and start the restoration process?"
+                && start_restoration_message="Domain '$dest_domain' is currently $dest_domain_state. Are you agree with shut down this domain automatically to start the restoration process?"
         fi
 
         [[ -z $start_restoration_message ]] \
@@ -384,8 +390,14 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                 echo -e "\nRestoration of backup from '$src_domain' in progress...\n"
 
+                # Run the command
+                virtnbdrestore -i $src_path -o ${dest_imgpaths_list[0]} $until_chosen_checkpoint
 
+            else
+                echo -e "ERROR: Could not safely start the restoration process, because domain '$dest_domain' current state ($(domain_state $dest_domain)) disallows it!\n"
             fi
+        else
+            echo -e "Cancelled by user.\n"
         fi
 
         # Dummy exit to stop the script early, as modifications go by:
@@ -393,7 +405,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
     else
         vm_restore_exit_code=1
-        echo "ERROR: No backups found at path '$main_backups_path'"
+        echo -e "ERROR: No backups found at path '$main_backups_path'\n"
     fi
 
 ###############################################################################
