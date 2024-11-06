@@ -992,6 +992,25 @@ choose_number()
 }
 
 # -----------------------------------------------------------------------------
+# Repeats a given character passed as argument as many times as current screen's width,
+# displaying an optional second argument passed as character, such as an escape sequence:
+# -----------------------------------------------------------------------------
+screen_header()
+{
+    local pattern="$1"
+    local trailing_char="$2"
+
+    local header
+
+    for i in $(seq 1 $(tput cols)); do
+
+        header+=$pattern
+    done
+
+    echo -e "$pattern$trailing_char"
+}
+
+# -----------------------------------------------------------------------------
 # Prompts a given question to the user, and returns either 'yes' or 'no':
 # -----------------------------------------------------------------------------
 yes_no()
