@@ -104,9 +104,10 @@ if [[ -z $vm_restore_exit_code ]]; then
         # -----------------------------------------------------------------------------
 
         echo -e "\nRetrieving info from backups at '$main_backups_path'..."
-        echo '-------------------------------------------------------------------------------'
+        screen_header "-"
         printf "%3s %-19s %15s  %-19s  %-19s  %s\n" "#" "Backup of" "Checkpoints" "From date ($(date +%Z))" "To date ($(date +%Z))" "Source directory"
-        echo '-------------------------------------------------------------------------------'
+        screen_header "-"
+
         i=0
         for backup in ${src_backups_list[@]}; do
 
@@ -150,9 +151,9 @@ if [[ -z $vm_restore_exit_code ]]; then
 
             # Header to show when there are incremental backups:
             echo -e "\nRetrieving checkpoints list from backup of domain '$src_domain' at sub-folder '$(basename $src_path)'..."
-            echo '-------------------------------------------------------------------------------'
+            screen_header "-"
             printf "%3s %-18s  %s\n" "#" "Checkpoint Name" "Saved at ($(date +%Z)):"
-            echo '-------------------------------------------------------------------------------'
+            screen_header "-"
             i=0
             for checkpoint in ${src_checkpoints_list[@]}; do
 
@@ -256,9 +257,9 @@ if [[ -z $vm_restore_exit_code ]]; then
         # -----------------------------------------------------------------------------
         # Show available actions about how to restore this backup:
         # -----------------------------------------------------------------------------
-        echo '-------------------------------------------------------------------------------'
+        screen_header "-"
         echo -e "Available actions to perform with backup of domain '$src_domain'"
-        echo '-------------------------------------------------------------------------------'
+        screen_header "-"
 
         # Number of options present in the below dialog:
         menu_option=1
@@ -361,25 +362,28 @@ if [[ -z $vm_restore_exit_code ]]; then
         # -----------------------------------------------------------------------------
         # Show available options about specific drive(s) and path(s) how to restore this backup:
         # -----------------------------------------------------------------------------
-        echo '-------------------------------------------------------------------------------'
-        echo "Available actions for restorable device(s):"
+        echo -e "Retrieving info about restorable drives and disk image paths..."
+        screen_header "-"
+        printf "%5s  %s\n" "Drive" "Originally saved from path"
+        screen_header "-"
 
         # List all drives and respective disk image files:
         i=0
-        for drive in ${dest_drives_list[@]} do
+        for drive in ${dest_drives_list[@]}; do
 
-            echo "$drive: $(basename ${dest_imgpaths_list[$i]})"
+            printf "%5s  %s\n" "$drive" "${dest_imgpaths_list[$i]}"
             ((i++))
         done
 
-        echo '-------------------------------------------------------------------------------'
+        screen_header "-"
+        echo -e "Available actions for restorable device(s):"
 
         # Number of options present in the below dialog:
         menu_option=1
 
         # Custom path options:
         # -----------------------------------------------------------------------------
-        echo "$menu_option. Restore everything to a custom path"
+        echo "$menu_option. Restore drives '${dest_drives_list[@]}' to a custom path"
 
         # When multiple drives, show custom path options for individual restoration:
         if [[ ${#dest_drives_list[@]} -gt 1 ]]; then
@@ -388,7 +392,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             for drive in ${dest_drives_list[@]}; do
 
                 ((menu_option++))
-                echo "$menu_option. Restore drive '$drive: $(basename ${dest_imgpaths_list[$i]})' only, to a custom path"
+                echo "$menu_option. Only restore the drive '$drive' to a custom path"
                 ((i++))
             done
         fi
@@ -402,7 +406,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         for folder in ${unique_dirs_list[@]}; do
 
             ((menu_option++))
-            echo "$menu_option. Restore everything onto path '$folder'"
+            echo "$menu_option. Restore drives '${dest_drives_list[@]}' onto path '$folder'"
 
             # First defined path concurrence option for all devices becomes the default option:
             default_option=$menu_option
@@ -414,7 +418,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                 for drive in ${dest_drives_list[@]}; do
 
                     ((menu_option++))
-                    echo "$menu_option. Restore drive '$drive: $(basename ${dest_imgpaths_list[$i]})' only, onto path '$folder'"
+                    echo "$menu_option. Only restore the drive '$drive' onto path '$folder'"
                     ((i++))
                 done
             fi
@@ -464,7 +468,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                 echo -e "ERROR: Could not safely start the restoration process, because domain '$dest_domain' current state ($(domain_state $dest_domain)) disallows it!\n"
             fi
         else
-            echo -e "Cancelled by user.\n"
+            echo -e "\n$(basename $0): Restoration cancelled by user.\n"
         fi
 
         # Dummy exit to stop the script early, as modifications go by:
@@ -541,7 +545,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             i=0
             for drive in ${selected_drives[@]}; do
 
-                echo '-------------------------------------------------------------------------------'
+                screen_header "-"
                 echo ""
                 # Current image name and path for $drive:
                 imgname=$(basename ${domain_imgpaths_list[$i]})
