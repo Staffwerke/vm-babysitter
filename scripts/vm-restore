@@ -260,6 +260,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         echo -e "Available actions to perform with backup of domain '$src_domain'"
         echo '-------------------------------------------------------------------------------'
 
+        # Number of options present in the below dialog:
         menu_option=1
 
         # Applies to all scenarios (default option):
@@ -321,6 +322,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                 # Gets dest_drives_list from source metadata:
                 dest_drives_list=(${src_drives_list[@]})
+                dest_imgpaths_list=(${src_imgpaths_list[@]})
 
                 # Custom message:
                 restoration_message="restored onto a new"
@@ -332,6 +334,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                 # Gets dest_domain and dest_drives_list from source metadata:
                 dest_domain=$src_domain
                 dest_drives_list=(${src_drives_list[@]})
+                dest_imgpaths_list=(${src_imgpaths_list[@]})
 
                 # Custom message:
                 restoration_message="restored onto a new"
@@ -346,6 +349,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                 # Gets dest_domain and dest_drives_list from matching metadata:
                 dest_domain=${matching_domains_list[$dest_index]}
                 dest_drives_list=(${matching_drives_list[$dest_index]})
+                dest_imgpaths_list=(${matching_imgpaths_list[$dest_index]})
 
                 # Custom message:
                 restoration_message="restored onto the already existing"
@@ -355,8 +359,71 @@ if [[ -z $vm_restore_exit_code ]]; then
         echo -e "Backup of domain '$src_domain' will be $restoration_message domain with name: '$dest_domain'\n"
 
         # -----------------------------------------------------------------------------
-        # TODO: Show available options about specific drive(s) and path(s) how to restore this backup:
+        # Show available options about specific drive(s) and path(s) how to restore this backup:
         # -----------------------------------------------------------------------------
+        echo '-------------------------------------------------------------------------------'
+        echo "Available actions for restorable device(s):"
+
+        # List all drives and respective disk image files:
+        i=0
+        for drive in ${dest_drives_list[@]} do
+
+            echo "$drive: $(basename ${dest_imgpaths_list[$i]})"
+            ((i++))
+        done
+
+        echo '-------------------------------------------------------------------------------'
+
+        # Number of options present in the below dialog:
+        menu_option=1
+
+        # Custom path options:
+        # -----------------------------------------------------------------------------
+        echo "$menu_option. Restore everything to a custom path"
+
+        # When multiple drives, show custom path options for individual restoration:
+        if [[ ${#dest_drives_list[@]} -gt 1 ]]; then
+
+            i=0
+            for drive in ${dest_drives_list[@]}; do
+
+                ((menu_option++))
+                echo "$menu_option. Restore drive '$drive: $(basename ${dest_imgpaths_list[$i]})' only, to a custom path"
+                ((i++))
+            done
+        fi
+
+        # Defined path(s) options:
+        # -----------------------------------------------------------------------------
+        # Get the unique dir paths available to restore:
+        unique_dirs_list=($(dirname ${dest_imgpaths_list[@]} | uniq))
+
+        i=0
+        for folder in ${unique_dirs_list[@]}; do
+
+            ((menu_option++))
+            echo "$menu_option. Restore everything onto path '$folder'"
+
+            # First defined path concurrence option for all devices becomes the default option:
+            default_option=$menu_option
+
+            # When multiple drives, show defined options for individual restoration:
+            if [[ ${#dest_drives_list[@]} -gt 1 ]]; then
+
+                j=0
+                for drive in ${dest_drives_list[@]}; do
+
+                    ((menu_option++))
+                    echo "$menu_option. Restore drive '$drive: $(basename ${dest_imgpaths_list[$i]})' only, onto path '$folder'"
+                    ((i++))
+                done
+            fi
+
+            ((i++))
+        done
+
+        echo ""
+        user_choice=$(choose_number "Choose an action" "1" "$menu_option" "$default_option")
 
         # -----------------------------------------------------------------------------
         # Ask the user to start the restoration process:
