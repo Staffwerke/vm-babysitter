@@ -1004,10 +1004,10 @@ screen_header()
 
     for i in $(seq 1 $(tput cols)); do
 
-        header+=$pattern
+        header+="$pattern"
     done
 
-    echo -e "$pattern$trailing_char"
+    echo -e "$header$trailing_char"
 }
 
 # -----------------------------------------------------------------------------
