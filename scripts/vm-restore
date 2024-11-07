@@ -364,7 +364,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             # No matches. dest_domain is same src_domain:
             # -----------------------------------------------------------------------------
             # Gets dest_domain (when not already set), drives and paths from source metadata:
-            [[ -z $dest_domain ]] $dest_domain=$src_domain
+            [[ -z $dest_domain ]] && $dest_domain=$src_domain
             dest_drives_list=(${src_drives_list[@]})
             dest_imgpaths_list=(${src_imgpaths_list[@]})
 
@@ -496,12 +496,15 @@ if [[ -z $vm_restore_exit_code ]]; then
         if [[ "${selectable_drives_list[$selection_index]}" == "${dest_drives_list[$@]}" ]]; then
 
             # Everything will be restored by default.
-            drives_message="All disk image(s)"
-        else
 
+            # Custom message:
+            drives_message="All disk image(s)"
+
+        else
             # Notify to virtnbdrestore to only restore the selected drive, via optional argument:
             upto_chosen_disk="--disk ${selectable_drives_list[$selection_index]}"
 
+            # Custom message:
             drives_message="Selected disk image '${selectable_drives_list[$selection_index]}'"
         fi
 
