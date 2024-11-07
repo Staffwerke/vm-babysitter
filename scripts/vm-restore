@@ -182,8 +182,8 @@ if [[ -z $vm_restore_exit_code ]]; then
         src_drives_list=($(backup_restorable_list --drives $src_path $chosen_checkpoint))
         src_imgpaths_list=($(backup_restorable_list --paths $src_path $chosen_checkpoint))
 
-        [[ -n $chosen_checkpoint ]] && chosen_checkpoint_message=" at checkpoint '$chosen_checkpoint'"
-        echo -e "Backup of domain '$src_domain' from source '$src_path', selected for restoration\n"
+        [[ -n $chosen_checkpoint ]] && chosen_checkpoint_message=" (at checkpoint '$chosen_checkpoint')"
+        echo -e "Backup of domain '$src_domain' from source '$src_path'$chosen_checkpoint_message selected for restoration\n"
 
         # -----------------------------------------------------------------------------
         # When applies, compare backup info (name, id, drives, paths, etc.) with existing domains:
@@ -378,12 +378,17 @@ if [[ -z $vm_restore_exit_code ]]; then
         screen_header "-"
         echo -e "Available actions for restorable device(s):"
 
+        # Custom path options:
+        # -----------------------------------------------------------------------------
         # Number of options present in the below dialog:
         menu_option=1
 
-        # Custom path options:
-        # -----------------------------------------------------------------------------
         echo "$menu_option. Restore drives '${dest_drives_list[@]}' to a custom path"
+
+        # Save values for further selection:
+        selectable_drives_list+=("${dest_drives_list[@]}")
+        selectable_dest_path_list+=("custom")
+        selectable_imgs_list+=("$(basename -a ${dest_imgpaths_list[@]})")
 
         # When multiple drives, show custom path options for individual restoration:
         if [[ ${#dest_drives_list[@]} -gt 1 ]]; then
@@ -393,6 +398,12 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                 ((menu_option++))
                 echo "$menu_option. Only restore the drive '$drive' to a custom path"
+
+                # Save values for further selection:
+                selectable_drives_list+=($drive)
+                selectable_dest_path_list+=("custom")
+                selectable_imgs_list+=("$(basename ${dest_imgpaths_list[$i]})")
+
                 ((i++))
             done
         fi
@@ -408,6 +419,11 @@ if [[ -z $vm_restore_exit_code ]]; then
             ((menu_option++))
             echo "$menu_option. Restore drives '${dest_drives_list[@]}' onto path '$folder'"
 
+            # Save values for further selection:
+            selectable_drives_list+=(${dest_drives_list[@]})
+            selectable_dest_path_list+=($folder)
+            selectable_imgs_list+=("$(basename -a ${dest_imgpaths_list[@]})")
+
             # First defined path concurrence option for all devices becomes the default option:
             default_option=$menu_option
 
@@ -419,7 +435,13 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                     ((menu_option++))
                     echo "$menu_option. Only restore the drive '$drive' onto path '$folder'"
-                    ((i++))
+
+                    # Save values for further selection:
+                    selectable_dest_path_list+=($folder)
+                    selectable_drives_list+=($drive)
+                    selectable_imgs_list+=("$(basename ${dest_imgpaths_list[$i]})")
+
+                    ((j++))
                 done
             fi
 
@@ -428,6 +450,40 @@ if [[ -z $vm_restore_exit_code ]]; then
 
         echo ""
         user_choice=$(choose_number "Choose an action" "1" "$menu_option" "$default_option")
+
+        selection_index=$(($user_choice - 1))
+
+        if [[ ${selectable_dest_path_list[$selection_index]} == "custom" ]]; then
+
+            # -----------------------------------------------------------------------------
+            # Ask the user for a custom path for drives:
+            # -----------------------------------------------------------------------------
+            read -p "Insert an absolute path to restore disk image(s): '${selectable_imgs_list[$selection_index]}': " dest_path
+
+            while [[ -z $dest_path || $dest_path != /* ]]; do
+
+                # Ask for a different path name if invalid:
+                read -p "Path '$dest_path' is not absolute or is invalid. Choose a valid path: " dest_path
+            done
+
+        else
+            # Set dest_path from user choice:
+            dest_path=${selectable_dest_path_list[$selection_index]}
+        fi
+
+        if [[ "${selectable_drives_list[$selection_index]}" == "${dest_drives_list[$@]}" ]]; then
+
+            # Everything will be restored by default.
+            drives_message="All disk image(s)"
+        else
+
+            # Notify to virtnbdrestore to only restore the selected drive, via optional argument:
+            upto_chosen_disk="--disk ${selectable_drives_list[$selection_index]}"
+
+            drives_message="Selected disk image '${selectable_drives_list[$selection_index]}'"
+        fi
+
+        echo -e "$drives_message will be restored onto path '$dest_path'\n"
 
         # -----------------------------------------------------------------------------
         # Ask the user to start the restoration process:
@@ -462,7 +518,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                 echo -e "\nRestoration of backup from '$src_domain' in progress...\n"
 
                 # Run the command
-                virtnbdrestore -i $src_path -o ${dest_imgpaths_list[0]} $until_chosen_checkpoint
+                virtnbdrestore --input $src_path --output $dest_path $until_chosen_checkpoint $upto_chosen_disk $adjust_config $define
 
             else
                 echo -e "ERROR: Could not safely start the restoration process, because domain '$dest_domain' current state ($(domain_state $dest_domain)) disallows it!\n"
@@ -480,60 +536,6 @@ if [[ -z $vm_restore_exit_code ]]; then
     fi
 
 ###############################################################################
-
-        if [[ ${#existing_drives[@]} -gt 1 ]] || [[ ${#src_drives_list[@]} -gt 1 ]]; then
-
-# Step 5: If multiple drives are found, asks the user for restoring specific ones:
-# -----------------------------------------------------------------------------
-
-            if [[ ${existing_drives[@]} == ${src_drives_list[@]} ]]; then
-
-                # Only use case it's when both VM and backup chain, contain identical lists of drives:
-                echo "${#src_drives_list[@]} restorable drives found at both, VM '$dest_domain' and Backup '$chosen_backup_name': ${src_drives_list[@]}"
-                read -p "In order to restore only specific drive(s), insert their names separated by spaces; or just press ENTER to restore all the drives: " user_selected_drives
-
-                while true; do
-
-                    if [ -z "$user_selected_drives" ]; then
-
-                        # The user has pressed ENTER without specify specific drives:
-                        selected_drives=(${src_drives_list[@]})
-                        break
-                    else
-
-                        selected_drives=()
-                        invalid_drives=()
-                        for drive in $user_selected_drives; do
-
-                            # Verifies the drive name is in $src_drives_list, and adds if it matches:
-                            [[ ! -z $(echo ${src_drives_list[@]} | grep -w $drive) ]] && selected_drives+=("$drive") || invalid_drives+=("$drive")
-                        done
-
-                        # When at least one invalid drive has been detected, notifies the user and asks for insert drive names correctly:
-                        if [[ ${#invalid_drives[@]} -eq 0 ]]; then
-
-                            selected_drives=($(sort_items ${selected_drives[@]}))
-                            break
-                        else
-
-                            invalid_drives="${invalid_drives[@]}"
-                            read -p "'${invalid_drives// /,}' not found. Specify the exact drives you want to restore (or just ENTER to restore all the drives): " user_selected_drives
-                        fi
-                    fi
-                done
-
-            #else
-                    # TO DO: Add other use cases (e.g. VM and backup lists of drives don't match, etc.)
-            fi
-        else
-            selected_drives=(${src_drives_list[@]})
-        fi
-
-        echo ""
-        echo "Drives to be restored back at VM '$dest_domain': ${selected_drives[@]}"
-
-# Step 7: Perform the restoration:
-# -----------------------------------------------------------------------------
 
         # Shutdown dest_domain
         domain_shutdown $dest_domain --wait $WAIT_TIME
