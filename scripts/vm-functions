@@ -999,12 +999,17 @@ screen_header()
     local trailing_char="$2"
 
     local header
+    local width
 
-    for i in $(seq 1 $(tput cols)); do
+    # Set default width according to console geometry, or fixed value when not available
+    [[ -z $TERM ]] && width=130 || width=$(tput cols)
 
+    # Create header
+    for ((i=0; i<$width; i++)); do
         header+="$pattern"
     done
 
+    # Write it (optionally with a trailing escape sequence:
     echo -e "$header$trailing_char"
 }
 
