@@ -419,7 +419,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
         # Save values for further selection:
         selectable_drives_list+=("${dest_drives_list[@]}")
-        selectable_dest_path_list+=("custom")
+        selectable_dest_path_list+=("")
         selectable_imgs_list+=("$(basename -a ${dest_imgpaths_list[@]})")
 
         # When multiple drives, show custom path options for individual restoration:
@@ -432,7 +432,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                 # Save values for further selection:
                 selectable_drives_list+=("${dest_drives_list[$i]}")
-                selectable_dest_path_list+=("c u s t o m")
+                selectable_dest_path_list+=("")
                 selectable_imgs_list+=("$(basename ${dest_imgpaths_list[$i]})")
             done
         fi
@@ -479,7 +479,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         # Set dest_imgs_list from user choice:
         dest_imgs_list=(${selectable_imgs_list[$selection_index]})
 
-        if [[ ${selectable_dest_path_list[$selection_index]} == "c u s t o m" ]]; then
+        if [[ -z ${selectable_dest_path_list[$selection_index]} ]]; then
 
             # -----------------------------------------------------------------------------
             # Ask the user for a custom path for drives:
