@@ -11,7 +11,7 @@ LABEL maintainer="Adrián Parilli <adrian.parilli@staffwerke.de>"
 RUN \
 apt-get update && \
 apt-get install -y --no-install-recommends \
-cron libvirt-clients logrotate rsync sshfs uuid-runtime && \
+cron libvirt-clients logrotate nano rsync sshfs uuid-runtime && \
 apt-get -y autoremove --purge && apt-get clean && \
 rm -rf /var/lib/apt/lists/* /tmp/* && \
 mkdir -p /logs /private
