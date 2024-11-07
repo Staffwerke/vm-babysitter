@@ -33,7 +33,7 @@ if [[ -n ${retention_list[@]} ]]; then
 
         # Display screen divider when processing several backup chains:
         [[ ${#retention_list[@]} -gt 1 ]] \
-            && echo "____________________________________________________________________________________________________________"
+            && screen_header "-"
 
         if [[ -d $LOCAL_BACKUP_PATH/$domain \
             && -n $(ls -A $LOCAL_BACKUP_PATH/$domain) \

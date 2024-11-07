@@ -12,7 +12,7 @@ source /usr/local/bin/vm-functions
 #------------------------------------------------------------------------------
 stop_container()
 {
-    echo "############################################################################################################"
+    screen_header "#"
     echo "$(basename $0) received SIGTERM signal at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
 
     # TODO: Terminate or kill background processes before to exit...
@@ -34,7 +34,7 @@ check_variables()
     local rsync_backup_path_exists
     local rsync_backup_path_ok
 
-    echo "____________________________________________________________________________________________________________"
+    screen_header "-"
     echo -e "Checking environment variables...\n"
 
     # Check MAX_BACKUPS_PER_CHAIN
@@ -211,7 +211,7 @@ check_domains()
     local domain_success_list=()
     local vm_has_issues
 
-    echo "____________________________________________________________________________________________________________"
+    screen_header "-"
     echo -e "Checking fileystem permissions for virtual disks..."
 
     for domain in ${DOMAINS_LIST[@]}; do
@@ -338,7 +338,7 @@ check_backups()
     local domain_shutdown_success_list
     local preserved_backup_chain_list
 
-   echo "____________________________________________________________________________________________________________"
+   screen_header "-"
    echo -e "Checking backup chains integrity..."
 
     # CHECK_BACKUPS_LIST is copied into this list, to be processed instead:
@@ -788,7 +788,7 @@ autostart_domains()
 
     local i=0
 
-    echo "____________________________________________________________________________________________________________"
+    screen_header "-"
     echo -e "Starting domains..."
 
     for domain in ${POWERON_REQUIRED_VMS_LIST[@]}; do
@@ -981,9 +981,9 @@ unraid_logcheck_message=". Check container logs, or $(basename $LOGFILE_PATH) fo
 # 'docker kill --signal=SIGTERM <docker-name-or-id>'
 trap 'stop_container' SIGTERM
 
-echo "############################################################################################################"
+screen_header "#"
 echo "$(basename $0) started at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
-echo "############################################################################################################"
+screen_header "#"
 
 #------------------------------------------------------------------------------
 # 1. Check input parameters (exits on error)
@@ -1118,7 +1118,7 @@ optional_crontab
 
         if [[ -n ${DOMAINS_LIST[@]} || -n ${CHECK_BACKUPS_LIST[@]} ]]; then
 
-            echo "============================================================================================================"
+            screen_header "="
             echo -e "Changes detected at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))\n"
 
             # Check for virtual drives status on detected VMs:
@@ -1142,7 +1142,7 @@ optional_crontab
 
             # Show a summary of changes and global status:
             #------------------------------------------------------------------------------
-            echo "============================================================================================================"
+            screen_header "="
             echo -e "Changed Status Summary:\n"
 
             echo -e "Submitted for checks:      ${DOMAINS_LIST[@]:-"None"}"

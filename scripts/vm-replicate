@@ -44,9 +44,9 @@ if [[ -z $@ ]]; then
     if [[ $? -eq 0 && ${#src_domains_list[@]} -gt 0 ]]; then
 
         # Proceeds if libvirt doesn't report an error, and if there is, at least, one non-trasient domain:
-        echo '-------------------------------------------------------------------------------'
+        screen_header "-"
         printf "%3s %-31s %-19s %s \n" "#" "Domain" "Drives" "MAC Addresses"
-        echo '-------------------------------------------------------------------------------'
+        screen_header "-"
 
         i=0
         for domain in "${src_domains_list[@]}"; do
@@ -78,9 +78,9 @@ if [[ -z $@ ]]; then
         # -----------------------------------------------------------------------------
         # Asks the user where to replicate the chosen domain. If local, or remotely:
         # -----------------------------------------------------------------------------
-        echo '-------------------------------------------------------------------------------'
+        screen_header "-"
         echo "Select an endpoint where to replicate domain '$src_domain'"
-        echo '-------------------------------------------------------------------------------'
+        screen_header "-"
         echo -e "1. This host (local)"
         echo -e "2. Another host (via SSH)\n"
 
@@ -162,9 +162,9 @@ if [[ -z $@ ]]; then
             i=0
             for nic in ${src_macaddrs[@]}; do
 
-                echo '-------------------------------------------------------------------------------'
+                screen_header "-"
                 echo "Select an action for NIC #${#src_macaddrs[@]} (MAC Address: ${src_macaddrs[$i]}):"
-                echo '-------------------------------------------------------------------------------'
+                screen_header "-"
                 echo -e "1. Set a custom MAC address"
                 echo -e "2. Assign a random MAC address"
                 echo -e "3. Keep the same MAC address as in '$src_domain' (choose at your own risk)\n"
@@ -247,9 +247,9 @@ if [[ -z $@ ]]; then
                     # Number of options present in the below dialog:
                     menu_option=1
 
-                    echo '-------------------------------------------------------------------------------'
+                    screen_header "-"
                     echo "Select an action for drive ${src_domain_drives[$i]} (source: $path)"
-                    echo '-------------------------------------------------------------------------------'
+                    screen_header "-"
                     echo "$menu_option. Set the disk image path to a custom location and name"
 
                     # Attempts to find a NEW path matching by VM name:
@@ -327,7 +327,7 @@ if [[ -z $@ ]]; then
         # =============================================================================
 
         echo -e "\n"
-        echo "==============================================================================="
+        screen_header "="
         echo -e "Dumping '$src_domain' config'..."
 
         # Temporal path to store files and mount remote folders.

@@ -25,9 +25,9 @@ case $1 in
         unraid_logcheck_message=". Check $(basename $SCHEDULE_LOGFILE_PATH) for details."
 
         # Display initial message to append at logfile:
-        echo "############################################################################################################"
+        screen_header "#"
         echo "$rsync_action Rsync started at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
-        echo "############################################################################################################"
+        screen_header "#"
     ;;
 
     *)
@@ -54,7 +54,7 @@ if [[ -n ${rsync_list[@]} ]]; then
 
         # Display screen divider when processing several backup chains:
         [[ ${#rsync_list[@]} -gt 1 ]] \
-            && echo "____________________________________________________________________________________________________________"
+            && screen_header "-"
 
         if [[ -d $rsync_source && -n $(ls -A $rsync_source) ]]; then
 
@@ -110,7 +110,7 @@ if [[ -n ${rsync_list[@]} ]]; then
         "Scheduled")
 
             # Displays a brief summary:
-            echo "____________________________________________________________________________________________________________"
+            screen_header "-"
             echo -e "$rsync_action Rsync Summary:\n"
             echo "Successful syncs: ${rsync_success_list[@]:-"None"}"
             echo "Failed syncs:     ${rsync_failed_list[@]:-"None"}"

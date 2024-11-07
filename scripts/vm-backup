@@ -52,9 +52,9 @@ case $1 in
             && VIRTNBDBACKUP_ARGS="$VIRTNBDBACKUP_ARGS --nocolor"
 
         # Display initial message to be appended into log file:
-        echo "############################################################################################################"
+        screen_header "#"
         echo "$backup_action Backup started at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
-        echo "############################################################################################################"
+        screen_header "#"
     ;;
 
     *)
@@ -80,7 +80,7 @@ if [[ -n ${backups_list[@]} ]]; then
 
     for domain in ${backups_list[@]}; do
 
-        echo "____________________________________________________________________________________________________________"
+        screen_header "-"
 
         if [[ $(domain_exists $domain) == yes ]]; then
 
@@ -138,7 +138,7 @@ if [[ -n ${backups_list[@]} ]]; then
 
         for domain in ${backup_success_list[@]}; do
 
-            echo "____________________________________________________________________________________________________________"
+            screen_header "-"
 
             # Attempts to transfer changes via rsync:
             vm-rsync $domain
@@ -203,7 +203,7 @@ if [[ -n ${backups_list[@]} ]]; then
             $external_vars
 
             # Show a final summary:
-            echo "____________________________________________________________________________________________________________"
+            screen_header "-"
             echo -e "$backup_action Backup Summary:\n"
             echo "Successful backups: ${backup_success_list[@]:-"None"}"
             echo "Failed backups:     ${backup_failed_list[@]:-"None"}"
@@ -212,7 +212,7 @@ if [[ -n ${backups_list[@]} ]]; then
             if [[ $on_demand_rsync == true ]]; then
 
                 # Only show remote stats when remote endppoint is set:
-                echo "____________________________________________________________________________________________________________"
+                screen_header "-"
                 echo -e "$backup_action Rsync Summary:\n"
                 echo "Successful syncs: ${rsync_success_list[@]:-"None"}"
                 echo "Failed syncs:     ${rsync_failed_list[@]:-"None"}"
