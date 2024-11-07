@@ -276,7 +276,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         menu_option=1
 
         # Applies to all scenarios (default option):
-        echo -e "$menu_option. Restore with a custom domain name"
+        echo -e "$menu_option. Total or partial restoration with a custom domain name"
 
         # Set first as default option:
         default_option=$menu_option
@@ -285,7 +285,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
             # Applies when no existing domain, uuid or image path(s), match with chosen backup:
             ((menu_option++))
-            echo -e "$menu_option. Restore as new domain '$src_domain' <- no matches found"
+            echo -e "$menu_option. Total or partial restoration as new domain '$src_domain' <- no matches found"
 
             # When no matches, set as default option instead:
             default_option=$menu_option
@@ -306,7 +306,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                 # Applies when at least, all image path(s) coincide (showing which elements match with backup):
                 ((menu_option++))
-                echo -e "$menu_option. Restore onto existing domain '$domain' <- $matching_message all disk image(s) match"
+                echo -e "$menu_option. Total or partial restoration onto existing domain '$domain' <- $matching_message all disk image(s) match"
             done
 
             for domain in ${mid_path_match_domains_list[@]}; do
@@ -321,7 +321,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                 # Applies when at least, one image path coincide (showing which elements match with backup):
                 ((menu_option++))
-                echo -e "$menu_option. Restore onto existing domain '$domain' <- $matching_message some disk image(s) match"
+                echo -e "$menu_option. Partial restoration onto existing domain '$domain' <- $matching_message some disk image(s) match"
             done
 
             for domain in ${no_path_match_domains_list[@]}; do
@@ -336,62 +336,56 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                 # Applies when at least, domain name or uuid coincide (showing which elements match with backup):
                 ((menu_option++))
-                echo -e "$menu_option. Restore onto existing domain '$domain' <- $matching_message"
+                echo -e "$menu_option. Custom restoration onto existing domain '$domain' <- $matching_message"
             done
         fi
 
         echo ""
         user_choice=$(choose_number "Choose an action" "1" "$menu_option" "$default_option")
 
-        case $user_choice in
+        if [[ $user_choice -eq 1 ]]; then
 
-            1)  # -----------------------------------------------------------------------------
-                # Ask the user for a name for the new domain dest_domain:
-                # -----------------------------------------------------------------------------
-                read -p "Insert a name for the new domain, which will be created from backup of domain '$src_domain': " dest_domain
+            # -----------------------------------------------------------------------------
+            # Ask the user for a name for the new domain dest_domain:
+            # -----------------------------------------------------------------------------
+            read -p "Insert a name for the new domain, which will be created from backup of domain '$src_domain': " dest_domain
 
-                # TODO: Add Qemu/KVM domain name constrains:
-                while [[ $dest_domain == $(grep -o -e "$dest_domain" <<< "${existing_domains_list[@]}") ]]; do
+            # TODO: Add Qemu/KVM domain name constrains:
+            while [[ $dest_domain == $(grep -o -e "$dest_domain" <<< "${existing_domains_list[@]}") ]]; do
 
-                    # Ask for a different name if the domain already exists on the list
-                    read -p "Domain '$dest_domain' already exists or is invalid. Choose a different name: " dest_domain
-                done
+                # Ask for a different name if the domain already exists on the list
+                read -p "Domain '$dest_domain' already exists or is invalid. Choose a different name: " dest_domain
+            done
+        fi
 
-                # Gets dest_drives_list from source metadata:
-                dest_drives_list=(${src_drives_list[@]})
-                dest_imgpaths_list=(${src_imgpaths_list[@]})
+        if [[ -z ${matching_domains_list[@]} ]]; then
 
-                # Custom message:
-                restoration_message="restored onto a new"
-            ;;
+            # -----------------------------------------------------------------------------
+            # No matches. dest_domain is same src_domain:
+            # -----------------------------------------------------------------------------
+            # Gets dest_domain (when not already set), drives and paths from source metadata:
+            [[ -z $dest_domain ]] $dest_domain=$src_domain
+            dest_drives_list=(${src_drives_list[@]})
+            dest_imgpaths_list=(${src_imgpaths_list[@]})
 
-            2)  # -----------------------------------------------------------------------------
-                # No matches. dest_domain is same src_domain:
-                # -----------------------------------------------------------------------------
-                # Gets dest_domain and dest_drives_list from source metadata:
-                dest_domain=$src_domain
-                dest_drives_list=(${src_drives_list[@]})
-                dest_imgpaths_list=(${src_imgpaths_list[@]})
+            # Custom message:
+            restoration_message="restored onto a new"
 
-                # Custom message:
-                restoration_message="restored onto a new"
-            ;;
+        else
+            # -----------------------------------------------------------------------------
+            # Total or partial match(es). Choose the domain from array matching_domains_list,
+            # at user_choice minus minimal possible option (2):
+            # -----------------------------------------------------------------------------
+            dest_index=$(( $user_choice - 2 ))
 
-            *)  # -----------------------------------------------------------------------------
-                # Total or partial match(es). Choose the domain from array matching_domains_list,
-                # at user_choice minus minimal possible option (3):
-                # -----------------------------------------------------------------------------
-                dest_index=$(( $user_choice - 3 ))
+            # Gets dest_domain and dest_drives_list from matching metadata:
+            dest_domain=${matching_domains_list[$dest_index]}
+            dest_drives_list=(${matching_drives_list[$dest_index]})
+            dest_imgpaths_list=(${matching_imgpaths_list[$dest_index]})
 
-                # Gets dest_domain and dest_drives_list from matching metadata:
-                dest_domain=${matching_domains_list[$dest_index]}
-                dest_drives_list=(${matching_drives_list[$dest_index]})
-                dest_imgpaths_list=(${matching_imgpaths_list[$dest_index]})
-
-                # Custom message:
-                restoration_message="restored onto the already existing"
-            ;;
-        esac
+            # Custom message:
+            restoration_message="restored onto the already existing"
+        fi
 
         echo -e "Backup of domain '$src_domain' will be $restoration_message domain with name: '$dest_domain'\n"
 
