@@ -12,7 +12,7 @@ source /usr/local/bin/vm-functions
 #------------------------------------------------------------------------------
 stop_container()
 {
-    screen_header "#"
+    #screen_header "#"
     echo "$(basename $0) received SIGTERM signal at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
 
     # TODO: Terminate or kill background processes before to exit...
@@ -926,7 +926,7 @@ unraid_logcheck_message=". Check container logs, or $(basename $LOGFILE_PATH) fo
 # 'docker kill --signal=SIGTERM <docker-name-or-id>'
 trap 'stop_container' SIGTERM
 
-screen_header "#"
+#screen_header "#"
 
 cat << 'banner'
    _____ _         __  __                   _
@@ -935,11 +935,10 @@ cat << 'banner'
   \___ \| __/ _` |  _|  _\ \ /\ / / _ \ '__| |/ / _ \
   ____) | || (_| | | | |  \ V  V /  __/ |  |   <  __/
  |_____/ \__\__,_|_| |_|   \_/\_/ \___|_|  |_|\_\___|
-
 banner
 
 echo "$(basename $0) started at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
-screen_header "#"
+#screen_header "#"
 
 #------------------------------------------------------------------------------
 # 1. Check input parameters (exits on error)
