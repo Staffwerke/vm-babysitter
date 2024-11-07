@@ -561,7 +561,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                     echo -e "Backup restoration of domain '$dest_domain' ended successfully!"
 
-                    if [[ $dest_domain_exists == true || $dest_id_exists == true ]]
+                    if [[ $dest_domain_exists == true || $dest_id_exists == true ]]; then
 
                         echo "Pruning any existing checkpoints metadata from domain '$dest_domain'..."
                         domain_delete_checkpoints $dest_domain --all --metadata
