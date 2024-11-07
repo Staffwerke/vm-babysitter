@@ -538,7 +538,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             if [[ -z $domain_shutdown_exit_code || $domain_shutdown_exit_code -eq 0 ]]; then
 
                 # Look for existing dest_imgs_list in dest_path
-                for ((i=0; i<${dest_imgs_list[@]}; i++)); do
+                for ((i=0; i<${#dest_imgs_list[@]}; i++)); do
 
                     if [[ -f $dest_path/${dest_imgs_list[$i]} ]]; then
 
