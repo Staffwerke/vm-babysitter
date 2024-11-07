@@ -1002,10 +1002,10 @@ screen_header()
     local width
 
     # Set default width according to console geometry, or fixed value when not available
-    [[ -z $TERM ]] && width=130 || width=$(tput cols)
+    [[ $TERM == dumb ]] && width=130 || width=$(tput cols)
 
     # Create header
-    for ((i=0; i<$width; i++)); do
+    for i in $(seq 1 $width); do
         header+="$pattern"
     done
 
