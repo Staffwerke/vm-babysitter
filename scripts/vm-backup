@@ -39,7 +39,7 @@ case $1 in
 
         # Processes initial backups list from SCHEDULED_BACKUPS_LIST in external variables file:
         source $external_vars
-        backups_list=(${SCHEDULED_BACKUPS_LIST[@]})
+        backups_list=($SCHEDULED_BACKUPS_LIST)
 
         # Virtnbdbackup mode is set to 'auto':
         backup_mode="auto"
@@ -169,37 +169,39 @@ if [[ -n ${backups_list[@]} ]]; then
             # Reload SCHEDULED_BACKUPS_LIST and FAILED_VMS_LIST again, since other VMs could have been processed during this run:
             source $external_vars
 
+            # Grab current SCHEDULED_BACKUPS_LIST as array:
+            new_schedule_backups_list=($SCHEDULED_BACKUPS_LIST)
+
             for domain in ${backup_success_list[@]}; do
 
                 # Add any successfully backed up VM into SCHEDULED_BACKUPS_LIST that is not currently present into this list:
-                [[ -z $(item_position $domain "SCHEDULED_BACKUPS_LIST") ]] && SCHEDULED_BACKUPS_LIST+=($domain)
+                [[ -z $(item_position $domain "new_schedule_backups_list") ]] && new_schedule_backups_list+=($domain)
             done
 
             for domain in ${backup_failed_list[@]} ${backup_skipped_list[@]}; do
 
-                failed_domain_index=$(item_position $domain "SCHEDULED_BACKUPS_LIST")
+                failed_domain_index=$(item_position $domain "new_schedule_backups_list")
 
                 if [[ -n $failed_domain_index ]]; then
 
-                    # Delete each failed or skipped VM found into SCHEDULED_BACKUPS_LIST:
-                    unset SCHEDULED_BACKUPS_LIST[$failed_domain_index]
+                    # Delete each failed or skipped domain found into new_schedule_backups_list:
+                    unset new_schedule_backups_list[$failed_domain_index]
 
                     # Rebuild the array upon each iteration:
-                    SCHEDULED_BACKUPS_LIST=(${SCHEDULED_BACKUPS_LIST[@]})
+                    new_schedule_backups_list=(${new_schedule_backups_list[@]})
                 fi
             done
 
-            # Append failed VMs to its correspondent list to be exported:
-            FAILED_VMS_LIST+=(${backup_failed_list[@]})
+            # Append failed failed to its correspondent list to be exported:
+            FAILED_VMS_LIST+=" ${backup_failed_list[@]}"
 
-            # Sed can't expand arrays correctly. Convert variables to be exported into strings.
-            FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
-            SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
+            # And update SCHEDULED_BACKUPS_LIST with changes, if any:
+            SCHEDULED_BACKUPS_LIST=" ${new_schedule_backups_list[@]}"
 
             # Export the variables:
             sed -i \
-            -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
-            -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
+            -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=\"$FAILED_VMS_LIST\"/" \
+            -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=\"$SCHEDULED_BACKUPS_LIST\"/" \
             $external_vars
 
             # Show a final summary:

@@ -191,7 +191,7 @@ create_domains_list()
     source $external_vars
 
     local domains_all_list=($(domains_list))
-    local domains_ignored_list=($VM_IGNORED_LIST ${SCHEDULED_BACKUPS_LIST[@]} ${FAILED_VMS_LIST[@]})
+    local domains_ignored_list=($VM_IGNORED_LIST)
 
     for domain in ${domains_all_list[@]}; do
 
@@ -725,7 +725,7 @@ check_backups()
 
     # Export the variables:
     sed -i \
-    -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($backup_chains_to_export)/" \
+    -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=\"$backup_chains_to_export\"/" \
     $external_vars
 
     # Notify about issues and/or errors, if any:
@@ -946,8 +946,8 @@ if [[ $check_variables_exit_code -eq 0 ]]; then
     #------------------------------------------------------------------------------
     cat << end_of_external_variables > $external_vars
 # Shared values between scripts. DO NOT EDIT!:
-FAILED_VMS_LIST=()
-SCHEDULED_BACKUPS_LIST=()
+FAILED_VMS_LIST=""
+SCHEDULED_BACKUPS_LIST=""
 end_of_external_variables
 
     # Create logrotate config:
@@ -1097,37 +1097,27 @@ optional_crontab
             # Append any successfuly created backup chain to SCHEDULED_BACKUPS_LIST:
             for ((i=0; i<${#BACKUPS_TO_SCHEDULE_LIST[@]}; i++)); do
 
-                [[ -z $(grep -o -e "${BACKUPS_TO_SCHEDULE_LIST[$i]}" <<< "${SCHEDULED_BACKUPS_LIST[@]}") ]] \
-                    && SCHEDULED_BACKUPS_LIST+=${BACKUPS_TO_SCHEDULE_LIST[$i]}
+                [[ -z $(grep -o -e "${BACKUPS_TO_SCHEDULE_LIST[$i]}" <<< "$SCHEDULED_BACKUPS_LIST") ]] \
+                    && SCHEDULED_BACKUPS_LIST+=" ${BACKUPS_TO_SCHEDULE_LIST[$i]}"
             done
 
             # And any newly failed domain to FAILED_VMS_LIST:
             for ((i=0; i<${#VMS_TO_DISCARD_LIST[@]}; i++)); do
 
-                [[ -z $(grep -o -e "${VMS_TO_DISCARD_LIST[$i]}" <<< "${FAILED_VMS_LIST[@]}") ]] \
-                    && FAILED_VMS_LIST+=${VMS_TO_DISCARD_LIST[$i]}
+                [[ -z $(grep -o -e "${VMS_TO_DISCARD_LIST[$i]}" <<< "$FAILED_VMS_LIST") ]] \
+                    && FAILED_VMS_LIST+=" ${VMS_TO_DISCARD_LIST[$i]}"
             done
-
-            # Export definitive results, so other scripts have updated lists (e.g. future re-scan schedule of previously failed VMs).
-
-            # Sed can't expand arrays correctly. Convert variables to be exported into strings:
-            FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
-            SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
 
             # Export the variables:
             sed -i \
-            -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
-            -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
+            -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=\"$FAILED_VMS_LIST\"/" \
+            -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=\"$SCHEDULED_BACKUPS_LIST\"/" \
             $external_vars
-
-            # Turn exported variables back into arrays:
-            FAILED_VMS_LIST=($FAILED_VMS_LIST)
-            SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)
 
             echo -e "\nGlobal Status (after changes):\n"
 
-            echo -e "Total running into scheduled backups: ${SCHEDULED_BACKUPS_LIST[@]:-"None"}"
-            echo -e "Total failed during checks or backup: ${FAILED_VMS_LIST[@]:-"None"}"
+            echo -e "Total running into scheduled backups: ${SCHEDULED_BACKUPS_LIST:-"None"}"
+            echo -e "Total failed during checks or backup: ${FAILED_VMS_LIST:-"None"}"
 
             # Unset variables that require a clean state for next iteration (SHUTDOWN_REQUIRED_VMS_LIST is kept, awaiting for results):
             unset DOMAINS_LIST
