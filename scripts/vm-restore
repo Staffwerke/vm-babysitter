@@ -245,7 +245,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                 else # Not even partial matches by path
 
-                    if [[ $domain == $src_domain || $domain == $dest_id_domain ]]
+                    if [[ $domain == $src_domain || $domain == $dest_id_domain ]]; then
 
                         # Domain matches by either name or uuid.
                         # Add domain separated list to display with low priority:
