@@ -368,6 +368,10 @@ if [[ -z $vm_restore_exit_code ]]; then
             dest_drives_list=(${src_drives_list[@]})
             dest_imgpaths_list=(${src_imgpaths_list[@]})
 
+            # When domain does not exist, tell virtnbdrestore to define it with chosen name after restoration:
+            define_domain="--define"
+            domain_name="--name $dest_domain"
+
             # Custom message:
             restoration_message="restored onto a new"
 
@@ -428,7 +432,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                 # Save values for further selection:
                 selectable_drives_list+=("${dest_drives_list[$i]}")
-                selectable_dest_path_list+=("custom")
+                selectable_dest_path_list+=("c u s t o m")
                 selectable_imgs_list+=("$(basename ${dest_imgpaths_list[$i]})")
             done
         fi
@@ -475,7 +479,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         # Set dest_imgs_list from user choice:
         dest_imgs_list=(${selectable_imgs_list[$selection_index]})
 
-        if [[ ${selectable_dest_path_list[$selection_index]} == "custom" ]]; then
+        if [[ ${selectable_dest_path_list[$selection_index]} == "c u s t o m" ]]; then
 
             # -----------------------------------------------------------------------------
             # Ask the user for a custom path for drives:
@@ -488,6 +492,9 @@ if [[ -z $vm_restore_exit_code ]]; then
                 read -p "Path '$dest_path' is not absolute or is invalid. Choose a valid path: " dest_path
             done
 
+            # TODO: Set config adjustment to fit all needed cases.
+            # Tell virtnbdrestore to adjust config:
+            adjust_config="--adjust-config"
         else
             # Set dest_path from user choice:
             dest_path=${selectable_dest_path_list[$selection_index]}
@@ -544,7 +551,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                 echo -e "\nRestoration of backup from '$src_domain' in progress...\n"
 
                 # Run the command
-                virtnbdrestore --input $src_path --output $dest_path $until_chosen_checkpoint $upto_chosen_disk $adjust_config $define
+                virtnbdrestore --input $src_path --output $dest_path $until_chosen_checkpoint $define_domain $domain_name $adjust_config $upto_chosen_disk
                 virtnbdrestore_exit_code=$?
 
             else
