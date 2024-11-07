@@ -937,7 +937,7 @@ cat << 'banner'
  |_____/ \__\__,_|_| |_|   \_/\_/ \___|_|  |_|\_\___|
 banner
 
-echo "$(basename $0) started at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))"
+echo -e "\n$(basename $0) started at: $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))\n"
 #screen_header "#"
 
 #------------------------------------------------------------------------------
