@@ -213,15 +213,16 @@ if [[ -z $vm_restore_exit_code ]]; then
                 # Domain has exactly the same drives and image paths as in chosen backup.
 
                 # Add domain separated list to display with high priority:
-                full_match_domains_list+=($domain)
+                high_path_match_domains_list+=($domain)
 
                 # And add metadata to other lists in order to process during following up processes:
                 matching_domains_list+=($domain)
                 matching_drives_list+=("${drives_list[@]}")
                 matching_imgpaths_list+=("${imgpaths_list[@]}")
 
-            else # Attempt to find partial matches:
+            else # No exact matches by path.
 
+                # Attempt to find partial matches:
                 for ((i=0; i<${#src_imgpaths_list[@]}; i++)); do
 
                     if [[ ${src_imgpaths_list[$i]} == ${imgpaths_list[$i]} && ${src_drives_list[$i]} == ${drives_list[$i]} ]]; then
@@ -234,13 +235,27 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                 if [[ -n ${partial_imgpaths_list[@]} ]]; then
 
-                    # Add domain separated list to display with low priority:
-                    partial_match_domains_list+=($domain)
+                    # Add domain separated list to display with mid priority:
+                    mid_path_match_domains_list+=($domain)
 
                     # And add metadata to other lists in order to process during following up processes:
                     matching_domains_list+=($domain)
                     matching_drives_list+=("${partial_drives_list[@]}")
                     matching_imgpaths_list+=("${partial_imgpaths_list[@]}")
+
+                else # Not even partial matches by path
+
+                    if [[ $domain == $src_domain || $domain == $dest_id_domain ]]
+
+                        # Domain matches by either name or uuid.
+                        # Add domain separated list to display with low priority:
+                        no_path_match_domains_list+=($domain)
+
+                        # Add metadata to other lists in order to process during following up processes:
+                        matching_domains_list+=($domain)
+                        matching_drives_list+=("${drives_list[@]}")
+                        matching_imgpaths_list+=("${imgpaths_list[@]}")
+                    fi
                 fi
             fi
         done
@@ -248,6 +263,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         # Fill all unset boolean variables about existing metadata to false:
         [[ -z $dest_domain_exists ]] && dest_domain_exists=false
         [[ -z $dest_id_exists ]] && dest_id_exists=false
+        [[ $dest_domain_exists == false && $dest_id_exists == false && -z ${matching_domains_list[@]} ]] && no_matching_domains=true
 
         # -----------------------------------------------------------------------------
         # Show available actions about how to restore this backup:
@@ -260,47 +276,72 @@ if [[ -z $vm_restore_exit_code ]]; then
         menu_option=1
 
         # Applies to all scenarios (default option):
-        echo -e "$menu_option. Full restoration with a custom domain name"
+        echo -e "$menu_option. Restore with a custom domain name"
 
-        if [[ $dest_domain_exists == false && $dest_id_exists == false && -z ${matching_domains_list[@]} ]]; then
+        # Set first as default option:
+        default_option=$menu_option
+
+        if [[ $no_matching_domains == true ]]; then
 
             # Applies when no existing domain, uuid or image path(s), match with chosen backup:
             ((menu_option++))
-            echo -e "$menu_option. Full restoration as new domain '$src_domain' <- no matches found"
+            echo -e "$menu_option. Restore as new domain '$src_domain' <- no matches found"
+
+            # When no matches, set as default option instead:
+            default_option=$menu_option
+
+        else # It's a match!
+
+            for domain in ${high_path_match_domains_list[@]}; do
+
+                if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
+                    matching_message="name, uuid &"
+                    # When full match, set as default option instead:
+                    default_option=$menu_option
+                elif [[ $dest_domain_exists == true && $dest_id_exists == false ]]; then
+                    matching_message="name &"
+                elif [[ $dest_domain_exists == false && $dest_id_exists == true ]]; then
+                    matching_message="uuid &"
+                fi
+
+                # Applies when at least, all image path(s) coincide (showing which elements match with backup):
+                ((menu_option++))
+                echo -e "$menu_option. Restore onto existing domain '$domain' <- $matching_message all disk image(s) match"
+            done
+
+            for domain in ${mid_path_match_domains_list[@]}; do
+
+                if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
+                    matching_message="name, uuid &"
+                elif [[ $dest_domain_exists == true && $dest_id_exists == false ]]; then
+                    matching_message="name &"
+                elif [[ $dest_domain_exists == false && $dest_id_exists == true ]]; then
+                    matching_message="uuid &"
+                fi
+
+                # Applies when at least, one image path coincide (showing which elements match with backup):
+                ((menu_option++))
+                echo -e "$menu_option. Restore onto existing domain '$domain' <- $matching_message some disk image(s) match"
+            done
+
+            for domain in ${no_path_match_domains_list[@]}; do
+
+                if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
+                    matching_message="name & uuid match"
+                elif [[ $dest_domain_exists == true && $dest_id_exists == false ]]; then
+                    matching_message="name matches"
+                elif [[ $dest_domain_exists == false && $dest_id_exists == true ]]; then
+                    matching_message="uuid matches"
+                fi
+
+                # Applies when at least, domain name or uuid coincide (showing which elements match with backup):
+                ((menu_option++))
+                echo -e "$menu_option. Restore onto existing domain '$domain' <- $matching_message"
+            done
         fi
 
-        for domain in ${full_match_domains_list[@]}; do
-
-            if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
-                matching_message="name, uuid &"
-            elif [[ $dest_domain_exists == true && $dest_id_exists == false ]]; then
-                matching_message="name &"
-            elif [[ $dest_domain_exists == false && $dest_id_exists == true ]]; then
-                matching_message="uuid &"
-            fi
-
-            # Applies when at least, all image path(s) coincide (showing which elements match with backup):
-            ((menu_option++))
-            echo -e "$menu_option. Full restoration onto existing domain '$domain' <- $matching_message all disk image(s) match"
-        done
-
-        for domain in ${partial_match_domains_list[@]}; do
-
-            if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
-                matching_message="name, uuid &"
-            elif [[ $dest_domain_exists == true && $dest_id_exists == false ]]; then
-                matching_message="name &"
-            elif [[ $dest_domain_exists == false && $dest_id_exists == true ]]; then
-                matching_message="uuid &"
-            fi
-
-            # Applies when at least, one image path coincide (showing which elements match with backup):
-            ((menu_option++))
-            echo -e "$menu_option. Partial restoration onto existing domain '$domain' <- $matching_message some disk image(s) match"
-        done
-
         echo ""
-        user_choice=$(choose_number "Choose an action" "1" "$menu_option" "1")
+        user_choice=$(choose_number "Choose an action" "1" "$menu_option" "$default_option")
 
         case $user_choice in
 
