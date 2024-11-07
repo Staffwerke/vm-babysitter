@@ -1,34 +1,48 @@
 #!/bin/bash
 
-# Usage: vm-backup [--run-schedule] [--create-new] [domain1 domain2...]
-# Runs virtnbdbackup to create/update backup chains of domains to LOCAL_BACKUP_PATH, from either:
-# - A given list of domains passed as arguments,
-# - All domains currently scheduled for backups, if '--run-schedule' is passed as the only argument, or
-# - Creates new backup chains if '--create-new ' is passed as first argument, and then all domains as further arguments (forcing retention policy appliance in the process)
+show_help()
+{
+cat << end_of_help
+
+ USAGE: $(basename $0) [-h | --help] [--run-schedule] [--create-new] [domain1 domain2...]
+
+ $(basename $0) -- Runs virtnbdbackup to create/update backup chains of domains to LOCAL_BACKUP_PATH, from either:
+  - A given list of domains passed as arguments,
+  - All domains currently scheduled for backups, if '--run-schedule' is passed as the only argument, or
+  - Creates new backup chains if '--create-new ' is passed as first argument, and then all domains as further arguments (forcing retention policy appliance in the process)
+
+end_of_help
+}
 
 # Load common functions:
 source /usr/local/bin/vm-functions
 
 case $1 in
 
+    -h|--help)
+
+        # Show help and exit:
+        show_help
+        exit
+    ;;
     --create-new)
 
-            # Creates new backup chains of VMs in need of it (passed as arguments),
-            # during container start or when a new VM is detected, appending/exporting VMs to their correspondent lists,
-            # depending on the result:
-            backup_action="Initial"
+        # Creates new backup chains of VMs in need of it (passed as arguments),
+        # during container start or when a new VM is detected, appending/exporting VMs to their correspondent lists,
+        # depending on the result:
+        backup_action="Initial"
 
-            # Forces to read from the 2nd argument, where the (first) VM is expected to be declared:
-            shift
+        # Forces to read from the 2nd argument, where the (first) VM is expected to be declared:
+        shift
 
-            # Virtnbdbackup mode is set to 'full':
-            backup_mode="full"
+        # Virtnbdbackup mode is set to 'full':
+        backup_mode="full"
 
-            # Populates the backups list from VMs passed as (remaining) arguments:
-            backups_list=($@)
+        # Populates the backups list from VMs passed as (remaining) arguments:
+        backups_list=($@)
 
-            # This string is appended to some Unraid messages:
-            unraid_logcheck_message=". Check container logs, or $(basename $LOGFILE_PATH) for details."
+        # This string is appended to some Unraid messages:
+        unraid_logcheck_message=". Check container logs, or $(basename $LOGFILE_PATH) for details."
     ;;
 
     --run-schedule)
@@ -245,5 +259,5 @@ if [[ -n ${backups_list[@]} ]]; then
     esac
 
 else
-    echo -e "No domain(s) for $backup_action Backup to process\n"
+    echo -e "No domain(s) for $backup_action Backup to process\n\nUSAGE: $(basename $0) [--run-schedule] [--create-new] [domain1 domain2...]\n"
 fi

@@ -4,9 +4,9 @@ show_help()
 {
 cat << end_of_help
 
- $(basename $0) -- Replicates a given virtual machine onto a local or remote endpoint
-
  USAGE: [SSH_OPTIONS=...] $(basename $0) [ -h | --help ]
+
+ $(basename $0) -- Replicates a given virtual machine onto a local or remote endpoint
 
  REQUIREMENTS:
     - Libvirt service running (in all involved hosts)

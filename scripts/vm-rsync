@@ -1,15 +1,30 @@
 #!/bin/bash
 
-# Usage: vm-rsync [--run-schedule] [domain1 domain2...]
-# Runs rsync to synchronize previously generated backups of domains from LOCAL_BACKUP_PATH to RSYNC_BACKUP_PATH, from either:
-# - A given list of domains passed as arguments, or
-# - All domains currently scheduled for backups, if '--run-schedule' is passed as the only argument.
-# Only returns rsync exit code when a single domain is passed. However, failed status is prompted as per domain.
+show_help()
+{
+cat << end_of_help
+
+ USAGE: $(basename $0) [-h | --help] [--run-schedule] <domain1 domain2...>
+
+ $(basename $0) -- Runs rsync to synchronize previously generated backups of domains from LOCAL_BACKUP_PATH to RSYNC_BACKUP_PATH, from either:
+  - A given list of domains passed as arguments, or
+  - All domains currently scheduled for backups, if '--run-schedule' is passed as the only argument.
+  - Only returns rsync exit code when a single domain is passed. However, failed status is prompted as per domain.
+
+end_of_help
+}
 
 # Load common functions:
 source /usr/local/bin/vm-functions
 
 case $1 in
+
+    -h|--help)
+
+        # Show help and exit:
+        show_help
+        exit
+    ;;
 
     --run-schedule)
 
@@ -129,5 +144,5 @@ if [[ -n ${rsync_list[@]} ]]; then
     esac
 
 else
-    echo -e "No backup path(s) for $rsync_action Rsync to process\n"
+    echo -e "No backup path(s) for $rsync_action Rsync to process\n\nUSAGE: $(basename $0) [-h |--help] [--run-schedule] <domain1 domain2...>\n"
 fi

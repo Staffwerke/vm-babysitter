@@ -1,37 +1,24 @@
 #!/bin/bash
 
-# Variables:
-# -----------------------------------------------------------------------------
-
-# Load functions:
-source /usr/local/bin/vm-functions
-
-# Generic name for all checkpoints (and bitmaps) into a given backup chain:
-checkpoint_name="virtnbdbackup"
-
-# Shows Help and basic Usage:
-# -----------------------------------------------------------------------------
 show_help()
 {
 cat << end_of_help
 
- $(basename $0) -- Restores disk image(s) of a virtual machine from saved backups (made with vm-full-backup, vm-inc-backup or virtnbdbackup-auto) up to a selected checkpoint in time.
+ USAGE: $(basename $0) [ -h | --help ] [-s | --source <absolute-path>]
 
-    USAGE: $(basename $0) [ -h | --help ] [-s | --source <absolute-path>]
+ $(basename $0) --  Restores backups of domains created with virtnbdbackup, total or partially, optionally to a defined point in time (checkpoint)
 
-    INSTRUCTIONS:
-    - It can restore a full system (default option), as well as individual disks or drives
-    - Without arguments, it works interactively: A series of options and questions are presented before to actually start the process
-    - When everything has been set to ptoceed, awaits for confirmation before to start (restoration may take time, depending on the data volume to restore, hadware speed, etc.)
-    - Once completed, displays the final result about the operation (full success, partial restoration of disks or fail) showing a summary of restored/failed disks if restoration was partial.
+ INSTRUCTIONS:
+  - It can restore a full system (default option), as well as individual disks or drives
+  - Without arguments, it works interactively: A series of options and questions are presented before to actually start the process
+  - When everything has been set to ptoceed, awaits for confirmation before to start (restoration may take time, depending on the data volume to restore, hadware speed, etc.)
+  - Once completed, displays the final result about the operation (full success, partial restoration of disks or fail) showing a summary of restored/failed disks if restoration was partial.
 
-    NOTES:
-    - Use it only with backups created from the SAME Virtual Machine you're attempting to restore!
-    - If the virtual machine to restore is running, it will be (gracefully) powered OFF right before to start the process
-    - When old disk images are kept and restoration was successful, a timestamp with its last modification time is appended to each replaced image fila.
-    - The script is NOT aware of remaining space left, so you must be careful when keping too many old images, specially on scenarios with constrains about storage.
-
- (Mantainer: Adrián Parilli <a.parilli@staffwerke.de>")
+ NOTES:
+  - Use it only with backups created from the SAME Virtual Machine you're attempting to restore!
+  - If the virtual machine to restore is running, it will be (gracefully) powered OFF right before to start the process
+  - When old disk images are kept and restoration was successful, a timestamp with its last modification time is appended to each replaced image fila.
+  - The script is NOT aware of remaining space left, so you must be careful when keping too many old images, specially on scenarios with constrains about storage.
 
 end_of_help
 }
@@ -39,6 +26,9 @@ end_of_help
 # #############################################################################
 # Main execution:
 # #############################################################################
+
+# Load functions:
+source /usr/local/bin/vm-functions
 
 # -----------------------------------------------------------------------------
 # Read user parameters:

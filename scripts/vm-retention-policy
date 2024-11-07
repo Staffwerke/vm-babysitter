@@ -1,14 +1,26 @@
 #!/bin/bash
 
-# Usage: vm-retention-policy [--force] [domain1 domain2...]
-# - Checks backups lifecyle based on MAX_BACKUPS_PER_CHAIN, triggering its archiving when reaches that number of checkpoints
-# - Applies retention policy, based on LOCAL|RSYNC_BACKUP_CHAINS_TO_KEEP, keeping as many (and most recent) backup chains on each endpoint, deleting the older ones.
-# - When '--force'is passed as the first argument, overrides MAX_BACKUPS_PER_CHAIN and triggers its immediate archiving.
+show_help()
+{
+cat << end_of_help
 
-# Load common functions:
-source /usr/local/bin/vm-functions
+ USAGE: $(basename $0) [-h | --help] <[--force] domain1 domain2...>
 
-if [[ $1 == "--force" ]]; then
+ $(basename $0) -- Applies Backup Rotation and Retention Policy.
+  - Checks backups lifecyle based on MAX_BACKUPS_PER_CHAIN, triggering its archiving when reaches that number of checkpoints
+  - Applies retention policy, based on LOCAL|RSYNC_BACKUP_CHAINS_TO_KEEP, keeping as many (and most recent) backup chains on each endpoint, deleting the older ones.
+  - When '--force'is passed as the first argument, overrides MAX_BACKUPS_PER_CHAIN and triggers its immediate archiving.
+
+end_of_help
+}
+
+if [[ $1 == "-h" || $1 == "--help" ]]; then
+
+    # Show help and exit:
+    show_help
+    exit
+
+elif [[ $1 == "--force" ]]; then
 
     # Force the end of lifecycle:
     retention_mode="Forced"
@@ -19,6 +31,9 @@ elif [[ -n $MAX_BACKUPS_PER_CHAIN && $MAX_BACKUPS_PER_CHAIN -gt 0 ]]; then
     # Run normal checks and apply retention policy:
     retention_mode="Normal"
 fi
+
+# Load common functions:
+source /usr/local/bin/vm-functions
 
 # Processes initial backups list from VMs (passed as arguments):
 retention_list=($@)
@@ -110,5 +125,5 @@ if [[ -n ${retention_list[@]} ]]; then
         && echo -e "\n$(basename $0): Finished\n"
 
 else
-    echo -e "No flags and/or domain(s) passed as arguments to check backup lifecycle or apply data retention policy\n"
+    echo -e "No flags and/or domain(s) passed as arguments to check backup lifecycle or apply data retention policy\n\nUSAGE: $(basename $0) [-h |--help] <[--force] domain1 domain2...>\n"
 fi
