@@ -191,7 +191,7 @@ create_domains_list()
     source $external_vars
 
     local domains_all_list=($(domains_list))
-    local domains_ignored_list=(${VM_IGNORED_LIST[@]} ${SCHEDULED_BACKUPS_LIST[@]} ${FAILED_VMS_LIST[@]})
+    local domains_ignored_list=($VM_IGNORED_LIST ${SCHEDULED_BACKUPS_LIST[@]} ${FAILED_VMS_LIST[@]})
 
     for domain in ${domains_all_list[@]}; do
 
@@ -266,26 +266,8 @@ check_domains()
     # Appends successfully checked VMs for checking backups:
     CHECK_BACKUPS_LIST+=(${domain_success_list[@]})
 
-    # Appends VMs with unexistent, unreachable or virtual disks with permission issues:
+    # Appends domains with unexistent, unreachable or virtual disks with permission issues:
     VMS_TO_DISCARD_LIST+=(${domain_failed_list[@]})
-
-    # Export definitive results, so other scripts have updated lists (e.g. future re-scan schedule of previously failed VMs):
-    #------------------------------------------------------------------------------
-
-    # Reload the external variables file:
-    source $external_vars
-
-    # And Vms with issues to global FAILED_VMS_LIST:
-    FAILED_VMS_LIST+=(${VMS_TO_DISCARD_LIST[@]})
-
-    # Sed can't expand arrays correctly. Convert variables to be exported into strings.
-    # This will be reverted at next block iteration, by sourcing such external variables as arrays:
-    FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
-
-    # Export the variables:
-    sed -i \
-    -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
-    $external_vars
 
     # Notify about issues and/or errors, if any:
     #------------------------------------------------------------------------------
@@ -734,30 +716,16 @@ check_backups()
     # Appends VMs failed to shutdown (by user's setting or by fail) to request user action:
     SHUTDOWN_REQUIRED_VMS_LIST+=(${domain_shutdown_needed_list[@]})
 
-    # Appends failed to shut down VMs to failed VMs list:
-    VMS_TO_DISCARD_LIST+=(${domain_failed_list[@]})
+    # Appends failed domains failed VMs list:
+    FAILED_VMS_LIST+=(${domain_failed_list[@]})
 
-    # Export definitive results, so other scripts have updated lists (e.g. scheduled backups):
+    # Early export preserved backup chains, so scheduled scripts can work on them:
     #------------------------------------------------------------------------------
-
-    # Reload the external variables file:
-    source $external_vars
-
-    # Add preserved backup chains to global SCHEDULED_BACKUPS_LIST:
-    SCHEDULED_BACKUPS_LIST+=(${BACKUPS_TO_SCHEDULE_LIST[@]})
-
-    # And Vms with issues to global FAILED_VMS_LIST:
-    FAILED_VMS_LIST+=(${VMS_TO_DISCARD_LIST[@]})
-
-    # Sed can't expand arrays correctly. Convert variables to be exported into strings.
-    # This will be reverted at next block iteration, by sourcing such external variables as arrays:
-    FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
-    SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
+    local backup_chains_to_export="(${preserved_backup_chain_list[@]})"
 
     # Export the variables:
     sed -i \
-    -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
-    -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
+    -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($backup_chains_to_export)/" \
     $external_vars
 
     # Notify about issues and/or errors, if any:
@@ -849,26 +817,8 @@ autostart_domains()
         FIRST_AUTOSTART_COMPLETED=true
     fi
 
-    # Add any VM failed to start to VMS_TO_DISCARD_LIST:
+    # Add any failed domain to FAILED_VMS_LIST:
     VMS_TO_DISCARD_LIST+=(${start_failed_list[@]})
-
-    # Export definitive results, so other scripts have updated lists (e.g. future re-scan schedule of previously failed VMs):
-    #------------------------------------------------------------------------------
-
-    # Reload the external variables file:
-    source $external_vars
-
-    # And Vms with issues to global FAILED_VMS_LIST:
-    FAILED_VMS_LIST+=(${VMS_TO_DISCARD_LIST[@]})
-
-    # Sed can't expand arrays correctly. Convert variables to be exported into strings.
-    # This will be reverted at next block iteration, by sourcing such external variables as arrays:
-    FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
-
-    # Export the variables:
-    sed -i \
-    -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
-    $external_vars
 
     # Notify about events and/or errors, if any:
     #------------------------------------------------------------------------------
@@ -1128,9 +1078,6 @@ optional_crontab
             #------------------------------------------------------------------------------
             [[ -n ${CREATE_BACKUP_CHAIN_LIST[@]} ]] && vm-backup --create-new ${CREATE_BACKUP_CHAIN_LIST[@]}
 
-            # Reload the external variables file
-            source $external_vars
-
             # Show a summary of changes and global status:
             #------------------------------------------------------------------------------
             screen_header "="
@@ -1142,6 +1089,40 @@ optional_crontab
             echo -e "Required new backup chain: ${CREATE_BACKUP_CHAIN_LIST[@]:-"None"}"
             echo -e "Awaiting for shut down:    ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
             echo -e "Failed during a check:     ${VMS_TO_DISCARD_LIST[@]:-"None"}"
+
+
+            # Reload the external variables file, containing current SCHEDULED_BACKUPS_LIST and FAILED_VMS_LIST:
+            source $external_vars
+
+            # Append any successfuly created backup chain to SCHEDULED_BACKUPS_LIST:
+            for ((i=0; i<${#BACKUPS_TO_SCHEDULE_LIST[@]}; i++)); do
+
+                [[ -z $(grep -o -e "${BACKUPS_TO_SCHEDULE_LIST[$i]}" <<< "${SCHEDULED_BACKUPS_LIST[@]}") ]] \
+                    && SCHEDULED_BACKUPS_LIST+=${BACKUPS_TO_SCHEDULE_LIST[$i]}
+            done
+
+            # And any newly failed domain to FAILED_VMS_LIST:
+            for ((i=0; i<${#VMS_TO_DISCARD_LIST[@]}; i++)); do
+
+                [[ -z $(grep -o -e "${VMS_TO_DISCARD_LIST[$i]}" <<< "${FAILED_VMS_LIST[@]}") ]] \
+                    && FAILED_VMS_LIST+=${VMS_TO_DISCARD_LIST[$i]}
+            done
+
+            # Export definitive results, so other scripts have updated lists (e.g. future re-scan schedule of previously failed VMs).
+
+            # Sed can't expand arrays correctly. Convert variables to be exported into strings:
+            FAILED_VMS_LIST="${FAILED_VMS_LIST[@]}"
+            SCHEDULED_BACKUPS_LIST="${SCHEDULED_BACKUPS_LIST[@]}"
+
+            # Export the variables:
+            sed -i \
+            -e "s/FAILED_VMS_LIST=.*/FAILED_VMS_LIST=($FAILED_VMS_LIST)/" \
+            -e "s/SCHEDULED_BACKUPS_LIST=.*/SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)/" \
+            $external_vars
+
+            # Turn exported variables back into arrays:
+            FAILED_VMS_LIST=($FAILED_VMS_LIST)
+            SCHEDULED_BACKUPS_LIST=($SCHEDULED_BACKUPS_LIST)
 
             echo -e "\nGlobal Status (after changes):\n"
 
@@ -1155,6 +1136,8 @@ optional_crontab
             unset CREATE_BACKUP_CHAIN_LIST
             unset POWERON_REQUIRED_VMS_LIST
             unset VMS_TO_DISCARD_LIST
+            unset SCHEDULED_BACKUPS_LIST
+            unset FAILED_VMS_LIST
 
             echo -e "\nAll changes ended to be processed at $(date "+%Y-%m-%d %H:%M:%S") ($(cat /etc/timezone))\n"
         fi
