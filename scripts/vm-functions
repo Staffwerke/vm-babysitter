@@ -314,10 +314,8 @@ domain_setmem()
         ;;
 
         *) # Assumes index 0 as max memory and index 1 as used memory (updates status if fails):
-            local i=0
-            for set in ${command_list[@]}; do
-                virsh $set $domain ${parameter_list[$i]} --config || domain_setmem_status=$?
-                ((i++))
+            for ((i=0; i<${#command_list[@]}; i++)); do
+                virsh ${command_list[$i]} $domain ${parameter_list[$i]} --config || domain_setmem_status=$?
             done
         ;;
         esac

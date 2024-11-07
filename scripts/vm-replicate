@@ -48,16 +48,14 @@ if [[ -z $@ ]]; then
         printf "%3s %-31s %-19s %s \n" "#" "Domain" "Drives" "MAC Addresses"
         screen_header "-"
 
-        i=0
-        for domain in "${src_domains_list[@]}"; do
+        for ((i=0; i<${#src_domains_list[@]}; i++)); do
 
             # Get lists with drives and MAC addresses in each VM that can be restored:
-            src_domains_drives_list+=("$(domain_drives_list $domain)")
-            src_macaddr_list+=("$(domain_macaddr_list $domain)")
+            src_domains_drives_list+=("$(domain_drives_list ${src_domains_list[$i]})")
+            src_macaddr_list+=("$(domain_macaddr_list ${src_domains_list[$i]})")
 
             # Shows each VM found, including the restorable drives and MACs:
-            printf "%3s %-31s %-19s %s \n" "$(($i+1))" "$domain" "${src_domains_drives_list[$i]:-"None"}" "${src_macaddr_list[$i]:-"None"}"
-            ((i++))
+            printf "%3s %-31s %-19s %s \n" "$(($i+1))" "${src_domains_list[$i]}" "${src_domains_drives_list[$i]:-"None"}" "${src_macaddr_list[$i]:-"None"}"
         done
 
         # -----------------------------------------------------------------------------
@@ -159,8 +157,7 @@ if [[ -z $@ ]]; then
         # -----------------------------------------------------------------------------
         if [[ -n ${src_macaddrs[@]} ]]; then
 
-            i=0
-            for nic in ${src_macaddrs[@]}; do
+            for ((i=0; i<${#src_macaddrs[@]}; i++)); do
 
                 screen_header "-"
                 echo "Select an action for NIC #${#src_macaddrs[@]} (MAC Address: ${src_macaddrs[$i]}):"
@@ -194,8 +191,6 @@ if [[ -z $@ ]]; then
                         echo -e "NIC #${#dest_macaddrs[@]} will be the same as for domain '$src_domain'\n"
                     ;;
                 esac
-
-                ((i++))
             done
         fi
 
@@ -411,21 +406,20 @@ if [[ -z $@ ]]; then
 
                     # -----------------------------------------------------------------------------
                     # Beginning of file copy:
-                    i=0
-                    for image_path in ${dest_domain_img_paths[@]}; do
+                    for ((i=0; i<${#dest_domain_img_paths[@]}; i++)); do
 
                         # Copies the image disk only when conditions apply:
-                        echo -e "Replicating '${src_domain_img_paths[$i]}' as '$image_path' onto $chosen_endpoint endpoint..."
+                        echo -e "Replicating '${src_domain_img_paths[$i]}' as '${dest_domain_img_paths[$i]}' onto $chosen_endpoint endpoint..."
 
                         if [[ $chosen_endpoint == local ]]; then
 
                             # Creates folder and dumps a copy of the disk image with qemu-img convert:
-                            mkdir -p $(dirname $image_path)
+                            mkdir -p $(dirname ${dest_domain_img_paths[$i]})
 
                             if [[ $? -eq 0 ]]; then
 
                                 # Will only proceed if destination folder exists or could be created:
-                                qemu-img convert -p -O qcow2 ${src_domain_img_paths[$i]} $image_path
+                                qemu-img convert -p -O qcow2 ${src_domain_img_paths[$i]} ${dest_domain_img_paths[$i]}
                                 qemu_img_exit_code=$?
                             fi
 
@@ -436,13 +430,13 @@ if [[ -z $@ ]]; then
 
                             # Creates the remote folder, and mounts it via sshfs.
                             # (sshfs is not compatible with option '-q', so must be filtered from SSH_OPTIONS):
-                            ssh $SSH_OPTIONS $remote_server_login "mkdir -p $(dirname $image_path)" && \
-                            sshfs $remote_server_login:$(dirname $image_path) $workdir_path/remote ${SSH_OPTIONS/-q /}
+                            ssh $SSH_OPTIONS $remote_server_login "mkdir -p $(dirname ${dest_domain_img_paths[$i]})" && \
+                            sshfs $remote_server_login:$(dirname ${dest_domain_img_paths[$i]}) $workdir_path/remote ${SSH_OPTIONS/-q /}
 
                             if [[ $? -eq 0 ]]; then
 
                                 # Will only replicate the disk if mount of remote endpoint is successful:
-                                qemu-img convert -p -O qcow2 ${src_domain_img_paths[$i]} $workdir_path/remote/$(basename $image_path)
+                                qemu-img convert -p -O qcow2 ${src_domain_img_paths[$i]} $workdir_path/remote/$(basename ${dest_domain_img_paths[$i]})
                                 qemu_img_exit_code=$?
                             fi
                         fi
@@ -450,30 +444,28 @@ if [[ -z $@ ]]; then
                         # Notifies about success or fail of each disk image provisioning for dest_domain:
                         case $qemu_img_exit_code in
 
-                            '') echo -e "An error occurred before to start provisioning disk image '$image_path'\n"
+                            '') echo -e "An error occurred before to start provisioning disk image '${dest_domain_img_paths[$i]}'\n"
                                 # Mark the process as partial (or totally failed):
                                 copy_failed=true
                             ;;
 
-                            0)  echo -e "Disk image '$image_path' was provisioned successfully\n"
+                            0)  echo -e "Disk image '${dest_domain_img_paths[$i]}' was provisioned successfully\n"
                             ;;
 
-                            *)  echo -e "An unexpected error occurred while provisioning disk image '$image_path' (Qemu-img exit code: $qemu_img_exit_code)\n"
+                            *)  echo -e "An unexpected error occurred while provisioning disk image '${dest_domain_img_paths[$i]}' (Qemu-img exit code: $qemu_img_exit_code)\n"
 
                                 # Mark the process as partial (or totally failed):
                                 copy_failed=true
 
                                 # Attempt to delete the failed image:
                                 [[ $chosen_endpoint == local ]] \
-                                    && rm -f $image_path \
-                                    || rm -f $workdir_path/remote/$(basename $image_path)
+                                    && rm -f ${dest_domain_img_paths[$i]} \
+                                    || rm -f $workdir_path/remote/$(basename ${dest_domain_img_paths[$i]})
                             ;;
                         esac
 
                         # On remote replication, silently unmounts the remote folder after completion:
                         [[ $chosen_endpoint == remote ]] && umount -q $workdir_path/remote
-
-                        ((i++))
                     done
 
                     [[ $copy_failed == true ]] && echo -e "WARNING: There were issues copying at least one disk image. Manual provision will be required for such failed ones\n"

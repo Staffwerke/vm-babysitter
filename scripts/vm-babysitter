@@ -786,12 +786,10 @@ autostart_domains()
     local start_exit_code
     local start_failed_list=()
 
-    local i=0
-
     screen_header "-"
     echo -e "Starting domains..."
 
-    for domain in ${POWERON_REQUIRED_VMS_LIST[@]}; do
+    for ((i=0; i<${#POWERON_REQUIRED_VMS_LIST[@]}; i++)); do
 
         # (Re)initialize used variables:
         start_exit_code=""
@@ -799,16 +797,16 @@ autostart_domains()
         echo ""
 
         # Attempt to turn on the VM. Do not wait for Guest's QEMU agent:
-        domain_start $domain --nowait
+        domain_start ${POWERON_REQUIRED_VMS_LIST[$i]} --nowait
 
         if [[ $start_exit_code -eq 0 ]]; then
 
             # Put VM into powercycle success list:
-            powercycle_success_list+=($domain)
+            powercycle_success_list+=(${POWERON_REQUIRED_VMS_LIST[$i]})
 
         else
             # Put VM into failed list:
-            start_failed_list+=($domain)
+            start_failed_list+=(${POWERON_REQUIRED_VMS_LIST[$i]})
 
             # Remove from POWERON_REQUIRED_VMS_LIST:
             unset POWERON_REQUIRED_VMS_LIST[$i]
@@ -816,9 +814,6 @@ autostart_domains()
             # Rebuild indexes into the array:
             POWERON_REQUIRED_VMS_LIST=${POWERON_REQUIRED_VMS_LIST[@]}
         fi
-
-        # Increases the counter:
-        ((i++))
     done
 
     if [[ $FIRST_AUTOSTART_COMPLETED != true ]]; then
@@ -1095,24 +1090,20 @@ optional_crontab
             # Check for VMs which are in need of shutdown.
             # (This normally happens when the user took the action, or when a VM took more than VM_WAIT_TIME secs to shutdown):
             #------------------------------------------------------------------------------
-            i=0
-            for domain in ${SHUTDOWN_REQUIRED_VMS_LIST[@]}; do
+            for ((i=0; i<${#SHUTDOWN_REQUIRED_VMS_LIST[@]}; i++)); do
 
-                if [[ $(domain_state $domain) == "shut off" ]]; then
+                if [[ $(domain_state ${SHUTDOWN_REQUIRED_VMS_LIST[$i]}) == "shut off" ]]; then
 
                     # Add VM to the same list of VMs to be powered on when monitor starts:
-                    POWERON_REQUIRED_VMS_LIST+=($domain)
+                    POWERON_REQUIRED_VMS_LIST+=(${SHUTDOWN_REQUIRED_VMS_LIST[$i]})
 
                     # Move to main queue for check:
-                    CHECK_BACKUPS_LIST+=($domain)
+                    CHECK_BACKUPS_LIST+=(${SHUTDOWN_REQUIRED_VMS_LIST[$i]})
                     unset SHUTDOWN_REQUIRED_VMS_LIST[$i]
 
                     # Rebuild indexes into the array:
                     SHUTDOWN_REQUIRED_VMS_LIST=(${SHUTDOWN_REQUIRED_VMS_LIST[@]})
                 fi
-
-                # Increases the counter:
-                ((i++))
             done
         fi
 
