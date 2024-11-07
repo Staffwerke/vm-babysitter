@@ -4,7 +4,7 @@ show_help()
 {
 cat << end_of_help
 
- USAGE: $(basename $0) [ -h | --help ] [-s | --source <absolute-path>]
+ USAGE: [LOCAL_BACKUP_PATH=...] $(basename $0) [ -h | --help ] [-s | --source <absolute-path>]
 
  $(basename $0) --  Restores backups of domains created with virtnbdbackup, total or partially, optionally to a defined point in time (checkpoint)
 
@@ -381,7 +381,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             restoration_message="restored onto the already existing"
         fi
 
-        echo -e "Backup of domain '$src_domain' will be $restoration_message domain with name: '$dest_domain'\n"
+        echo -e "Backup of domain '$src_domain' selected to be $restoration_message domain with name: '$dest_domain'\n"
 
         # -----------------------------------------------------------------------------
         # Show available options about specific drive(s) and path(s) how to restore this backup:
@@ -505,7 +505,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             drives_message="Selected disk image '${selectable_drives_list[$selection_index]}'"
         fi
 
-        echo -e "$drives_message will be restored onto path '$dest_path'\n"
+        echo -e "$drives_message selected to be restored onto path '$dest_path'\n"
 
         # -----------------------------------------------------------------------------
         # Ask the user to start the restoration process:
@@ -522,7 +522,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         fi
 
         [[ -z $start_restoration_message ]] \
-            && start_restoration_message="Everything is ready to begin! Are you agree to start the restoration process?"
+            && start_restoration_message="Everything is ready to begin! Are you agree to start with the restoration process?"
 
         start_restoration=$(yes_no "$start_restoration_message" "no")
 
@@ -537,120 +537,64 @@ if [[ -z $vm_restore_exit_code ]]; then
 
             if [[ -z $domain_shutdown_exit_code || $domain_shutdown_exit_code -eq 0 ]]; then
 
+                # Look for existing dest_imgs_list in dest_path
+                for ((i=0; i<${dest_imgs_list[@]}; i++)); do
+
+                    if [[ -f $dest_path/${dest_imgs_list[$i]} ]]; then
+
+                        # If found, rename with timestamp, and save the full path:
+                        saved_imgpaths_list+=($dest_path/${dest_imgs_list[$i]}.$(last_modified_time $($dest_path/${dest_imgs_list[$i]})))
+                        mv $dest_path/${dest_imgs_list[$i]} ${saved_imgpaths_list[$i]}
+
+                        echo "Disk image file ${dest_imgs_list[$i]} exists on path '$dest_path'. Renamed to $(basename ${saved_imgpaths_list[$i]})"
+                    fi
+                done
+
                 screen_header "="
-                echo -e "\nRestoration of backup from '$src_domain' in progress...\n"
+                #echo -e "\nBackup restoration of domain '$src_domain' from source '$src_path'$chosen_checkpoint_message is about to be $restoration_message domain '$dest_domain' in progress...\n"
 
                 # Run the command
                 virtnbdrestore --input $src_path --output $dest_path $until_chosen_checkpoint $define_domain $domain_name $adjust_config $upto_chosen_disk
                 virtnbdrestore_exit_code=$?
 
+                if [[ $virtnbdrestore_exit_code -eq 0 ]]; then
+
+                    echo -e "Backup restoration of domain '$dest_domain' ended successfully!"
+
+                    if [[ $dest_domain_exists == true || $dest_id_exists == true ]]
+
+                        echo "Pruning any existing checkpoints metadata from domain '$dest_domain'..."
+                        domain_delete_checkpoints $dest_domain --all --metadata
+                    fi
+
+                    # Return success status:
+                    vm_restore_exit_code=0
+                    echo -e "\n$(basename $0): Finished.\n"
+
+                else
+                    echo -e "ERROR: Backup restoration of domain '$dest_domain' failed! (virtnbdrestore exit code: $virtnbdrestore_exit_code)\n"
+
+                    # Undo any renaming of existing disk images at $dest_path:
+                    for ((i=0; i<${saved_imgpaths_list[@]}; i++)); do
+
+                        mv -f ${saved_imgpaths_list[$i]} $dest_path/${dest_imgs_list[$i]}
+                        echo "Reverted ${saved_imgpaths_list[$i]} back to $dest_path/${dest_imgs_list[$i]}"
+
+                        vm_restore_exit_code=1
+                    done
+                fi
             else
                 echo -e "ERROR: Could not safely start the restoration process, because domain '$dest_domain' current state ($(domain_state $dest_domain)) disallows it!\n"
             fi
         else
             echo -e "\n$(basename $0): Restoration cancelled by user.\n"
+            vm_restore_exit_code=2
         fi
-
-        # Dummy exit to stop the script early, as modifications go by:
-        exit
-
     else
         vm_restore_exit_code=1
-        echo -e "ERROR: No backups found at path '$main_backups_path'\n"
-    fi
-
-###############################################################################
-
-        # Shutdown dest_domain
-        domain_shutdown $dest_domain --wait $WAIT_TIME
-
-        if [[ $? == 0 ]]; then
-
-            echo ""
-            echo "INFO: Restoration of VM '$dest_domain' (${selected_drives[@]}) checkpoint '$checkpoint_index' saved at $checkpoint_date in progress..."
-            i=0
-            for drive in ${selected_drives[@]}; do
-
-                screen_header "-"
-                echo ""
-                # Current image name and path for $drive:
-                imgname=$(basename ${domain_imgpaths_list[$i]})
-                imgpath=$(dirname ${domain_imgpaths_list[$i]})
-
-                if [[ -f $imgpath/$imgname ]]; then
-
-                    # Saves the old disk image with a different name:
-                    old_imgname="$imgname.$(last_modified $imgpath/$imgname)"
-                    old_imgname=${old_imgname// /_}
-
-                    mv $imgpath/$imgname $imgpath/$old_imgname
-                fi
-
-                # Retrieves the correspondent drive according the chosen options,
-                # to the same directory where original image disk is, using the same drive name (e.g. 'hdc')
-                virtnbdrestore -i $main_backups_path -o $image_path --until $checkpoint_index -d $drive
-                echo ""
-
-                if [[ $? == 0 ]]; then
-
-                    echo "INFO: Stream of drive $drive successfully transferred"
-
-                    if [[ -f $imgpath/$old_imgname ]]; then
-
-                        # Notify about the old image saved, or delete accordingly:
-                        [[ $keep_old_disks ]] \
-                            && echo "INFO: Old disk image at $imgpath saved as '$old_imgname'" \
-                            || rm -f $imgpath/$old_imgname
-                    fi
-
-                    # Adds the drive to the restored_drives list:
-                    restored_drives+=($drive)
-                    echo "INFO: Image Drive '$drive' has been successfully restored!"
-                else
-                    # Removes any incomplete image, if exists:
-                    [[ -f $imgpath/$imgname ]] && rm -f $imgpath/$image_name
-
-                    # Restore previous existing image:
-                    [[ -f $imgpath/$old_imgname ]] && mv $imgpath/$old_imgname $imgpath/$imgname
-
-                    # Adds the drive to the failed_drives list:
-                    failed_drives+=($drive)
-                    echo "WARNING: Stream of drive $drive has failed!"
-                fi
-
-                ((i++))
-            done
-
-            echo '==============================================================================='
-            echo ""
-
-            if [[ ${#restored_drives[@]} -eq ${#selected_drives[@]} ]]; then
-
-                echo "Querying libvirt for old checkpoints..."
-                domain_delete_checkpoints $dest_domain --all --metadata
-
-                echo ""
-                echo "INFO: Restoration of Virtual Machine '$dest_domain' has been successfully completed!"
-                status=0
-
-            elif [[ ${#restored_drives[@]} -gt 1 ]]; then
-
-                echo ""
-                echo "WARNING: Restoration of Virtual Machine '$dest_domain' was NOT complete! (Successed: '${restored_drives[@]}' / Failed: '${failed_drives[@]}')"
-                echo "Check the logs above to determine the cause of the problem, solve it and run this script again (choosing the above failed drives for restoration only)"
-                status=2
-            else
-                echo "ERROR: Restoration of Virtual Machine '$dest_domain' failed!"
-                echo "Check the logs above to determine the cause of the problem, solve it and run this script again (no changes has been made onto the Virtual Machine)"
-            fi
-        else
-            echo "ERROR: Could not safely start the restoration process because the Virtual Machine '$dest_domain' current state ($(domain_state $dest_domain)) disallows it!"
-        fi
-    else
-        echo "ERROR: No persistent Virtual Machines detected! (is libvirt service running?)"
+        echo -e "ERROR: No backups found at path '$main_backups_path'\n\nUSAGE: [LOCAL_BACKUP_PATH=...] $(basename $0) [ -h | --help ] [-s | --source <absolute-path>]\n"
     fi
 fi
-
 # End program with resulting exit code:
 exit $vm_restore_exit_code
 
