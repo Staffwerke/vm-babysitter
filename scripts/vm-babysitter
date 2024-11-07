@@ -721,7 +721,7 @@ check_backups()
 
     # Early export preserved backup chains, so scheduled scripts can work on them:
     #------------------------------------------------------------------------------
-    local backup_chains_to_export="(${preserved_backup_chain_list[@]})"
+    local backup_chains_to_export="${preserved_backup_chain_list[@]}"
 
     # Export the variables:
     sed -i \
@@ -1099,7 +1099,6 @@ optional_crontab
             echo -e "Required new backup chain: ${CREATE_BACKUP_CHAIN_LIST[@]:-"None"}"
             echo -e "Awaiting for shut down:    ${SHUTDOWN_REQUIRED_VMS_LIST[@]:-"None"}"
             echo -e "Failed during a check:     ${VMS_TO_DISCARD_LIST[@]:-"None"}"
-
 
             # Reload the external variables file, containing current SCHEDULED_BACKUPS_LIST and FAILED_VMS_LIST:
             source $external_vars
