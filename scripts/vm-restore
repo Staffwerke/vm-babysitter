@@ -388,7 +388,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             # Custom message:
             restoration_message="restored and defined as a new"
 
-        elif [[ $no_matching_domains == true ]]
+        elif [[ $no_matching_domains == true ]]; then
 
             # Tell virtnbdrestore to define the new domain only:
             define_domain="--define"
