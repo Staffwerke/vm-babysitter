@@ -518,7 +518,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             [[ -z $name_domain ]] && name_domain="--name $dest_domain"
         fi
 
-        if [[ "${selectable_drives_list[$user_choice]}" == "${dest_drives_list[$@]}" ]]; then
+        if [[ "${selectable_drives_list[$user_choice]}" == "${dest_drives_list[@]}" ]]; then
 
             # Everything will be restored by default.
 
