@@ -444,7 +444,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                 # Save values for further selection:
                 selectable_drives_list+=("${dest_drives_list[$i]}")
                 selectable_dest_path_list+=("")
-                selectable_imgs_list+=("$(basename ${dest_imgpaths_list[$i]})")
+                selectable_imgs_list+=("$(basename -a ${dest_imgpaths_list[$i]})")
             done
         fi
 
@@ -469,7 +469,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             # When multiple drives, show defined options for individual restoration:
             if [[ ${#dest_drives_list[@]} -gt 1 ]]; then
 
-                for ((j=0; j<${#src_backups_list[@]}; j++)); do
+                for ((j=0; j<${#dest_drives_list[@]}; j++)); do
 
                     ((menu_option++))
                     echo "$menu_option. Only restore the drive '${dest_drives_list[$j]}' onto path '${unique_dirs_list[$i]}'"
@@ -477,7 +477,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                     # Save values for further selection:
                     selectable_drives_list+=("${dest_drives_list[$j]}")
                     selectable_dest_path_list+=("${unique_dirs_list[$i]}")
-                    selectable_imgs_list+=("$(basename ${dest_imgpaths_list[$j]})")
+                    selectable_imgs_list+=("$(basename -a ${dest_imgpaths_list[$j]})")
                 done
             fi
         done
