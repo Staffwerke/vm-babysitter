@@ -379,19 +379,11 @@ if [[ -z $vm_restore_exit_code ]]; then
 
         fi
 
-        if [[ $custom_domain_name == true ]]; then
+        if [[ $custom_domain_name == true || $no_matching_domains == true ]]; then
 
-            # Tell virtnbdrestore to define the new domain with the user selecte name:
+            # Tell virtnbdrestore to define the domain with the user selected name:
             define_domain="--define"
             domain_name="--name $dest_domain"
-
-            # Custom message:
-            restoration_message="restored and defined as a new"
-
-        elif [[ $no_matching_domains == true ]]; then
-
-            # Tell virtnbdrestore to define the new domain only:
-            define_domain="--define"
 
             # Custom message:
             restoration_message="restored and defined as a new"
@@ -430,7 +422,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
         # Save values for further selection:
         selectable_drives_list+=("${dest_drives_list[@]}")
-        selectable_dest_path_list+=("")
+        selectable_dest_path_list+=(" ")
         selectable_imgs_list+=("$(basename -a ${dest_imgpaths_list[@]})")
 
         # When multiple drives, show custom path options for individual restoration:
@@ -439,11 +431,11 @@ if [[ -z $vm_restore_exit_code ]]; then
             for ((i=0; i<${#dest_drives_list[@]}; i++)); do
 
                 ((menu_option++))
-                echo "$menu_option. Only restore the drive '${dest_drives_list[$i]}' to a custom path"
+                echo "$menu_option. Only restore drive '${dest_drives_list[$i]}' to a custom path"
 
                 # Save values for further selection:
                 selectable_drives_list+=("${dest_drives_list[$i]}")
-                selectable_dest_path_list+=("")
+                selectable_dest_path_list+=(" ")
                 selectable_imgs_list+=("$(basename -a ${dest_imgpaths_list[$i]})")
             done
         fi
@@ -472,7 +464,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                 for ((j=0; j<${#dest_drives_list[@]}; j++)); do
 
                     ((menu_option++))
-                    echo "$menu_option. Only restore the drive '${dest_drives_list[$j]}' onto path '${unique_dirs_list[$i]}'"
+                    echo "$menu_option. Only restore drive '${dest_drives_list[$j]}' onto path '${unique_dirs_list[$i]}'"
 
                     # Save values for further selection:
                     selectable_drives_list+=("${dest_drives_list[$j]}")
@@ -490,7 +482,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         # Set dest_imgs_list from user choice:
         dest_imgs_list=(${selectable_imgs_list[$selection_index]})
 
-        if [[ -z ${selectable_dest_path_list[$selection_index]} ]]; then
+        if [[ ${selectable_dest_path_list[$selection_index]} = " " ]]; then
 
             # -----------------------------------------------------------------------------
             # Ask the user for a custom path for drives:
@@ -523,8 +515,9 @@ if [[ -z $vm_restore_exit_code ]]; then
             # Tell virtnbdrestore to adjust config, modifying, among other things, new paths of disk images:
             adjust_config="--adjust-config"
 
-            # And also tell to define this domain, if not already set:
+            # And also tell to define this domain with chosen name, if not already set:
             [[ -z $define_domain ]] && define_domain="--define"
+            [[ -z $custom_domain_name ]] && custom_domain_name="--name $dest_domain"
         fi
 
         if [[ "${selectable_drives_list[$selection_index]}" == "${dest_drives_list[$@]}" ]]; then
