@@ -346,6 +346,13 @@ if [[ -z $vm_restore_exit_code ]]; then
                 # Ask for a different name if the domain already exists on the list
                 read -p "Domain '$dest_domain' already exists or is invalid. Choose a different name: " dest_domain
             done
+
+            # Domain name was chosen by the user
+            custom_domain_name=true
+
+        else
+            # Domain name was chosen by available options:
+            custom_domain_name=false
         fi
 
         if [[ -z ${matching_domains_list[@]} ]]; then
@@ -358,13 +365,6 @@ if [[ -z $vm_restore_exit_code ]]; then
             dest_drives_list=(${src_drives_list[@]})
             dest_imgpaths_list=(${src_imgpaths_list[@]})
 
-            # When domain does not exist, tell virtnbdrestore to define it with chosen name after restoration:
-            define_domain="--define"
-            domain_name="--name $dest_domain"
-
-            # Custom message:
-            restoration_message="restored onto a new"
-
         else
             # -----------------------------------------------------------------------------
             # Total or partial match(es). Choose the domain from array matching_domains_list,
@@ -376,6 +376,27 @@ if [[ -z $vm_restore_exit_code ]]; then
             [[ -z $dest_domain ]] && dest_domain=${matching_domains_list[$dest_index]}
             dest_drives_list=(${matching_drives_list[$dest_index]})
             dest_imgpaths_list=(${matching_imgpaths_list[$dest_index]})
+
+        fi
+
+        if [[ $custom_domain_name == true ]]; then
+
+            # Tell virtnbdrestore to define the new domain with the user selecte name:
+            define_domain="--define"
+            domain_name="--name $dest_domain"
+
+            # Custom message:
+            restoration_message="restored and defined as a new"
+
+        elif [[ $no_matching_domains == true ]]
+
+            # Tell virtnbdrestore to define the new domain only:
+            define_domain="--define"
+
+            # Custom message:
+            restoration_message="restored and defined as a new"
+
+        else # Domain exists.
 
             # Custom message:
             restoration_message="restored onto the already existing"
@@ -482,12 +503,28 @@ if [[ -z $vm_restore_exit_code ]]; then
                 read -p "Path '$dest_path' is not absolute or is invalid. Choose a valid path: " dest_path
             done
 
-            # TODO: Set config adjustment to fit all needed cases.
-            # Tell virtnbdrestore to adjust config:
-            adjust_config="--adjust-config"
         else
             # Set dest_path from user choice:
             dest_path=${selectable_dest_path_list[$selection_index]}
+        fi
+
+        # Determine if backup to bestored requires chnages on definitions:
+        for ((i=0; i<${#src_imgpaths_list[@]}; i++)); do
+
+            if [[ ${src_imgpaths_list[@]} == $dest_path/${dest_imgs_list[$i]} ]]; then
+
+                # At least an original disk image path doesn't match with destination.
+                src_dest_imgpaths_mismatch=true
+            fi
+        done
+
+        if [[ $src_dest_imgpaths_mismatch == true ]]; then
+
+            # Tell virtnbdrestore to adjust config, modifying, among other things, new paths of disk images:
+            adjust_config="--adjust-config"
+
+            # And also tell to define this domain, if not already set:
+            [[ -z $define_domain ]] && define_domain="--define"
         fi
 
         if [[ "${selectable_drives_list[$selection_index]}" == "${dest_drives_list[$@]}" ]]; then
@@ -550,11 +587,12 @@ if [[ -z $vm_restore_exit_code ]]; then
                     fi
                 done
 
-                screen_header "="
                 #echo -e "\nBackup restoration of domain '$src_domain' from source '$src_path'$chosen_checkpoint_message is about to be $restoration_message domain '$dest_domain' in progress...\n"
 
-                # Run the command
+                # Run the command, with all arguments gathered during the process:
+                screen_header "="
                 virtnbdrestore --input $src_path --output $dest_path $until_chosen_checkpoint $define_domain $domain_name $adjust_config $upto_chosen_disk
+                screen_header "="
                 virtnbdrestore_exit_code=$?
 
                 if [[ $virtnbdrestore_exit_code -eq 0 ]]; then
