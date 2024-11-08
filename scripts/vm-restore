@@ -475,9 +475,9 @@ if [[ -z $vm_restore_exit_code ]]; then
                     echo "$menu_option. Only restore the drive '${dest_drives_list[$j]}' onto path '${unique_dirs_list[$i]}'"
 
                     # Save values for further selection:
-                    selectable_dest_path_list+=($folder)
-                    selectable_drives_list+=(${dest_drives_list[$j]})
-                    selectable_imgs_list+=("$(basename ${dest_imgpaths_list[$i]})")
+                    selectable_drives_list+=("${dest_drives_list[$j]}")
+                    selectable_dest_path_list+=("${unique_dirs_list[$i]}")
+                    selectable_imgs_list+=("$(basename ${dest_imgpaths_list[$j]})")
                 done
             fi
         done
