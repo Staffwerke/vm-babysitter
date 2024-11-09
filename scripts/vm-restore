@@ -582,7 +582,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                     if [[ -f $dest_path/${dest_imgs_list[$i]} ]]; then
 
                         # If found, rename with timestamp, and save the full path:
-                        saved_imgpaths_list+=($dest_path/${dest_imgs_list[$i]}.$(last_modified_time $($dest_path/${dest_imgs_list[$i]})))
+                        saved_imgpaths_list+=($dest_path/${dest_imgs_list[$i]}.$(last_modified_time $dest_path/${dest_imgs_list[$i]}))
                         mv $dest_path/${dest_imgs_list[$i]} ${saved_imgpaths_list[$i]}
 
                         echo "Disk image file ${dest_imgs_list[$i]} exists on path '$dest_path'. Renamed to $(basename ${saved_imgpaths_list[$i]})"
