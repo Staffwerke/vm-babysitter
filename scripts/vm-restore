@@ -485,7 +485,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         # Set dest_imgs_list from user choice:
         dest_imgs_list=(${selectable_imgs_list[$user_choice]})
 
-        if [[ ${selectable_dest_path_list[$user_choice]} == "#" ]]; then
+        if [[ -z ${selectable_dest_path_list[$user_choice]} ]]; then
 
             # -----------------------------------------------------------------------------
             # Ask the user for a custom path for drives:
