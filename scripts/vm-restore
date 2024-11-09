@@ -495,7 +495,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             # -----------------------------------------------------------------------------
             # Ask the user for a custom path for drives:
             # -----------------------------------------------------------------------------
-            read -p "Insert an absolute path to restore disk image(s) '${dest_imgs_list[@]}': " dest_path
+            read -p "Insert an absolute path to restore drive(s) '${dest_drives_list[@]}': " dest_path
 
             while [[ -z $dest_path || $dest_path != /* ]]; do
 
@@ -530,7 +530,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
             # Everything will be restored by default.
             # Custom message:
-            drives_message="All disk image(s)"
+            drives_message="All drive(s)"
 
         elif [[ ${#dest_drives_list[@]} -eq 1 ]]; then
 
@@ -538,10 +538,10 @@ if [[ -z $vm_restore_exit_code ]]; then
             upto_chosen_disk="--disk ${dest_drives_list[@]}"
 
             # Custom message:
-            drives_message="Selected disk image '${dest_drives_list[@]}'"
+            drives_message="Drive"
         fi
 
-        echo -e "$drives_message selected to be restored onto path '$dest_path'\n"
+        echo -e "$drives_message '${dest_drives_list[@]}' selected to be restored onto path '$dest_path'\n"
 
         # -----------------------------------------------------------------------------
         # Show summary and ask the user to start the restoration process:
