@@ -281,6 +281,9 @@ if [[ -z $vm_restore_exit_code ]]; then
 
             for domain in ${full_path_match_domains_list[@]}; do
 
+                # Applies when at least, all image path(s) coincide (showing which elements match with backup):
+                ((menu_option++))
+
                 if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
                     matching_message="name, uuid &"
                     # When full match, set as default option instead:
@@ -291,12 +294,13 @@ if [[ -z $vm_restore_exit_code ]]; then
                     matching_message="uuid &"
                 fi
 
-                # Applies when at least, all image path(s) coincide (showing which elements match with backup):
-                ((menu_option++))
                 echo -e "$menu_option. Total or partial restoration onto existing domain '$domain' <- $matching_message all disk image(s) match"
             done
 
             for domain in ${partial_path_match_domains_list[@]}; do
+
+                # Applies when at least, one image path coincide (showing which elements match with backup):
+                ((menu_option++))
 
                 if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
                     matching_message="name, uuid &"
@@ -306,12 +310,13 @@ if [[ -z $vm_restore_exit_code ]]; then
                     matching_message="uuid &"
                 fi
 
-                # Applies when at least, one image path coincide (showing which elements match with backup):
-                ((menu_option++))
                 echo -e "$menu_option. Custom restoration onto existing domain '$domain' <- $matching_message some disk image(s) match"
             done
 
             for domain in ${no_path_match_domains_list[@]}; do
+
+                # Applies when at least, domain name or uuid coincide (showing which elements match with backup):
+                ((menu_option++))
 
                 if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
                     matching_message="name & uuid match"
@@ -321,8 +326,6 @@ if [[ -z $vm_restore_exit_code ]]; then
                     matching_message="uuid matches"
                 fi
 
-                # Applies when at least, domain name or uuid coincide (showing which elements match with backup):
-                ((menu_option++))
                 echo -e "$menu_option. Custom restoration onto existing domain '$domain' <- $matching_message"
             done
         fi
