@@ -184,8 +184,6 @@ if [[ -z $vm_restore_exit_code ]]; then
 
             # (Re) initilize variables:
             dest_domain_matches=""
-            drives_list=()
-            imgpaths_list=()
 
             # Detect if a domain with same name exists (there can be only one):
             [[ $src_domain == $domain ]] && dest_domain_exists=true
@@ -202,7 +200,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                 # Domain has exactly the same drives and image paths as in chosen backup.
 
                 # Add domain to list to display with high priority:
-                high_path_match_domains_list+=($domain)
+                full_path_match_domains_list+=($domain)
 
                 # Add domain and metadata to matching lists at the end of this iteration:
                 dest_domain_matches=true
@@ -215,7 +213,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                     if [[ ${src_imgpaths_list[$i]} == ${imgpaths_list[$i]} && ${src_drives_list[$i]} == ${drives_list[$i]} ]]; then
 
                         # At least one match found. Add domain to list to display with mid priority:
-                        mid_path_match_domains_list+=($domain)
+                        partial_path_match_domains_list+=($domain)
 
                         # Add domain and metadata to matching lists at the end of this iteration:
                         dest_domain_matches=true
@@ -231,6 +229,9 @@ if [[ -z $vm_restore_exit_code ]]; then
                     # Domain matches by either name or uuid only. Add to list to display with low priority:
                     no_path_match_domains_list+=($domain)
 
+                    # Add domain and metadata to matching lists at the end of this iteration:
+                    dest_domain_matches=true
+
                 else
                     # Domain does not match in any way. Do not add metadata.
                     dest_domain_matches=false
@@ -241,8 +242,8 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                 # Add metadata for this domain if matches in some way:
                 matching_domains_list+=($domain)
-                matching_drives_list+=("${partial_drives_list[@]}")
-                matching_imgpaths_list+=("${partial_imgpaths_list[@]}")
+                matching_drives_list+=("${drives_list[@]}")
+                matching_imgpaths_list+=("${imgpaths_list[@]}")
             fi
         done
 
@@ -278,7 +279,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
         else # It's a match!
 
-            for domain in ${high_path_match_domains_list[@]}; do
+            for domain in ${full_path_match_domains_list[@]}; do
 
                 if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
                     matching_message="name, uuid &"
@@ -295,7 +296,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                 echo -e "$menu_option. Total or partial restoration onto existing domain '$domain' <- $matching_message all disk image(s) match"
             done
 
-            for domain in ${mid_path_match_domains_list[@]}; do
+            for domain in ${partial_path_match_domains_list[@]}; do
 
                 if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
                     matching_message="name, uuid &"
@@ -482,7 +483,8 @@ if [[ -z $vm_restore_exit_code ]]; then
         echo ""
         user_choice=$(($(choose_number "Choose an action" "1" "$menu_option" "$default_option") - 1))
 
-        # Set dest_imgs_list from user choice:
+        # Set dest_drives_list and dest_imgs_list from user choice:
+        dest_drives_list=(${selectable_drives_list[$user_choice]})
         dest_imgs_list=(${selectable_imgs_list[$user_choice]})
 
         if [[ -z ${selectable_dest_path_list[$user_choice]} ]]; then
@@ -503,48 +505,47 @@ if [[ -z $vm_restore_exit_code ]]; then
             dest_path=${selectable_dest_path_list[$user_choice]}
         fi
 
-        # Determine if backup to be restored requires chnages on definitions:
+        # Determine if backup to be restored requires changes on definitions:
         for ((i=0; i<${#src_imgpaths_list[@]}; i++)); do
 
             if [[ ${src_imgpaths_list[$i]} != $dest_path/${dest_imgs_list[$i]} ]]; then
 
                 # At least an original disk image path doesn't match with destination.
-                src_dest_imgpaths_mismatch=true
+                # Tell virtnbdrestore to adjust config, modifying, among other things, new paths of disk images:
+                adjust_config="--adjust-config"
+
+                # And also tell to define this domain with chosen name, if not already set:
+                [[ -z $define_domain ]] && define_domain="--define"
+                [[ -z $name_domain ]] && name_domain="--name $dest_domain"
 
                 # Stop searching:
                 break
             fi
         done
 
-        if [[ $src_dest_imgpaths_mismatch == true ]]; then
-
-            # Tell virtnbdrestore to adjust config, modifying, among other things, new paths of disk images:
-            adjust_config="--adjust-config"
-
-            # And also tell to define this domain with chosen name, if not already set:
-            [[ -z $define_domain ]] && define_domain="--define"
-            [[ -z $name_domain ]] && name_domain="--name $dest_domain"
-        fi
-
-        if [[ "${selectable_drives_list[$user_choice]}" == "${possible_drives_list[@]}" ]]; then
+        if [[ "${#dest_drives_list[@]}" == "${#possible_drives_list[@]}" ]]; then
 
             # Everything will be restored by default.
             # Custom message:
             drives_message="All disk image(s)"
 
-        else
+        elif [[ ${#dest_drives_list[@]} -eq 1 ]]; then
+
             # Notify to virtnbdrestore to only restore the selected drive, via optional argument:
-            upto_chosen_disk="--disk ${selectable_drives_list[$user_choice]}"
+            upto_chosen_disk="--disk ${dest_drives_list[@]}"
 
             # Custom message:
-            drives_message="Selected disk image '${selectable_drives_list[$user_choice]}'"
+            drives_message="Selected disk image '${dest_drives_list[@]}'"
         fi
 
         echo -e "$drives_message selected to be restored onto path '$dest_path'\n"
 
         # -----------------------------------------------------------------------------
-        # Ask the user to start the restoration process:
+        # Show summary and ask the user to start the restoration process:
         # -----------------------------------------------------------------------------
+
+        # TODO: Show source and destination details:
+        #echo -e "\nBackup restoration of domain '$src_domain' from source '$src_path'$chosen_checkpoint_message is about to be $restoration_message domain '$dest_domain' in progress...\n"
 
         if [[ $dest_domain == $(grep -o -e "$dest_domain" <<< "${existing_domains_list[@]}") ]]; then
 
@@ -584,8 +585,6 @@ if [[ -z $vm_restore_exit_code ]]; then
                         echo "Disk image file ${dest_imgs_list[$i]} exists on path '$dest_path'. Renamed to $(basename ${saved_imgpaths_list[$i]})"
                     fi
                 done
-
-                #echo -e "\nBackup restoration of domain '$src_domain' from source '$src_path'$chosen_checkpoint_message is about to be $restoration_message domain '$dest_domain' in progress...\n"
 
                 # Run the command, with all arguments gathered during the process:
                 screen_header "="
