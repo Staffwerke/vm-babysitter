@@ -348,11 +348,11 @@ if [[ -z $vm_restore_exit_code ]]; then
             done
 
             # Domain name was chosen by the user
-            set_custom_domain=true
+            domain_is_custom=true
 
         else
             # Domain name was chosen by available options:
-            set_custom_domain=false
+            domain_is_custom=false
         fi
 
         if [[ -z ${matching_domains_list[@]} ]]; then
@@ -362,8 +362,8 @@ if [[ -z $vm_restore_exit_code ]]; then
             # -----------------------------------------------------------------------------
             # Gets dest_domain (when not already set), drives and paths from source metadata:
             [[ -z $dest_domain ]] && dest_domain=$src_domain
-            dest_drives_list=(${src_drives_list[@]})
-            dest_imgpaths_list=(${src_imgpaths_list[@]})
+            possible_drives_list=(${src_drives_list[@]})
+            possible_imgpaths_list=(${src_imgpaths_list[@]})
 
         else
             # -----------------------------------------------------------------------------
@@ -374,12 +374,24 @@ if [[ -z $vm_restore_exit_code ]]; then
 
             # Gets dest_domain (when not already set), drives and paths from matching metadata:
             [[ -z $dest_domain ]] && dest_domain=${matching_domains_list[$user_choice]}
-            dest_drives_list=(${matching_drives_list[$user_choice]})
-            dest_imgpaths_list=(${matching_imgpaths_list[$user_choice]})
+            possible_drives_list=(${matching_drives_list[$user_choice]})
+            possible_imgpaths_list=(${matching_imgpaths_list[$user_choice]})
 
         fi
 
-        if [[ $set_custom_domain == true || $no_matching_domains == true ]]; then
+        # Unique possible destination paths and disk image names (without paths),
+        # are needed for the last menu:
+        for path in ${possible_imgpaths_list[@]}; do
+
+            # Get the unique dir paths available to restore:
+            [[ -z $(grep -o -e "$(dirname $path)" <<< ${possible_unique_paths_list[@]}) ]] \
+            possible_unique_paths_list+=($(dirname $path))
+
+            # And the list of disk images, without paths:
+            possible_imgs_list+=($(basename $path))
+        done
+
+        if [[ $domain_is_custom == true || $no_matching_domains == true ]]; then
 
             # Tell virtnbdrestore to define the domain with the user selected name:
             define_domain="--define"
@@ -404,10 +416,10 @@ if [[ -z $vm_restore_exit_code ]]; then
         printf "%5s  %s\n" "Drive" "Original path"
         screen_header "-"
 
-        for ((i=0; i<${#dest_drives_list[@]}; i++)); do
+        for ((i=0; i<${#possible_drives_list[@]}; i++)); do
 
             # List all drives and respective disk image files:
-            printf "%5s  %s\n" "${dest_drives_list[$i]}" "${dest_imgpaths_list[$i]}"
+            printf "%5s  %s\n" "${possible_drives_list[$i]}" "${possible_imgpaths_list[$i]}"
         done
 
         screen_header "-"
@@ -418,58 +430,55 @@ if [[ -z $vm_restore_exit_code ]]; then
         # Number of options present in the below dialog:
         menu_option=1
 
-        echo "$menu_option. Restore drives '${dest_drives_list[@]}' to a custom path"
+        echo "$menu_option. Restore drives '${possible_drives_list[@]}' to a custom path"
 
         # Save values for further selection:
-        selectable_drives_list+=("${dest_drives_list[@]}")
-        selectable_dest_path_list+=("#")
-        selectable_imgs_list+=("$(basename -a ${dest_imgpaths_list[@]})")
+        selectable_dest_path_list+=("") # Intentionally blank for being defined by user.
+        selectable_drives_list+=("${possible_drives_list[@]}")
+        selectable_imgs_list+=("${possible_imgs_list[@]}")
 
         # When multiple drives, show custom path options for individual restoration:
-        if [[ ${#dest_drives_list[@]} -gt 1 ]]; then
+        if [[ ${#possible_drives_list[@]} -gt 1 ]]; then
 
-            for ((i=0; i<${#dest_drives_list[@]}; i++)); do
+            for ((i=0; i<${#possible_drives_list[@]}; i++)); do
 
                 ((menu_option++))
-                echo "$menu_option. Only restore drive '${dest_drives_list[$i]}' to a custom path"
+                echo "$menu_option. Only restore drive '${possible_drives_list[$i]}' to a custom path"
 
                 # Save values for further selection:
-                selectable_drives_list+=("${dest_drives_list[$i]}")
-                selectable_dest_path_list+=("#")
-                selectable_imgs_list+=("$(basename -a ${dest_imgpaths_list[$i]})")
+                selectable_dest_path_list+=("") # Intentionally blank for being defined by user.
+                selectable_drives_list+=("${possible_drives_list[$i]}")
+                selectable_imgs_list+=("${possible_imgs_list[$i]}")
             done
         fi
 
         # Defined path(s) options:
         # -----------------------------------------------------------------------------
-        # Get the unique dir paths available to restore:
-        unique_dirs_list=($(dirname ${dest_imgpaths_list[@]} | uniq))
-
-        for ((i=0; i<${#unique_dirs_list[@]}; i++)); do
+        for ((i=0; i<${#possible_unique_paths_list[@]}; i++)); do
 
             ((menu_option++))
-            echo "$menu_option. Restore drives '${dest_drives_list[@]}' onto path '${unique_dirs_list[$i]}'"
+            echo "$menu_option. Restore drives '${possible_drives_list[@]}' onto path '${possible_unique_paths_list[$i]}'"
 
             # Save values for further selection:
-            selectable_drives_list+=("${dest_drives_list[@]}")
-            selectable_dest_path_list+=("${unique_dirs_list[$i]}")
-            selectable_imgs_list+=("$(basename -a ${dest_imgpaths_list[@]})")
+            selectable_dest_path_list+=("${possible_unique_paths_list[$i]}")
+            selectable_drives_list+=("${possible_drives_list[@]}")
+            selectable_imgs_list+=("${possible_imgs_list[@]}")
 
             # First defined path concurrence option for all devices becomes the default option:
             default_option=$menu_option
 
             # When multiple drives, show defined options for individual restoration:
-            if [[ ${#dest_drives_list[@]} -gt 1 ]]; then
+            if [[ ${#possible_drives_list[@]} -gt 1 ]]; then
 
-                for ((j=0; j<${#dest_drives_list[@]}; j++)); do
+                for ((j=0; j<${#possible_drives_list[@]}; j++)); do
 
                     ((menu_option++))
-                    echo "$menu_option. Only restore drive '${dest_drives_list[$j]}' onto path '${unique_dirs_list[$i]}'"
+                    echo "$menu_option. Only restore drive '${possible_drives_list[$j]}' onto path '${possible_unique_paths_list[$i]}'"
 
                     # Save values for further selection:
-                    selectable_drives_list+=("${dest_drives_list[$j]}")
-                    selectable_dest_path_list+=("${unique_dirs_list[$i]}")
-                    selectable_imgs_list+=("$(basename -a ${dest_imgpaths_list[$j]})")
+                    selectable_dest_path_list+=("${possible_unique_paths_list[$i]}")
+                    selectable_drives_list+=("${possible_drives_list[$j]}")
+                    selectable_imgs_list+=("${possible_imgs_list[$j]}")
                 done
             fi
         done
@@ -498,13 +507,16 @@ if [[ -z $vm_restore_exit_code ]]; then
             dest_path=${selectable_dest_path_list[$user_choice]}
         fi
 
-        # Determine if backup to bestored requires chnages on definitions:
+        # Determine if backup to be restored requires chnages on definitions:
         for ((i=0; i<${#src_imgpaths_list[@]}; i++)); do
 
-            if [[ ${src_imgpaths_list[@]} == $dest_path/${dest_imgs_list[$i]} ]]; then
+            if [[ ${src_imgpaths_list[$i]} != $dest_path/${dest_imgs_list[$i]} ]]; then
 
                 # At least an original disk image path doesn't match with destination.
                 src_dest_imgpaths_mismatch=true
+
+                # Stop searching:
+                break
             fi
         done
 
@@ -518,10 +530,9 @@ if [[ -z $vm_restore_exit_code ]]; then
             [[ -z $name_domain ]] && name_domain="--name $dest_domain"
         fi
 
-        if [[ "${selectable_drives_list[$user_choice]}" == "${dest_drives_list[@]}" ]]; then
+        if [[ "${selectable_drives_list[$user_choice]}" == "${possible_drives_list[@]}" ]]; then
 
             # Everything will be restored by default.
-
             # Custom message:
             drives_message="All disk image(s)"
 
