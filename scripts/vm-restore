@@ -183,10 +183,9 @@ if [[ -z $vm_restore_exit_code ]]; then
         for domain in ${existing_domains_list[@]}; do
 
             # (Re) initilize variables:
+            dest_domain_matches=""
             drives_list=()
             imgpaths_list=()
-            partial_drives_list=()
-            partial_imgpaths_list=()
 
             # Detect if a domain with same name exists (there can be only one):
             [[ $src_domain == $domain ]] && dest_domain_exists=true
@@ -202,51 +201,48 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                 # Domain has exactly the same drives and image paths as in chosen backup.
 
-                # Add domain separated list to display with high priority:
+                # Add domain to list to display with high priority:
                 high_path_match_domains_list+=($domain)
 
-                # And add metadata to other lists in order to process during following up processes:
-                matching_domains_list+=($domain)
-                matching_drives_list+=("${drives_list[@]}")
-                matching_imgpaths_list+=("${imgpaths_list[@]}")
+                # Add domain and metadata to matching lists at the end of this iteration:
+                dest_domain_matches=true
 
             else # No exact matches by path.
 
-                # Attempt to find partial matches:
+                # Attempt to find partial matches first:
                 for ((i=0; i<${#src_imgpaths_list[@]}; i++)); do
 
                     if [[ ${src_imgpaths_list[$i]} == ${imgpaths_list[$i]} && ${src_drives_list[$i]} == ${drives_list[$i]} ]]; then
 
-                        # Domain has at least one matching drive and path as in chosen backup:
-                        partial_imgpaths_list+=(${src_imgpaths_list[$i]})
-                        partial_drives_list+=(${drives_list[$i]})
+                        # At least one match found. Add domain to list to display with mid priority:
+                        mid_path_match_domains_list+=($domain)
+
+                        # Add domain and metadata to matching lists at the end of this iteration:
+                        dest_domain_matches=true
+
+                        # Interrupt the search:
+                        break
                     fi
                 done
 
-                if [[ -n ${partial_imgpaths_list[@]} ]]; then
+                if [[ -z $dest_domain_matches ]] \
+                && [[ $domain == $src_domain || $domain == $dest_id_domain ]]; then
 
-                    # Add domain separated list to display with mid priority:
-                    mid_path_match_domains_list+=($domain)
+                    # Domain matches by either name or uuid only. Add to list to display with low priority:
+                    no_path_match_domains_list+=($domain)
 
-                    # And add metadata to other lists in order to process during following up processes:
-                    matching_domains_list+=($domain)
-                    matching_drives_list+=("${partial_drives_list[@]}")
-                    matching_imgpaths_list+=("${partial_imgpaths_list[@]}")
-
-                else # Not even partial matches by path
-
-                    if [[ $domain == $src_domain || $domain == $dest_id_domain ]]; then
-
-                        # Domain matches by either name or uuid.
-                        # Add domain separated list to display with low priority:
-                        no_path_match_domains_list+=($domain)
-
-                        # Add metadata to other lists in order to process during following up processes:
-                        matching_domains_list+=($domain)
-                        matching_drives_list+=("${drives_list[@]}")
-                        matching_imgpaths_list+=("${imgpaths_list[@]}")
-                    fi
+                else
+                    # Domain does not match in any way. Do not add metadata.
+                    dest_domain_matches=false
                 fi
+            fi
+
+            if [[ $dest_domain_matches == true ]]; then
+
+                # Add metadata for this domain if matches in some way:
+                matching_domains_list+=($domain)
+                matching_drives_list+=("${partial_drives_list[@]}")
+                matching_imgpaths_list+=("${partial_imgpaths_list[@]}")
             fi
         done
 
@@ -311,7 +307,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                 # Applies when at least, one image path coincide (showing which elements match with backup):
                 ((menu_option++))
-                echo -e "$menu_option. Partial restoration onto existing domain '$domain' <- $matching_message some disk image(s) match"
+                echo -e "$menu_option. Custom restoration onto existing domain '$domain' <- $matching_message some disk image(s) match"
             done
 
             for domain in ${no_path_match_domains_list[@]}; do
