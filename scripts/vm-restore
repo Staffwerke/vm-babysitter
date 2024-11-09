@@ -385,7 +385,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
             # Get the unique dir paths available to restore:
             [[ -z $(grep -o -e "$(dirname $path)" <<< ${possible_unique_paths_list[@]}) ]] \
-            possible_unique_paths_list+=($(dirname $path))
+            && possible_unique_paths_list+=($(dirname $path))
 
             # And the list of disk images, without paths:
             possible_imgs_list+=($(basename $path))
