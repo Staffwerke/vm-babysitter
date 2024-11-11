@@ -376,7 +376,6 @@ if [[ -z $vm_restore_exit_code ]]; then
             [[ -z $dest_domain ]] && dest_domain=${matching_domains_list[$user_choice]}
             possible_drives_list=(${matching_drives_list[$user_choice]})
             possible_imgpaths_list=(${matching_imgpaths_list[$user_choice]})
-
         fi
 
         # Unique possible destination paths and disk image names (without paths),
@@ -495,7 +494,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             # -----------------------------------------------------------------------------
             # Ask the user for a custom path for drives:
             # -----------------------------------------------------------------------------
-            read -p "Insert an absolute path to restore drive(s) '${dest_drives_list[@]}': " dest_path
+            read -p "Insert an absolute path to restore drive(s) '${dest_drives_list[*]}': " dest_path
 
             while [[ -z $dest_path || $dest_path != /* ]]; do
 
