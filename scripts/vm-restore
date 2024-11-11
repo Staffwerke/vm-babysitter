@@ -492,11 +492,11 @@ if [[ -z $vm_restore_exit_code ]]; then
 
         # Restoration is either partial (one drive only), or # of drives at backups are more than in destination:
         # -----------------------------------------------------------------------------
-        if [[ ${#dest_drives_list[@]} -eq 1 && ${#dest_drives_list[@]} -lt ${#src_drives_list[@]} ]]; then
+        if [[ ${#src_dates_list[@]} -gt ${#dest_drives_list[@]} && ${#dest_drives_list[@]} -eq 1 ]]; then
 
             restoration_is_partial=true
 
-        elif [[ ${#dest_drives_list[@]} -gt ${#src_drives_list[@]} ]]; then
+        elif [[ ${#src_drives_list[@]} -gt ${#possible_drives_list[@]} ]]; then
 
             restoration_has_more_drives=true
         fi
