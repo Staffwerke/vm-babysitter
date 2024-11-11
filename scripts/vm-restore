@@ -157,9 +157,11 @@ if [[ -z $vm_restore_exit_code ]]; then
 
             if [[ $user_choice -ne $src_checkpoints_num ]]; then
 
-                # When user_choice is different than the default option,
-                # set these variables to notify and to be used with virtnbdrestore when restoring (up to chosen checkpoint):
+                # user_choice is different than the default option:
                 chosen_checkpoint="${src_checkpoints_list[$user_choice]}"
+
+                # Set virtnbdrestore optional argument to retore until this checkpoint only:
+                # -----------------------------------------------------------------------------
                 until_checkpoint_option="--until $chosen_checkpoint"
             fi
         fi
@@ -392,9 +394,9 @@ if [[ -z $vm_restore_exit_code ]]; then
 
         if [[ $domain_is_custom == true || $no_matching_domains == true ]]; then
 
-            # Tell virtnbdrestore to define the domain with the user selected name:
-            define_domain_option="--define"
-            domain_name_option="--name $dest_domain"
+            # Domain needs to be defined:
+            # -----------------------------------------------------------------------------
+            domain_definition_needed=true
 
             # Custom message:
             restoration_message="restored and defined as a new"
@@ -485,8 +487,21 @@ if [[ -z $vm_restore_exit_code ]]; then
         echo ""
         user_choice=$(($(choose_number "Choose an action" "1" "$menu_option" "$default_option") - 1))
 
-        # Set dest_drives_list and dest_imgs_list from user choice:
+        # Set dest_imgs_list from user choice:
         dest_drives_list=(${selectable_drives_list[$user_choice]})
+
+        # Restoration is either partial (one drive only), or # of drives at backups are more than in destination:
+        # -----------------------------------------------------------------------------
+        if [[ ${#dest_drives_list[@]} -eq 1 && ${#dest_drives_list[@]} -lt ${#src_drives_list[@]} ]]; then
+
+            restoration_is_partial=true
+
+        elif [[ ${#dest_drives_list[@]} -gt ${#src_drives_list[@]} ]]; then
+
+            restoration_has_more_drives=true
+        fi
+
+        # Set dest_imgs_list from user choice:
         dest_imgs_list=(${selectable_imgs_list[$user_choice]})
 
         if [[ -z ${selectable_dest_path_list[$user_choice]} ]]; then
@@ -502,45 +517,48 @@ if [[ -z $vm_restore_exit_code ]]; then
                 read -p "Path '$dest_path' is not absolute or is invalid. Choose a valid path: " dest_path
             done
 
+            # Destination path was defined by user:
+            # -----------------------------------------------------------------------------
+            dest_path_is_custom=true
+
         else
             # Set dest_path from user choice:
             dest_path=${selectable_dest_path_list[$user_choice]}
         fi
 
-        # Determine if backup to be restored requires changes on definitions:
+        # Determine if dest_path has changed for at least one disk image:
+        # -----------------------------------------------------------------------------
         for ((i=0; i<${#src_imgpaths_list[@]}; i++)); do
 
             if [[ ${src_imgpaths_list[$i]} != $dest_path/${dest_imgs_list[$i]} ]]; then
 
-                # At least an original disk image path doesn't match with destination.
-                # Tell virtnbdrestore to adjust new paths of disk images into config (as well deleting uuid and raw devices):
-                adjust_config_option="--adjust-config"
-
-                # And also tell to define this domain with chosen name, if not already set:
-                [[ -z $define_domain_option ]] && define_domain_option="--define"
-                [[ -z $domain_name_option ]] && domain_name_option="--name $dest_domain"
-
+                # At least one destination path is different from backup:
+                dest_path_has_changed=true
                 # Stop searching:
                 break
             fi
         done
 
-        if [[ "${#dest_drives_list[@]}" == "${#possible_drives_list[@]}" ]]; then
+        echo -e "Drive(s) '${dest_drives_list[@]}' selected to be restored onto path '$dest_path'\n"
 
-            # Everything will be restored by default.
-            # Custom message:
-            drives_message="All drive(s)"
+        # -----------------------------------------------------------------------------
+        # Properly set virtnbdrestore remaining optional arguments, based upon the results
+        # (options are listed from more to less dependences):
+        # -----------------------------------------------------------------------------
 
-        elif [[ ${#dest_drives_list[@]} -eq 1 ]]; then
+        # Set to only restore the selected drive:
+        [[ $restoration_is_partial == true ]] && drive_option="--disk ${dest_drives_list[@]}"
 
-            # Notify to virtnbdrestore to only restore the selected drive, via optional argument:
-            drive_option="--disk ${dest_drives_list[@]}"
+        # Set to adjust config new paths of disk images into config (as well deleting uuid and raw devices):
+        [[ $restoration_has_more_drives || $dest_path_is_custom || $dest_path_has_changed == true || -n $drive_option ]] \
+            && adjust_config_option="--adjust-config"
 
-            # Custom message:
-            drives_message="Drive"
+        # Set to define the domain (with the user selected name):
+        if [[ $domain_definition_needed == true  || -n $adjust_config_option ]]; then
+
+            define_domain_option="--define"
+            domain_name_option="--name $dest_domain"
         fi
-
-        echo -e "$drives_message '${dest_drives_list[@]}' selected to be restored onto path '$dest_path'\n"
 
         # -----------------------------------------------------------------------------
         # Show summary and ask the user to start the restoration process:
@@ -590,7 +608,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                 # Run the command, with all arguments gathered during the process:
                 screen_header "="
-                virtnbdrestore --input $src_path --output $dest_path $until_checkpoint_option $define_domain_option $domain_name_option $adjust_config_option $drive_option
+                virtnbdrestore --input $src_path --output $dest_path $until_checkpoint_option $drive_option $adjust_config_option $define_domain_option $domain_name_option
                 screen_header "="
                 virtnbdrestore_exit_code=$?
 
