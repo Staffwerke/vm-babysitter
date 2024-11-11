@@ -247,6 +247,10 @@ if [[ -z $vm_restore_exit_code ]]; then
                 matching_drives_list+=("${drives_list[*]}")
                 matching_imgpaths_list+=("${imgpaths_list[*]}")
             fi
+
+            # -----------------------------------------------------------------------------
+            # Add existing image paths to a global list (used for further comparation):
+            existing_imgpaths_list+=("${imgpaths_list[*]}")
         done
 
         # Fill all unset boolean variables about existing metadata to false:
@@ -509,17 +513,39 @@ if [[ -z $vm_restore_exit_code ]]; then
             # -----------------------------------------------------------------------------
             # Ask the user for a custom path for drives:
             # -----------------------------------------------------------------------------
-            read -p "Insert an absolute path to restore drive(s) '${dest_drives_list[*]}': " dest_path
+            custom_path_message="Insert an absolute path to restore drive(s) '${dest_drives_list[*]}': "
 
-            while [[ -z $dest_path || $dest_path != /* ]]; do
+            until [[ $dest_path_is_custom == true ]]; do
 
-                # Ask for a different path name if invalid:
-                read -p "Path '$dest_path' is not absolute or is invalid. Choose a valid path: " dest_path
+                #Begin the iteration with the last message set:
+                read -p "$custom_path_message" dest_path
+
+                if [[ -z $dest_path ]]; then
+
+                    custom_path_message="Path '$dest_path' is empty. Insert a valid path"
+
+                elif [[ $dest_path != /* ]]; then
+
+                    custom_path_message="Path '$dest_path' is relative. Insert an absolute path"
+
+                else
+
+                    for image in ${dest_imgs_list[@]}; do
+                        [[ -n $(grep -o -e "$dest_path/$image" <<< ${existing_imgpaths_list[@]} ) ]] \
+                            && { existing_image=$image; break; } \
+                            || existing_image=""
+                    done
+
+                    if [[ -n $existing_image ]]; then
+
+                        custom_path_message="Disk image '$existing_image' to be restored is already defined by another domain at '$dest_path'. Please choose a different path"
+
+                    else
+                        # A correct Destination path was defined by the user. This ends the iteration:
+                        dest_path_is_custom=true
+                    fi
+                fi
             done
-
-            # Destination path was defined by user:
-            # -----------------------------------------------------------------------------
-            dest_path_is_custom=true
 
         else
             # Set dest_path from user choice:
@@ -553,9 +579,9 @@ if [[ -z $vm_restore_exit_code ]]; then
         [[ $restoration_has_more_drives || $dest_path_is_custom || $dest_path_has_changed == true || -n $drive_option ]] \
             && adjust_config_option="--adjust-config"
 
-        # Set to define the domain (with the user selected name):
         if [[ $domain_definition_needed == true  || -n $adjust_config_option ]]; then
 
+            # Set to define the domain (with the user selected name):
             define_domain_option="--define"
             domain_name_option="--name $dest_domain"
         fi
@@ -652,4 +678,3 @@ if [[ -z $vm_restore_exit_code ]]; then
 fi
 # End program with resulting exit code:
 exit $vm_restore_exit_code
-
