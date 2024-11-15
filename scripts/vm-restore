@@ -564,9 +564,6 @@ if [[ -z $vm_restore_exit_code ]]; then
         # Show summary and ask the user to start the restoration process:
         # -----------------------------------------------------------------------------
 
-        # TODO: Show source and destination details:
-        #echo -e "\nBackup restoration of domain '$src_domain' from source '$src_path'$chosen_checkpoint_message is about to be $restoration_message domain '$dest_domain' in progress...\n"
-
         if [[ $dest_domain == $(grep -o -e "$dest_domain" <<< "${existing_domains_list[@]}") ]]; then
 
             # When dest_domain exists, get the state of such domain:
@@ -584,11 +581,13 @@ if [[ -z $vm_restore_exit_code ]]; then
 
         if [[ $start_restoration == yes ]]; then
 
+            screen_header "="
             if [[ -n $dest_domain_state && $dest_domain_state != "shut off" ]]; then
 
                 # Shutdown existing dest_domain that is not shut off:
                 domain_shutdown $dest_domain --wait $WAIT_TIME
                 domain_shutdown_exit_code=$?
+                echo ""
             fi
 
             if [[ -z $domain_shutdown_exit_code || $domain_shutdown_exit_code -eq 0 ]]; then
@@ -602,25 +601,40 @@ if [[ -z $vm_restore_exit_code ]]; then
                         saved_imgpaths_list+=($dest_path/${dest_imgs_list[$i]}.$(last_modified_time $dest_path/${dest_imgs_list[$i]}))
                         mv $dest_path/${dest_imgs_list[$i]} ${saved_imgpaths_list[$i]}
 
-                        echo "Disk image file ${dest_imgs_list[$i]} exists on path '$dest_path'. Renamed to $(basename ${saved_imgpaths_list[$i]})"
+                        echo -e "Disk image file ${dest_imgs_list[$i]} exists on path '$dest_path'. Renamed to $(basename ${saved_imgpaths_list[$i]})"
                     fi
                 done
 
                 # Run the command, with all arguments gathered during the process:
-                screen_header "="
+                screen_header "-"
                 virtnbdrestore --input $src_path --output $dest_path $until_checkpoint_option $drive_option $adjust_config_option $define_domain_option $domain_name_option
-                screen_header "="
+                screen_header "-" "\n"
                 virtnbdrestore_exit_code=$?
 
                 if [[ $virtnbdrestore_exit_code -eq 0 ]]; then
 
-                    echo -e "Backup restoration of domain '$dest_domain' ended successfully!"
-
-                    if [[ $dest_domain_exists == true || $dest_id_exists == true ]]; then
+                    if [[ $domain_definition_needed != true ]]; then
 
                         echo "Pruning any existing checkpoints metadata from domain '$dest_domain'..."
                         domain_delete_checkpoints $dest_domain --all --metadata
+
+                        [[ $dest_path_has_changed == true || $restoration_has_more_drives ]] && final_message="Check domain '$dest_domain' settings and perform all necessary adjustments to reflect restored disk images at path '$dest_path'"
                     fi
+
+                    [[ $restoration_has_more_drives == true ]] \
+                        && final_message=""
+
+                    echo -e "Backup restoration of domain '$dest_domain' ended successfully!\n$final_message"
+
+                    if [[ -n ${saved_imgpaths_list[@]} ]]; then
+
+                        echo ""
+                        delete_leftovers=$(yes_no "Delete disk images that were found and renamed prior to restoration from '$dest_path'?: " "no")
+                        [[ $delete_leftovers == yes ]] && rm -f vmconfig.xml ${saved_imgpaths_list[@]}
+                    fi
+
+                    # Delete virtnbdrestore definitions left at dest_path:
+                    [[ -f $dest_path/vmconfig.xml ]] && rm -f $dest_path/vmconfig.xml
 
                     # Return success status:
                     vm_restore_exit_code=0
@@ -634,9 +648,12 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                         mv -f ${saved_imgpaths_list[$i]} $dest_path/${dest_imgs_list[$i]}
                         echo "Reverted ${saved_imgpaths_list[$i]} back to $dest_path/${dest_imgs_list[$i]}"
-
-                        vm_restore_exit_code=1
                     done
+
+                    # Delete virtnbdrestore definitions left at dest_path:
+                    [[ -f $dest_path/vmconfig.xml ]] && rm -f $dest_path/vmconfig.xml
+
+                    vm_restore_exit_code=1
                 fi
             else
                 echo -e "ERROR: Could not safely start the restoration process, because domain '$dest_domain' current state ($(domain_state $dest_domain)) disallows it!\n"
