@@ -224,20 +224,6 @@ if [[ -z $vm_restore_exit_code ]]; then
                         break
                     fi
                 done
-
-                if [[ -z $dest_domain_matches ]] \
-                && [[ $domain == $src_domain || $domain == $dest_id_domain ]]; then
-
-                    # Domain matches by either name or uuid only. Add to list to display with low priority:
-                    no_path_match_domains_list+=($domain)
-
-                    # Add domain and metadata to matching lists at the end of this iteration:
-                    dest_domain_matches=true
-
-                else
-                    # Domain does not match in any way. Do not add metadata.
-                    dest_domain_matches=false
-                fi
             fi
 
             if [[ $dest_domain_matches == true ]]; then
@@ -316,23 +302,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                     matching_message="uuid &"
                 fi
 
-                echo -e "$menu_option. Custom restoration onto existing domain '$domain' <- $matching_message some disk image(s) match"
-            done
-
-            for domain in ${no_path_match_domains_list[@]}; do
-
-                # Applies when at least, domain name or uuid coincide (showing which elements match with backup):
-                ((menu_option++))
-
-                if [[ $dest_domain_exists == true && $src_domain == $dest_id_domain ]]; then
-                    matching_message="name & uuid match"
-                elif [[ $dest_domain_exists == true && $dest_id_exists == false ]]; then
-                    matching_message="name matches"
-                elif [[ $dest_domain_exists == false && $dest_id_exists == true ]]; then
-                    matching_message="uuid matches"
-                fi
-
-                echo -e "$menu_option. Custom restoration onto existing domain '$domain' <- $matching_message"
+                echo -e "$menu_option. Partial or custom restoration onto existing domain '$domain' <- $matching_message some disk image(s) match"
             done
         fi
 
@@ -427,6 +397,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         done
 
         echo -e "\nAvailable actions for restorable device(s):"
+        screen_header "-"
 
         # Custom path options:
         # -----------------------------------------------------------------------------
