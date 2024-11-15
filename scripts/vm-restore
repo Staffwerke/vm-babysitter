@@ -418,43 +418,46 @@ if [[ -z $vm_restore_exit_code ]]; then
         # -----------------------------------------------------------------------------
         echo -e "Retrieving info about restorable drives and disk image paths..."
         screen_header "-"
-        printf "%5s  %s\n" "Drive" "Original path"
+        printf "%5s  %s\n" "Drive" "Current destination path"
         screen_header "-"
-
         for ((i=0; i<${#possible_drives_list[@]}; i++)); do
 
             # List all drives and respective disk image files:
             printf "%5s  %s\n" "${possible_drives_list[$i]}" "${possible_imgpaths_list[$i]}"
         done
 
-        screen_header "-"
-        echo -e "Available actions for restorable device(s):"
+        echo -e "\nAvailable actions for restorable device(s):"
 
         # Custom path options:
         # -----------------------------------------------------------------------------
         # Number of options present in the below dialog:
-        menu_option=1
+        menu_option=0
 
-        echo "$menu_option. Restore drives '${possible_drives_list[@]}' to a custom path"
+        if [[ $domain_definition_needed == true ]]; then
 
-        # Save values for further selection:
-        selectable_dest_path_list+=("") # Intentionally blank for being defined by user.
-        selectable_drives_list+=("${possible_drives_list[*]}")
-        selectable_imgs_list+=("${possible_imgs_list[*]}")
+            # User can only modify paths when dest_domain has not been defined:
+            ((menu_option++))
+            echo "$menu_option. Restore drives '${possible_drives_list[@]}' to a custom path"
 
-        # When multiple drives, show custom path options for individual restoration:
-        if [[ ${#possible_drives_list[@]} -gt 1 ]]; then
+            # Save values for further selection:
+            selectable_dest_path_list+=("") # Intentionally blank for being defined by user.
+            selectable_drives_list+=("${possible_drives_list[*]}")
+            selectable_imgs_list+=("${possible_imgs_list[*]}")
 
-            for ((i=0; i<${#possible_drives_list[@]}; i++)); do
+            if [[ ${#possible_drives_list[@]} -gt 1 ]]; then
 
-                ((menu_option++))
-                echo "$menu_option. Only restore drive '${possible_drives_list[$i]}' to a custom path"
+                # When multiple drives, show custom path options for individual restoration:
+                for ((i=0; i<${#possible_drives_list[@]}; i++)); do
 
-                # Save values for further selection:
-                selectable_dest_path_list+=("") # Intentionally blank for being defined by user.
-                selectable_drives_list+=(${possible_drives_list[$i]})
-                selectable_imgs_list+=(${possible_imgs_list[$i]})
-            done
+                    ((menu_option++))
+                    echo "$menu_option. Only restore drive '${possible_drives_list[$i]}' to a custom path"
+
+                    # Save values for further selection:
+                    selectable_dest_path_list+=("") # Intentionally blank for being defined by user.
+                    selectable_drives_list+=(${possible_drives_list[$i]})
+                    selectable_imgs_list+=(${possible_imgs_list[$i]})
+                done
+            fi
         fi
 
         # Defined path(s) options:
@@ -472,9 +475,9 @@ if [[ -z $vm_restore_exit_code ]]; then
             # First defined path concurrence option for all devices becomes the default option:
             default_option=$menu_option
 
-            # When multiple drives, show defined options for individual restoration:
             if [[ ${#possible_drives_list[@]} -gt 1 ]]; then
 
+                # When multiple drives, show defined options for individual restoration:
                 for ((j=0; j<${#possible_drives_list[@]}; j++)); do
 
                     ((menu_option++))
@@ -518,7 +521,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             until [[ $dest_path_is_custom == true ]]; do
 
                 #Begin the iteration with the last message set:
-                read -p "$custom_path_message" dest_path
+                read -p "$custom_path_message: " dest_path
 
                 if [[ -z $dest_path ]]; then
 
@@ -569,21 +572,21 @@ if [[ -z $vm_restore_exit_code ]]; then
 
         # -----------------------------------------------------------------------------
         # Properly set virtnbdrestore remaining optional arguments, based upon the results
-        # (options are listed from more to less dependences):
         # -----------------------------------------------------------------------------
 
         # Set to only restore the selected drive:
         [[ $restoration_is_partial == true ]] && drive_option="--disk ${dest_drives_list[@]}"
 
-        # Set to adjust config new paths of disk images into config (as well deleting uuid and raw devices):
-        [[ $restoration_has_more_drives || $dest_path_is_custom || $dest_path_has_changed == true || -n $drive_option ]] \
-            && adjust_config_option="--adjust-config"
 
-        if [[ $domain_definition_needed == true  || -n $adjust_config_option ]]; then
+        if [[ $domain_definition_needed == true ]]; then
 
             # Set to define the domain (with the user selected name):
             define_domain_option="--define"
             domain_name_option="--name $dest_domain"
+
+            # Set to adjust config new paths of disk images into config (as well deleting uuid and raw devices):
+            [[ $dest_path_is_custom || $dest_path_has_changed == true ]] \
+            && adjust_config_option="--adjust-config"
         fi
 
         # -----------------------------------------------------------------------------
