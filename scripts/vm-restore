@@ -150,7 +150,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             # Ask the user to choose a specific checkpoint to restore:
             # -----------------------------------------------------------------------------
             echo ""
-            user_choice=$(($(choose_number "Choose a specific point in time to restore (or press ENTER to select the latest one) :" "1" "$src_checkpoints_num" "$src_checkpoints_num") - 1))
+            user_choice=$(($(choose_number "Choose a specific point in time to restore (press ENTER to select the latest one) :" "1" "$src_checkpoints_num" "$src_checkpoints_num") - 1))
 
             if [[ $user_choice -ne $src_checkpoints_num ]]; then
 
@@ -169,7 +169,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         src_imgpaths_list=($(backup_restorable_list --paths $src_path $chosen_checkpoint))
 
         [[ -n $chosen_checkpoint ]] && chosen_checkpoint_message=" (at checkpoint '$chosen_checkpoint')"
-        echo -e "\nBackup of domain '$src_domain' from source '$src_path'$chosen_checkpoint_message selected for restoration\n"
+        echo -e "\nBackup of domain '$src_domain' at directory '$src_path'$chosen_checkpoint_message selected for restoration\n"
 
         # -----------------------------------------------------------------------------
         # When applies, compare backup info (name, id, drives, paths, etc.) with existing domains:
@@ -258,7 +258,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
             # Applies when no existing domain, uuid or image path(s), match with chosen backup:
             ((menu_option++))
-            echo -e "$menu_option. Total or partial restoration as new domain '$src_domain' <- no matches found"
+            echo -e "$menu_option. Total or partial restoration as new domain '$src_domain' (no matches found)"
 
             # When no matches, set as default option instead:
             default_option=$menu_option
@@ -280,7 +280,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                     matching_message="uuid &"
                 fi
 
-                echo -e "$menu_option. Total or partial restoration onto existing domain '$domain' <- $matching_message all disk image(s) match"
+                echo -e "$menu_option. Total or partial restoration onto existing domain '$domain' ($matching_message all disk image(s) match)"
             done
 
             for domain in ${partial_path_match_domains_list[@]}; do
@@ -296,7 +296,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                     matching_message="uuid &"
                 fi
 
-                echo -e "$menu_option. Partial or custom restoration onto existing domain '$domain' <- $matching_message some disk image(s) match"
+                echo -e "$menu_option. Partial or custom restoration onto existing domain '$domain' ($matching_message some disk image(s) match)"
             done
         fi
 
@@ -369,7 +369,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             # -----------------------------------------------------------------------------
             domain_definition_needed=true
 
-            if [[ -z $autopath_is_possible ]]; then
+            if [[ $autopath_is_possible != false ]]; then
 
                 # Automatic path for non-defined domain is possible, since disk images to be restored don't match with any other defined domain:
                 autopath_is_possible=true
@@ -421,7 +421,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             # Custom path options:
             # -----------------------------------------------------------------------------
             ((menu_option++))
-            echo "$menu_option. Restore drives '${possible_drives_list[@]}' to a custom path"
+            echo "$menu_option. Restore '${possible_imgs_list[@]}' to a custom path"
 
             # Save values for further selection:
             selectable_dest_path_list+=("") # Intentionally blank for being defined by user.
@@ -434,7 +434,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                 for ((i=0; i<${#possible_drives_list[@]}; i++)); do
 
                     ((menu_option++))
-                    echo "$menu_option. Only restore drive '${possible_drives_list[$i]}' to a custom path"
+                    echo "$menu_option. Only restore '${possible_imgs_list[$i]}' to a custom path"
 
                     # Save values for further selection:
                     selectable_dest_path_list+=("") # Intentionally blank for being defined by user.
@@ -448,7 +448,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             for ((i=0; i<${#proposed_unique_paths_list[@]}; i++)); do
 
                 ((menu_option++))
-                echo "$menu_option. Restore drives '${possible_drives_list[@]}' automatically to path '${proposed_unique_paths_list[$i]}'"
+                echo "$menu_option. Restore '${possible_imgs_list[@]}' automatically onto path '${proposed_unique_paths_list[$i]}'"
 
                 # When an automatic path has been generated, set the first option as default:
                 [[ -z $default_option ]] && default_option=$menu_option
@@ -464,7 +464,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                     for ((j=0; j<${#possible_drives_list[@]}; j++)); do
 
                         ((menu_option++))
-                        echo "$menu_option. Only restore drive '${possible_drives_list[$j]}' automatically to path '${proposed_unique_paths_list[$i]}'"
+                        echo "$menu_option. Only restore '${possible_imgs_list[$j]}' automatically onto path '${proposed_unique_paths_list[$i]}'"
 
                         # Save values for further selection:
                         selectable_dest_path_list+=(${proposed_unique_paths_list[$i]})
@@ -480,7 +480,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         for ((i=0; i<${#possible_unique_paths_list[@]}; i++)); do
 
             ((menu_option++))
-            echo "$menu_option. Restore drives '${possible_drives_list[@]}' onto path '${possible_unique_paths_list[$i]}'"
+            echo "$menu_option. Restore '${possible_imgs_list[@]}' onto existing path '${possible_unique_paths_list[$i]}'"
 
             # Save values for further selection:
             selectable_dest_path_list+=(${possible_unique_paths_list[$i]})
@@ -496,7 +496,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                 for ((j=0; j<${#possible_drives_list[@]}; j++)); do
 
                     ((menu_option++))
-                    echo "$menu_option. Only restore drive '${possible_drives_list[$j]}' onto path '${possible_unique_paths_list[$i]}'"
+                    echo "$menu_option. Only restore '${possible_imgs_list[$j]}' onto existing path '${possible_unique_paths_list[$i]}'"
 
                     # Save values for further selection:
                     selectable_dest_path_list+=(${possible_unique_paths_list[$i]})
@@ -535,11 +535,11 @@ if [[ -z $vm_restore_exit_code ]]; then
             # -----------------------------------------------------------------------------
             # Ask the user for a custom path for drives:
             # -----------------------------------------------------------------------------
-            custom_path_message="Insert an absolute path to restore drive(s) '${dest_drives_list[*]}': "
+            custom_path_message="Insert an absolute path to restore '${dest_imgs_list[*]}': "
 
             until [[ $dest_path_is_custom == true ]]; do
 
-                #Begin the iteration with the last message set:
+                # Begin the iteration with the last message set:
                 read -p "$custom_path_message: " dest_path
 
                 if [[ -z $dest_path ]]; then
@@ -560,7 +560,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                     if [[ -n $existing_image ]]; then
 
-                        custom_path_message="Disk image '$existing_image' to be restored is already defined by another domain at '$dest_path'. Please choose a different path"
+                        custom_path_message="Disk image '$existing_image' is already defined by another domain at '$dest_path'. Please choose a different path"
 
                     else
                         # A correct dest_path was defined by the user. This ends the iteration:
@@ -591,7 +591,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             fi
         done
 
-        echo -e "Drive(s) '${dest_drives_list[@]}' selected to be restored onto path '$dest_path'\n"
+        echo -e "\nDisk image(s) '${dest_imgs_list[@]}' selected to be restored onto path '$dest_path'\n"
 
         # -----------------------------------------------------------------------------
         # Properly set virtnbdrestore remaining optional arguments, based on results:
@@ -633,11 +633,11 @@ if [[ -z $vm_restore_exit_code ]]; then
         # -----------------------------------------------------------------------------
         # Ask the user to start or not the restoration process:
         # -----------------------------------------------------------------------------
+        screen_header "="
         start_restoration=$(yes_no "$start_restoration_message" "no")
 
         if [[ $start_restoration == yes ]]; then
 
-            screen_header "="
             if [[ -n $dest_domain_state && $dest_domain_state != "shut off" ]]; then
 
                 # Shutdown existing dest_domain that is not shut off:
@@ -660,7 +660,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                         saved_imgpaths_list+=($dest_path/${dest_imgs_list[$i]}.$(last_modified_time $dest_path/${dest_imgs_list[$i]}))
                         mv $dest_path/${dest_imgs_list[$i]} ${saved_imgpaths_list[$i]}
 
-                        echo -e "Disk image file ${dest_imgs_list[$i]} exists on path '$dest_path'. Renamed to $(basename ${saved_imgpaths_list[$i]})"
+                        echo -e "INFO: Existing disk image file '${dest_imgs_list[$i]}' at path '$dest_path' renamed to '$(basename ${saved_imgpaths_list[$i]})'"
                     fi
                 done
 
@@ -669,21 +669,20 @@ if [[ -z $vm_restore_exit_code ]]; then
                 # -----------------------------------------------------------------------------
                 screen_header "-"
                 virtnbdrestore --input $src_path --output $dest_path $until_checkpoint_option $drive_option $adjust_config_option $define_domain_option $domain_name_option
-                screen_header "-" "\n"
+                screen_header "-"
                 virtnbdrestore_exit_code=$?
 
                 if [[ $virtnbdrestore_exit_code -eq 0 ]]; then
 
                     # Success.
-
                     if [[ $domain_definition_needed != true ]]; then
 
                         # Existing domains require to be pruned of any existing checkpoints metadata:
-                        echo "Pruning any existing checkpoints metadata from domain '$dest_domain'..."
+                        echo -e "Pruning any existing checkpoints metadata from domain '$dest_domain'..."
                         domain_delete_checkpoints $dest_domain --all --metadata
 
                         # On certain scenarios, user is notified about to perform adjustments in order to complete the restoration process:
-                        [[ $dest_path_has_changed == true || $restoration_has_more_drives ]] && final_message="Check domain '$dest_domain' settings and perform all necessary adjustments to reflect restored disk images at path '$dest_path'"
+                        [[ $dest_path_has_changed == true || $restoration_has_more_drives ]] && final_message="(Check domain '$dest_domain' settings and perform all necessary adjustments to reflect restored disk images [${dest_imgs_list[@]}] at path '$dest_path')"
                     fi
 
                     echo -e "\nBackup restoration of domain '$dest_domain' ended successfully!\n$final_message\n"
@@ -699,7 +698,6 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                     # Return success status:
                     vm_restore_exit_code=0
-                    echo -e "\n$(basename $0): Finished.\n"
 
                 else # It Failed!
 
@@ -709,7 +707,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                     for ((i=0; i<${saved_imgpaths_list[@]}; i++)); do
 
                         mv -f ${saved_imgpaths_list[$i]} $dest_path/${dest_imgs_list[$i]}
-                        echo "Reverted ${saved_imgpaths_list[$i]} back to $dest_path/${dest_imgs_list[$i]}"
+                        echo "INFO: Reverted '$(basename ${saved_imgpaths_list[$i]})' back to '${dest_imgs_list[$i]}'"
                     done
 
                     # Delete virtnbdrestore definitions left at dest_path:
