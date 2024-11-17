@@ -35,7 +35,7 @@ source /usr/local/bin/vm-functions
 
 case $1 in
 
-    '') # When no arguments are given, default backups location is LOCAL_BACKUP_PATH
+    '') # When no arguments are given, main_backups_path is LOCAL_BACKUP_PATH, or '/backups' in last instance
         [[ -n $LOCAL_BACKUP_PATH ]] \
             && main_backups_path=$LOCAL_BACKUP_PATH \
             || main_backups_path="/backups"
@@ -93,16 +93,12 @@ if [[ -z $vm_restore_exit_code ]]; then
         # Show all restorable backups:
         # -----------------------------------------------------------------------------
 
-        echo -e "\nRetrieving info from backups at '$main_backups_path'..."
+        echo -e "\nRetrieving info from backups at folder '$main_backups_path'..."
         screen_header "-"
         printf "%3s %-19s %15s  %-19s  %-19s  %s\n" "#" "Backup of" "Checkpoints" "From date ($(date +%Z))" "To date ($(date +%Z))" "Source directory"
         screen_header "-"
 
         for ((i=0; i<${#src_backups_list[@]}; i++)); do
-
-            # (Re) initilize variables:
-            first_saved=""
-            last_saved=""
 
             # Get domain names, # of checkpoints and times of each checkpoint:
             src_domains_list+=("$(backup_domain_info --name ${src_backups_list[$i]})")
@@ -172,7 +168,7 @@ if [[ -z $vm_restore_exit_code ]]; then
         src_imgpaths_list=($(backup_restorable_list --paths $src_path $chosen_checkpoint))
 
         [[ -n $chosen_checkpoint ]] && chosen_checkpoint_message=" (at checkpoint '$chosen_checkpoint')"
-        echo -e "Backup of domain '$src_domain' from source '$src_path'$chosen_checkpoint_message selected for restoration\n"
+        echo -e "\nBackup of domain '$src_domain' from source '$src_path'$chosen_checkpoint_message selected for restoration\n"
 
         # -----------------------------------------------------------------------------
         # When applies, compare backup info (name, id, drives, paths, etc.) with existing domains:
@@ -256,9 +252,6 @@ if [[ -z $vm_restore_exit_code ]]; then
 
         # Applies to all scenarios (default option):
         echo -e "$menu_option. Total or partial restoration with a custom domain name"
-
-        # Set first as default option:
-        default_option=$menu_option
 
         if [[ $no_matching_domains == true ]]; then
 
@@ -381,7 +374,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             restoration_message="restored onto the already existing"
         fi
 
-        echo -e "Backup of domain '$src_domain' selected to be $restoration_message domain with name: '$dest_domain'\n"
+        echo -e "\nBackup of domain '$src_domain' selected to be $restoration_message domain with name: '$dest_domain'\n"
 
         # -----------------------------------------------------------------------------
         # Show available options about specific drive(s) and path(s) how to restore this backup:
@@ -466,20 +459,24 @@ if [[ -z $vm_restore_exit_code ]]; then
         user_choice=$(($(choose_number "Choose an action" "1" "$menu_option" "$default_option") - 1))
 
         # Set dest_imgs_list from user choice:
+        # -----------------------------------------------------------------------------
         dest_drives_list=(${selectable_drives_list[$user_choice]})
 
-        # Restoration is either partial (one drive only), or # of drives at backups are more than in destination:
-        # -----------------------------------------------------------------------------
         if [[ ${#src_dates_list[@]} -gt ${#dest_drives_list[@]} && ${#dest_drives_list[@]} -eq 1 ]]; then
 
+            # Restoration is either partial (one drive only)
+            # -----------------------------------------------------------------------------
             restoration_is_partial=true
 
         elif [[ ${#src_drives_list[@]} -gt ${#possible_drives_list[@]} ]]; then
 
+            # Drives at backup are more than in destination:
+            # -----------------------------------------------------------------------------
             restoration_has_more_drives=true
         fi
 
         # Set dest_imgs_list from user choice:
+        # -----------------------------------------------------------------------------
         dest_imgs_list=(${selectable_imgs_list[$user_choice]})
 
         if [[ -z ${selectable_dest_path_list[$user_choice]} ]]; then
@@ -515,7 +512,8 @@ if [[ -z $vm_restore_exit_code ]]; then
                         custom_path_message="Disk image '$existing_image' to be restored is already defined by another domain at '$dest_path'. Please choose a different path"
 
                     else
-                        # A correct Destination path was defined by the user. This ends the iteration:
+                        # A correct dest_path was defined by the user. This ends the iteration:
+                        # -----------------------------------------------------------------------------
                         dest_path_is_custom=true
                     fi
                 fi
@@ -523,6 +521,7 @@ if [[ -z $vm_restore_exit_code ]]; then
 
         else
             # Set dest_path from user choice:
+            # -----------------------------------------------------------------------------
             dest_path=${selectable_dest_path_list[$user_choice]}
         fi
 
@@ -533,7 +532,9 @@ if [[ -z $vm_restore_exit_code ]]; then
             if [[ ${src_imgpaths_list[$i]} != $dest_path/${dest_imgs_list[$i]} ]]; then
 
                 # At least one destination path is different from backup:
+                # -----------------------------------------------------------------------------
                 dest_path_has_changed=true
+
                 # Stop searching:
                 break
             fi
@@ -542,28 +543,29 @@ if [[ -z $vm_restore_exit_code ]]; then
         echo -e "Drive(s) '${dest_drives_list[@]}' selected to be restored onto path '$dest_path'\n"
 
         # -----------------------------------------------------------------------------
-        # Properly set virtnbdrestore remaining optional arguments, based upon the results
+        # Properly set virtnbdrestore remaining optional arguments, based on results:
         # -----------------------------------------------------------------------------
-
         # Set to only restore the selected drive:
+        # -----------------------------------------------------------------------------
         [[ $restoration_is_partial == true ]] && drive_option="--disk ${dest_drives_list[@]}"
 
 
         if [[ $domain_definition_needed == true ]]; then
 
             # Set to define the domain (with the user selected name):
+            # -----------------------------------------------------------------------------
             define_domain_option="--define"
             domain_name_option="--name $dest_domain"
 
-            # Set to adjust config new paths of disk images into config (as well deleting uuid and raw devices):
+            # Set to adjust config new paths of disk images into config (as well deleting current uuid and raw devices):
+            # -----------------------------------------------------------------------------
             [[ $dest_path_is_custom || $dest_path_has_changed == true ]] \
             && adjust_config_option="--adjust-config"
         fi
 
         # -----------------------------------------------------------------------------
-        # Show summary and ask the user to start the restoration process:
+        # TODO: Show summary:
         # -----------------------------------------------------------------------------
-
         if [[ $dest_domain == $(grep -o -e "$dest_domain" <<< "${existing_domains_list[@]}") ]]; then
 
             # When dest_domain exists, get the state of such domain:
@@ -577,6 +579,9 @@ if [[ -z $vm_restore_exit_code ]]; then
         [[ -z $start_restoration_message ]] \
             && start_restoration_message="Everything is ready to begin! Are you agree to start with the restoration process?"
 
+        # -----------------------------------------------------------------------------
+        # Ask the user to start or not the restoration process:
+        # -----------------------------------------------------------------------------
         start_restoration=$(yes_no "$start_restoration_message" "no")
 
         if [[ $start_restoration == yes ]]; then
@@ -585,6 +590,7 @@ if [[ -z $vm_restore_exit_code ]]; then
             if [[ -n $dest_domain_state && $dest_domain_state != "shut off" ]]; then
 
                 # Shutdown existing dest_domain that is not shut off:
+                # -----------------------------------------------------------------------------
                 domain_shutdown $dest_domain --wait $WAIT_TIME
                 domain_shutdown_exit_code=$?
                 echo ""
@@ -593,11 +599,13 @@ if [[ -z $vm_restore_exit_code ]]; then
             if [[ -z $domain_shutdown_exit_code || $domain_shutdown_exit_code -eq 0 ]]; then
 
                 # Look for existing dest_imgs_list in dest_path
+                # -----------------------------------------------------------------------------
                 for ((i=0; i<${#dest_imgs_list[@]}; i++)); do
 
                     if [[ -f $dest_path/${dest_imgs_list[$i]} ]]; then
 
                         # If found, rename with timestamp, and save the full path:
+                        # -----------------------------------------------------------------------------
                         saved_imgpaths_list+=($dest_path/${dest_imgs_list[$i]}.$(last_modified_time $dest_path/${dest_imgs_list[$i]}))
                         mv $dest_path/${dest_imgs_list[$i]} ${saved_imgpaths_list[$i]}
 
@@ -605,7 +613,9 @@ if [[ -z $vm_restore_exit_code ]]; then
                     fi
                 done
 
-                # Run the command, with all arguments gathered during the process:
+                # -----------------------------------------------------------------------------
+                # Run virtnbdrestore, with all arguments gathered during the process:
+                # -----------------------------------------------------------------------------
                 screen_header "-"
                 virtnbdrestore --input $src_path --output $dest_path $until_checkpoint_option $drive_option $adjust_config_option $define_domain_option $domain_name_option
                 screen_header "-" "\n"
@@ -613,24 +623,24 @@ if [[ -z $vm_restore_exit_code ]]; then
 
                 if [[ $virtnbdrestore_exit_code -eq 0 ]]; then
 
+                    # Success.
+
                     if [[ $domain_definition_needed != true ]]; then
 
+                        # Existing domains require to be pruned of any existing checkpoints metadata:
                         echo "Pruning any existing checkpoints metadata from domain '$dest_domain'..."
                         domain_delete_checkpoints $dest_domain --all --metadata
 
+                        # On certain scenarios, user is notified about to perform adjustments in order to complete the restoration process:
                         [[ $dest_path_has_changed == true || $restoration_has_more_drives ]] && final_message="Check domain '$dest_domain' settings and perform all necessary adjustments to reflect restored disk images at path '$dest_path'"
                     fi
 
-                    [[ $restoration_has_more_drives == true ]] \
-                        && final_message=""
-
-                    echo -e "Backup restoration of domain '$dest_domain' ended successfully!\n$final_message"
+                    echo -e "\nBackup restoration of domain '$dest_domain' ended successfully!\n$final_message\n"
 
                     if [[ -n ${saved_imgpaths_list[@]} ]]; then
 
-                        echo ""
-                        delete_leftovers=$(yes_no "Delete disk images that were found and renamed prior to restoration from '$dest_path'?: " "no")
-                        [[ $delete_leftovers == yes ]] && rm -f vmconfig.xml ${saved_imgpaths_list[@]}
+                        delete_leftovers=$(yes_no "Delete disk images that were found and renamed prior to the restoration from '$dest_path'?: " "no")
+                        [[ $delete_leftovers == yes ]] && rm -f ${saved_imgpaths_list[@]}
                     fi
 
                     # Delete virtnbdrestore definitions left at dest_path:
@@ -640,7 +650,8 @@ if [[ -z $vm_restore_exit_code ]]; then
                     vm_restore_exit_code=0
                     echo -e "\n$(basename $0): Finished.\n"
 
-                else
+                else # It Failed!
+
                     echo -e "ERROR: Backup restoration of domain '$dest_domain' failed! (virtnbdrestore exit code: $virtnbdrestore_exit_code)\n"
 
                     # Undo any renaming of existing disk images at $dest_path:
