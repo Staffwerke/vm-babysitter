@@ -6,24 +6,24 @@ cat << end_of_help
 
  USAGE: [LOCAL_BACKUP_PATH=...] $(basename $0) [ -h | --help ] [-s | --source <absolute-path>]
 
- $(basename $0) --  Interactive tool for virtnbdrestore, to restore backups of domains created with virtnbdbackup
+ $(basename $0) --  Restores backups of virtual domains created with virtnbdbackup, by using virtnbdrestore
 
  REQUIREMENTS:
   - Virtnbdbackup suite
   - Qemu/KVM (in most cases)
 
  INSTRUCTIONS:
-  - When running from container it will take env var 'LOCAL_BACKUP_PATH' as main path for backups. Use option '--source' to override and use a different path
+  - When running from container it will take env var 'LOCAL_BACKUP_PATH' as main path for backups. Use -s or --source to override and use a different path
   - Choose a source backup to restore, at a specific checkpoint when available
-  - The script will look for existing domains and will try to find the 'best match', showing all possible restoration options, including to restore as a new domain
-  - In similar way, it will show all possible options about which image disks to restore and where; including to restore to a custom path, when possible
+  - The script will look for existing domains and will try to find the 'best match' possible, showing all possible restoration options, including to restore as new domain
+  - In similar way, it will show all possible options about which image disks to restore and where; including to custom or auto-generated path, whenever possible
   - During restoration, it will save apart any existing disk images matching name and path with last modification timestamp
   - Upon restoration success, it will ask for deleting such old images (user can delete them manually later) or will revert it back if restoration fails.
 
  NOTES:
-  - It is advised to ensure that domains to be restored from backups are shut off (the script will anyway check and ask for permission for doing this, automatically)
-  - Restored domains into scheduled backups require a new backup chain. This will happen at next backup schedule, or at container restart (what occurs first)
-  - For advanced usage and scenarios not covered by this script (e.g. custom restoration of several disk images, etc.) use virtnbdrestore directly, instead.
+  - For advanced usage and scenarios not covered by this script (e.g. custom restoration of several disk images, etc.) use virtnbdrestore tool directly, instead
+  - It is advised to ensure that domains to be restored from backups are shut off (this script will anyway checks and asks for permission to do so, automatically)
+  - Restored domains into vm-babysitter scheduled backups require a new backup chain. This will occur at next backup schedule, or during service start (whichever happens first)
 
 end_of_help
 }
