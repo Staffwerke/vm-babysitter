@@ -280,7 +280,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                     matching_message="uuid &"
                 fi
 
-                echo -e "$menu_option. Total or partial restoration onto existing domain '$domain' ($matching_message all disk image(s) match)"
+                echo -e "$menu_option. Total or partial restoration onto existing domain '$domain' ($matching_message all disk images match)"
             done
 
             for domain in ${partial_path_match_domains_list[@]}; do
@@ -296,7 +296,7 @@ if [[ -z $vm_restore_exit_code ]]; then
                     matching_message="uuid &"
                 fi
 
-                echo -e "$menu_option. Partial or custom restoration onto existing domain '$domain' ($matching_message some disk image(s) match)"
+                echo -e "$menu_option. Partial or custom restoration onto existing domain '$domain' ($matching_message some disk images match)"
             done
         fi
 
@@ -682,15 +682,16 @@ if [[ -z $vm_restore_exit_code ]]; then
                         domain_delete_checkpoints $dest_domain --all --metadata
 
                         # On certain scenarios, user is notified about to perform adjustments in order to complete the restoration process:
-                        [[ $dest_path_has_changed == true || $restoration_has_more_drives ]] && final_message="(Check domain '$dest_domain' settings and perform all necessary adjustments to reflect restored disk images [${dest_imgs_list[@]}] at path '$dest_path')"
+                        [[ $dest_path_has_changed == true || $restoration_has_more_drives ]] \
+                            && final_message="\n(Check domain '$dest_domain' settings and perform all necessary adjustments to reflect restored disk images [${dest_imgs_list[@]}] at path '$dest_path')"
                     fi
 
-                    echo -e "\nBackup restoration of domain '$dest_domain' ended successfully!\n$final_message\n"
+                    echo -e "Backup restoration of domain '$dest_domain' ended successfully!$final_message\n"
 
                     if [[ -n ${saved_imgpaths_list[@]} ]]; then
 
                         delete_leftovers=$(yes_no "Delete disk images that were found and renamed prior to the restoration from '$dest_path'?: " "no")
-                        [[ $delete_leftovers == yes ]] && rm -f ${saved_imgpaths_list[@]}
+                        [[ $delete_leftovers == yes ]] && rm -fv ${saved_imgpaths_list[@]}
                     fi
 
                     # Delete virtnbdrestore definitions left at dest_path:
