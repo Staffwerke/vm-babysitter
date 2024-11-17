@@ -6,19 +6,24 @@ cat << end_of_help
 
  USAGE: [LOCAL_BACKUP_PATH=...] $(basename $0) [ -h | --help ] [-s | --source <absolute-path>]
 
- $(basename $0) --  Restores backups of domains created with virtnbdbackup, total or partially, optionally to a defined point in time (checkpoint)
+ $(basename $0) --  Interactive tool for virtnbdrestore, to restore backups of domains created with virtnbdbackup
+
+ REQUIREMENTS:
+  - Virtnbdbackup suite
+  - Qemu/KVM (in most cases)
 
  INSTRUCTIONS:
-  - It can restore a full system (default option), as well as individual disks or drives
-  - Without arguments, it works interactively: A series of options and questions are presented before to actually start the process
-  - When everything has been set to ptoceed, awaits for confirmation before to start (restoration may take time, depending on the data volume to restore, hadware speed, etc.)
-  - Once completed, displays the final result about the operation (full success, partial restoration of disks or fail) showing a summary of restored/failed disks if restoration was partial.
+  - When running from container it will take env var 'LOCAL_BACKUP_PATH' as main path for backups. Use option '--source' to override and use a different path
+  - Choose a source backup to restore, at a specific checkpoint when available
+  - The script will look for existing domains and will try to find the 'best match', showing all possible restoration options, including to restore as a new domain
+  - In similar way, it will show all possible options about which image disks to restore and where; including to restore to a custom path, when possible
+  - During restoration, it will save apart any existing disk images matching name and path with last modification timestamp
+  - Upon restoration success, it will ask for deleting such old images (user can delete them manually later) or will revert it back if restoration fails.
 
  NOTES:
-  - Use it only with backups created from the SAME Virtual Machine you're attempting to restore!
-  - If the virtual machine to restore is running, it will be (gracefully) powered OFF right before to start the process
-  - When old disk images are kept and restoration was successful, a timestamp with its last modification time is appended to each replaced image fila.
-  - The script is NOT aware of remaining space left, so you must be careful when keping too many old images, specially on scenarios with constrains about storage.
+  - It is advised to ensure that domains to be restored from backups are shut off (the script will anyway check and ask for permission for doing this, automatically)
+  - Restored domains into scheduled backups require a new backup chain. This will happen at next backup schedule, or at container restart (what occurs first)
+  - For advanced usage and scenarios not covered by this script (e.g. custom restoration of several disk images, etc.) use virtnbdrestore directly, instead.
 
 end_of_help
 }
@@ -72,10 +77,6 @@ esac
 if [[ -z $vm_restore_exit_code ]]; then
 
     # No exit code means the input parameters are correct.
-
-    # =============================================================================
-    # Begin interactive mode:
-    # =============================================================================
 
     for folder in $(find $main_backups_path -mindepth 1 -maxdepth 1 -type d | sort -u); do
 
