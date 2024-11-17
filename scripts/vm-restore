@@ -348,9 +348,12 @@ if [[ -z $vm_restore_exit_code ]]; then
             possible_imgpaths_list=(${matching_imgpaths_list[$user_choice]})
         fi
 
-        # Unique possible destination paths and disk image names (without paths),
-        # are needed for the last menu:
+        # Unique possible destination paths (existing and auto-generated) and disk image names (without paths) are needed for the last menu:
         for path in ${possible_imgpaths_list[@]}; do
+
+            # This result determines if automatic path is possible or not:
+            [[ -n $(grep -o -e "${path//$src_domain/$dest_domain}" <<< "${existing_imgpaths_list[@]}" ) ]] \
+                && autopath_is_possible=false
 
             # Get the unique dir paths available to restore:
             [[ -z $(grep -o -e "$(dirname $path)" <<< ${possible_unique_paths_list[@]}) ]] \
@@ -365,6 +368,20 @@ if [[ -z $vm_restore_exit_code ]]; then
             # Domain needs to be defined:
             # -----------------------------------------------------------------------------
             domain_definition_needed=true
+
+            if [[ -z $autopath_is_possible ]]; then
+
+                # Automatic path for non-defined domain is possible, since disk images to be restored don't match with any other defined domain:
+                autopath_is_possible=true
+
+                # Generate proposed_unique_paths_list from domain name substitutions based upon possible_unique_paths_list:
+                for path in ${possible_unique_paths_list[@]}; do
+
+                    [[ $path != ${path//$src_domain/$dest_domain} \
+                    && -z $(grep -o -e "${path//$src_domain/$dest_domain}" <<< "${proposed_unique_paths_list[@]}" ) ]] \
+                        && proposed_unique_paths_list+=(${path//$src_domain/$dest_domain})
+                done
+            fi
 
             # Custom message:
             restoration_message="restored and defined as a new"
@@ -393,14 +410,16 @@ if [[ -z $vm_restore_exit_code ]]; then
         echo -e "\nAvailable actions for restorable device(s):"
         screen_header "-"
 
-        # Custom path options:
-        # -----------------------------------------------------------------------------
         # Number of options present in the below dialog:
         menu_option=0
 
+        # Also reset default_option:
+        default_option=""
+
         if [[ $domain_definition_needed == true ]]; then
 
-            # User can only modify paths when dest_domain has not been defined:
+            # Custom path options:
+            # -----------------------------------------------------------------------------
             ((menu_option++))
             echo "$menu_option. Restore drives '${possible_drives_list[@]}' to a custom path"
 
@@ -423,6 +442,37 @@ if [[ -z $vm_restore_exit_code ]]; then
                     selectable_imgs_list+=(${possible_imgs_list[$i]})
                 done
             fi
+
+            # Auto-generated path options:
+            # -----------------------------------------------------------------------------
+            for ((i=0; i<${#proposed_unique_paths_list[@]}; i++)); do
+
+                ((menu_option++))
+                echo "$menu_option. Restore drives '${possible_drives_list[@]}' automatically to path '${proposed_unique_paths_list[$i]}'"
+
+                # When an automatic path has been generated, set the first option as default:
+                [[ -z $default_option ]] && default_option=$menu_option
+
+                # Save values for further selection:
+                selectable_dest_path_list+=(${proposed_unique_paths_list[$i]})
+                selectable_drives_list+=("${possible_drives_list[*]}")
+                selectable_imgs_list+=("${possible_imgs_list[*]}")
+
+                if [[ ${#possible_drives_list[@]} -gt 1 ]]; then
+
+                    # When multiple drives, show defined options for individual restoration:
+                    for ((j=0; j<${#possible_drives_list[@]}; j++)); do
+
+                        ((menu_option++))
+                        echo "$menu_option. Only restore drive '${possible_drives_list[$j]}' automatically to path '${proposed_unique_paths_list[$i]}'"
+
+                        # Save values for further selection:
+                        selectable_dest_path_list+=(${proposed_unique_paths_list[$i]})
+                        selectable_drives_list+=(${possible_drives_list[$j]})
+                        selectable_imgs_list+=(${possible_imgs_list[$j]})
+                    done
+                fi
+            done
         fi
 
         # Defined path(s) options:
@@ -437,8 +487,8 @@ if [[ -z $vm_restore_exit_code ]]; then
             selectable_drives_list+=("${possible_drives_list[*]}")
             selectable_imgs_list+=("${possible_imgs_list[*]}")
 
-            # First defined path concurrence option for all devices becomes the default option:
-            default_option=$menu_option
+            # When no default_optionhas been set, first path concurrence option for all devices becomes the default option:
+             [[ -z $default_option ]] && default_option=$menu_option
 
             if [[ ${#possible_drives_list[@]} -gt 1 ]]; then
 
