@@ -1,15 +1,42 @@
 # VM-Babysitter
 
-Checks existing Virtual machines running on the local server, and performs the following actions:
+Management tool intended to create, update and rotate checkpoint based backups of Virtual Machines (a.k.a. 'Domains') running onto a local Libvirt/QEMU/KVM hypervisor.
 
-- Creates a list of (persistent) VMs registered in QEMU to be backed up regularly
-- Checks backup chain integrity and consistency for each VM, being able to fix broken backup chains when operation was previously cancelled
-- Rotates backup chains and applies retention policy (both local and remotely)
-- Updates backup chains regularly, via internal cron task
-- Rebuilds/recovers backup chains automatically from many disaster scenarios, including a server crash
-- When backup chain gets broken, it can archive it for further restoration, or deletes it when becomes unusable
-- Syncs successful backup operations and is able to archive remote backup chain mirrors independently of local ones
-- Sends important notifications (backup start/end) and alerts to Unraid's notification system, when detected.
+## Abstract:
+
+The reason of existence for this tool was our inherent difficulty to perform portable, concurrent and incremental backups of QEMU based domains while these are running; which is often an essential requirement for domains that are part of production environments. In the same way, compact, easy to copy and/or transfer backups, able to be restoreed into any host with Libvirt and QEMU.
+
+Although Libvirt offers simpler approaches for backups/snapshots -and its subsequent restoration- none of the existing ones is able provide us all the mentioned requirements, at the same time. In addition, we were in need of a tool that keep domains backed up into specific schedules, and able to alert us about relevant events, or when something went wrong.
+
+We paid attention at [Michael Ablassmeier's backup utility CLI: Virtnbdbackup](https://github.com/abbbi/virtnbdbackup), and found it accomplishing our most critical requirements (even at early versions), and potentially all of them if some scripting was done around it. After 3 years of almost uninterrupted usage, the code here has evolved -in part to Virtnbdbackup's constant improvements and new features, and also in part to the need of optimize and extend the initial rudimentary code- into something yet simple, but robust enough to satisfy all our VM backup needs.
+
+This code is intended to work with any GNU/Linux Operating System that has Libvirt, QEMU/KVM, Docker, and little more; however it's necessary to make notice that has been 'field tested' on Unraid OS almost exclusively -which is one of the reasons that runs inside a container- and some features (Specifically: Notifications and detection of potential server crash) only work on Unraid. We consider it as stable for this OS, and with little modifications, might be considered the same for a wide variety of Linux based distributions.
+
+While it's highly possible that we work on this in the future, collaborators interested into test and improve this tool in other OSes are welcomed.
+
+## Main Features:
+
+- Manages a list of non-transient domains defined in QEMU to be backed up regularly via internal crontask
+- Checks backup chains integrity of all listed domains, being able to detect inconsistencies and proceed accordingly (e.g. fixing, discarding, creating new ones, etc.)
+- Ability to create local or remote mirrors and keep them updated with Rsync, after successful backup or at configurable schedule
+- Configurable backup rotation (based upon existing # of checkpoints into the current backup chain) and retention policy (based upon number of previously archived backup chains)
+- All main tasks (backup, sync, rotation/retention) can be performed manually by the user, from inside the container
+- Pseudo-interactive tools for domain replication (to local and remote endpoints) and recovery from backups on the same host
+- Notifies about backup chain and Rsync start and end of activities, as also when user intervention is required and about errors (Unraid only)
+- Assumes a different behavior when detects the server has been started recently, assuming the possibility of a previous crash, and therefore a more strict check of backup chains (Unraid only)
+
+## Requirements
+
+### On the Host:
+- Docker Engine on the host server. See [Docker Documentation](https://docs.docker.com/get-docker/) for further instructions
+- Libvirt >=7.6.0
+- Bash and SSH server configured to be accessed via public keys (also required for any remote host intended to serve as backup mirror, or target for domain replication)
+- On Unraid OS case, this must be >= v6.10.0. Read the [notes](Unraid Notes) for more details.
+
+### On Guest Domains:
+- Qemu Guest Agent installed and running. For *NIX guests, use the latest available version according the distro. For Windows guests, install latest [VirtIO drivers](https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/)
+
+*Due to the interaction between VM-Babysitter (running inside a container) and Libvirt service (running directly on the top of the host), the first one requires to run as root (non-privileged mode) and depending on the usage, with SYS_ADMIN capabilities.*
 
 ## Building an up-to-date docker image:
 
