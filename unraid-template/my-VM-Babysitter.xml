@@ -28,9 +28,9 @@
           Type="Variable" Display="always" Required="false" Mask="false"/>
 
   <Config Name="Local backup path"
-          Target="/backups" Default="/mnt/user/backups/vm-backups" Mode="rw"
-          Description="User share path to store backups (must be r/w)"
-          Type="Path" Display="always" Required="false" Mask="false"/>
+          Target="/backups" Default="/mnt/user/backups/domains" Mode="rw"
+          Description="User share path to store backups"
+          Type="Path" Display="always" Required="true" Mask="false"/>
 
   <Config Name="Max # of backups per chain"
           Target="MAX_BACKUPS_PER_CHAIN" Default="30"
@@ -48,7 +48,7 @@
           Type="Variable" Display="always" Required="false" Mask="false"/>
 
   <Config Name="Logfile path"
-          Target="/logs" Default="/mnt/user/docker/apps/vm-babysitter" Mode="rw"
+          Target="/logs" Default="/mnt/user/appdata/vm-babysitter" Mode="rw"
           Description="Persistent bind mount for LOGFILE_PATH"
           Type="Path" Display="always" Required="false" Mask="false"/>
 
@@ -58,7 +58,7 @@
           Type="Variable" Display="always" Required="false" Mask="false"/>
 
   <Config Name="QEMU disk images path"
-          Target="/mnt/user/vms" Default="/mnt/user/vms" Mode="rw"
+          Target="/mnt/user/domains" Default="/mnt/user/domains" Mode="rw"
           Description="Edit this config accordingly with your actual path to QEMU images"
           Type="Path" Display="always" Required="true" Mask="false"/>
 
@@ -83,8 +83,8 @@
           Type="Variable" Display="always" Required="false" Mask="false"/>
 
   <Config Name="SSH Key path"
-          Target="/private/hostname.key" Default="/root/.ssh/hostname.key" Mode="ro"
-          Description="Folder with SSH key (file permissions must be '0600' and belong to user 'root')"
+          Target="/private/hostname.key" Default="/mnt/user/appdata/vm-babysitter/hostname.key" Mode="ro"
+          Description="Path to private key to perform operations onto remote servers via SSH and Rsync. Key must be owned by root and file permissions equal to '0600' (Necessary for Unraid notifications in most cases)"
           Type="Path" Display="always" Required="true" Mask="false"/>
 
   <Config Name="Time Zone"
@@ -158,26 +158,26 @@
 
   <Config Name="Virtnbdbackup socket"
           Target="/var/tmp" Default="/var/tmp" Mode="rw"
-          Description=""
+          Description="Allows Virtnbdbackup to put its socket onto the main host"
           Type="Path" Display="advanced" Required="true" Mask="false"/>
 
   <Config Name="Libvirt socket API"
           Target="/run/libvirt" Default="/var/run/libvirt" Mode="rw"
-          Description=""
+          Description="Allow scripts to read and interact with Libvirt socket from inside the container"
           Type="Path" Display="advanced" Required="true" Mask="false"/>
 
   <Config Name="Lock folder"
           Target="/run/lock" Default="/var/run/lock" Mode="rw"
-          Description=""
+          Description="Allow scripts to put locks onto the main host"
           Type="Path" Display="advanced" Required="true" Mask="false"/>
 
-  <Config Name="VMs nvram path"
+  <Config Name="Nvram path"
           Target="/etc/libvirt/qemu/nvram" Default="/etc/libvirt/qemu/nvram" Mode="rw"
-          Description="Path VMs nvram files"
+          Description="Allow scripts to read/restore per domain nvram binaries for EFI/UEFI boot"
           Type="Path" Display="advanced" Required="true" Mask="false"/>
 
-  <Config Name="Ovmf binaries path"
+  <Config Name="OVMF binaries path"
           Target="/usr/share/qemu/ovmf-x64" Default="/usr/share/qemu/ovmf-x64" Mode="ro"
-          Description="Required when VMs are in need of a new nvram"
+          Description="Allow scripts to read/copy common nvram binaries for EFI/UEFI boot"
           Type="Path" Display="advanced" Required="true" Mask="false"/>
 </Container>
