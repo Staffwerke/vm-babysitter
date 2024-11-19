@@ -22,162 +22,164 @@
   <DonateLink/>
   <Requires/>
 
-  <Config Name="Backup schedule"
-          Target="BACKUP_SCHEDULE" Default="@daily"
-          Description="Cron expression to schedule incremental backups (e.g. `* 2 * * *` triggers everyday at 2 am local time)"
-          Type="Variable" Display="always" Required="false" Mask="false"/>
-
-  <Config Name="Local backup path"
-          Target="/backups" Default="/mnt/user/backups/domains" Mode="rw"
-          Description="User share path to store backups"
-          Type="Path" Display="always" Required="true" Mask="false"/>
-
-  <Config Name="Max # of backups per chain"
-          Target="MAX_BACKUPS_PER_CHAIN" Default="30"
-          Description="Means for backups rotation: Max number of checkpoints to save incrmentaly within a backup chain before to consider its end of lifecycle. When set to `0` the backup chain will grow indefinitely"
-          Type="Variable" Display="always" Required="false" Mask="false"/>
-
-  <Config Name="Local backup chains to keep"
-          Target="LOCAL_BACKUP_CHAINS_TO_KEEP" Default="1"
-          Description="Means for local retention policy: How many old backup chains to keep archived locally at `LOCAL_BACKUP_PATH`, aside from the current one. When set to `0`, disables retention policy and never deletes old backup chains"
-          Type="Variable" Display="always" Required="false" Mask="false"/>
-
-  <Config Name="Check backups data integrity"
-          Target="CHECK_BACKUPS_INTEGRITY" Default=""
-          Description="Verify data integrity of backups, when checksums are available. This operation may take long time, delaying container's full initialization. Use it only under suspect of data corruption (Set a non-empty value to enable)"
-          Type="Variable" Display="always" Required="false" Mask="false"/>
-
-  <Config Name="Logfile path"
-          Target="/logs" Default="/mnt/user/appdata/vm-babysitter" Mode="rw"
-          Description="Persistent bind mount for LOGFILE_PATH"
-          Type="Path" Display="always" Required="false" Mask="false"/>
-
-  <Config Name="Logrotate schedule"
-          Target="LOGROTATE_SCHEDULE" Default="@daily"
-          Description="Similar to `BACKUP_SCHEDULE` but for triggering internal logs rotation"
-          Type="Variable" Display="always" Required="false" Mask="false"/>
-
-  <Config Name="QEMU disk images path"
-          Target="/mnt/user/domains" Default="/mnt/user/domains" Mode="rw"
-          Description="Edit this config accordingly with your actual path to QEMU images"
-          Type="Path" Display="always" Required="true" Mask="false"/>
-
-  <Config Name="Rsync backup path"
-          Target="RSYNC_BACKUP_PATH" Default=""
-          Description="Either a container path or SSH address to a path located at another host, e.g. `user@host:/absolute/path/to/folder` where backup chains will be mirrored, therefore requires r/w permissions. When not set, none of env vars starting with `RSYNC_` are checked or has any effect"
-          Type="Variable" Display="always" Required="false" Mask="false"/>
-
-  <Config Name="Rsync backup chains to keep"
-          Target="RSYNC_BACKUP_CHAINS_TO_KEEP" Default="2"
-          Description="Similar to `LOCAL_BACKUP_CHAINS_TO_KEEP` but to apply independent retention on mirror. When set to `0`, disables retention policy and never deletes old backup chains"
-          Type="Variable" Display="always" Required="false" Mask="false"/>
-
-  <Config Name="Rsync schedule"
-          Target="RSYNC_SCHEDULE" Default=""
-          Description="Similar to `BACKUP_SCHEDULE`. When set as cron expression, backup mirrors are updated at this specific time. (Default action is to run rsync immediately after all backups within current schedule has been performed)"
-          Type="Variable" Display="always" Required="false" Mask="false"/>
-
-  <Config Name="Rsync arguments"
-          Target="RSYNC_ARGS" Default="-a"
-          Description="Extra arguments passed to rsync when sends incremental backups to `RSYNC_BACKUP_PATH`, e.g. `-aP --bwlimit=1179648`"
-          Type="Variable" Display="always" Required="false" Mask="false"/>
-
-  <Config Name="SSH Key path"
-          Target="/private/hostname.key" Default="/mnt/user/appdata/vm-babysitter/hostname.key" Mode="ro"
-          Description="Path to private key to perform operations onto remote servers via SSH and Rsync. Key must be owned by root and file permissions equal to '0600' (Necessary for Unraid notifications in most cases)"
-          Type="Path" Display="always" Required="true" Mask="false"/>
-
   <Config Name="Time Zone"
           Target="TZ" Default=""
-          Description="Local timezone. It's highly advised to set as of docker/unraid host timezone is configured (e.g. `Europe/Berlin`.) If not set, all dates, times and backup timestamps will be shown/created in UTC"
+          Description="Set container to a desired timezone (usually same as this host)"
           Type="Variable" Display="always" Required="false" Mask="false"/>
 
-  <Config Name="Virtnbdbackup arguments"
-          Description="Allows to pass extra arguments to virtnbdbackup (only tested with `--start-domain`, `--compress` and `--no-color`. Other combinations usually lead to unexpected results)"
-          Target="VIRTNBDBACKUP_ARGS" Default=""
-          Type="Variable" Display="always" Required="false" Mask="false"/>
-
-  <Config Name="Allow backup chain fixing"
-          Target="VM_ALLOW_BACKUP_CHAIN_FIX" Default=""
-          Description="Attempts to fix previously aborted backup tasks by removing partial streams, last checkpoints/bitmaps and other leftovers, trying thus to keep using the current backup folder for more checkpoints. (Set a non-empty value to enable)"
-          Type="Variable" Display="always" Required="false" Mask="false"/>
-
-  <Config Name="Allow Powercycle of VMs"
-          Target="VM_ALLOW_POWERCYCLE" Default=""
-          Description="Performs a controlled powercycle of domains under special cases, such as after fixing backup chains, or when these resulted broken after a server crash. When not set, used is prompted (currently, on Unraid OS only) to manually shut down domains before to recover after these scenarios. (Set a non-empty string to enable)"
-          Type="Variable" Display="always" Required="false" Mask="false"/>
-
-  <Config Name="VMs Autostart List"
+  <Config Name="Autostart Domains"
           Target="VM_AUTOSTART_LIST" Default=""
-          Description="Case Sensitive space separated list of domains that will be started along with the container if found powered off"
+          Description="Space separated list of domains that will be started along with the container if found powered off (case sensitive)"
           Type="Variable" Display="always" Required="false" Mask="false"/>
 
-  <Config Name="VMs Ignored List"
-          Target="VM_IGNORED_LIST" Default="" Description="Case Sensitive space separated list of domains to exclude from backup schedules and other automatic checks (user will still be able to manage backups and other tasks manually, from inside the container)"
+  <Config Name="Ignored Domains"
+          Target="VM_IGNORED_LIST" Default=""
+          Description="Space separated list of domains to exclude from backup schedule and automatic checks (case sensitive)"
           Type="Variable" Display="always" Required="false" Mask="false"/>
 
-  <Config Name="Unraid Notify Host"
+  <Config Name="Backups Rotation (local)"
+          Target="MAX_BACKUPS_PER_CHAIN" Default="30"
+          Description="Backups rotation: Number of checkpoints to save incrmentally into a backup chain before to archive it. If set to `0`, backup chain will grow indefinitely (and no retention policies will be applied)"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Path for Backups (local)"
+          Target="/backups" Default="/mnt/user/backups/domains" Mode="rw"
+          Description="Path to user share where all backups will be stored"
+          Type="Path" Display="always" Required="true" Mask="false"/>
+
+  <Config Name="Backup Schedule"
+          Target="BACKUP_SCHEDULE" Default="@daily"
+          Description="Cron expression to schedule incremental backups"
+          Type="Variable" Display="always" Required="true" Mask="false"/>
+
+  <Config Name="Retention Policy (local)"
+          Target="LOCAL_BACKUP_CHAINS_TO_KEEP" Default="1"
+          Description="Local retention policy: How many backup chains to keep archived at `LOCAL_BACKUP_PATH`. If set to `0`, disables retention policy on the local endpoint"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="SSH Key"
+          Target="/private/hostname.key" Default="/mnt/user/appdata/vm-babysitter/hostname.key" Mode="ro"
+          Description="Path to private SSH key to perform operations onto remote servers via SSH and Rsync. Key must be owned by root and file permissions equal to '0600' (in most cases, necessary for send Unraid notifications)"
+          Type="Path" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Unraid IP/Hostname"
           Target="UNRAID_NOTIFY_HOST" Default="localhost"
-          Description="Unraid Host or IP to send notifications (usually, this same Unraid host). Change it when `--network=host` is not possible, or when notifications aren't working (it has no effect on non-Unraid OS)"
+          Description="Unraid IP/Hostname to send notifications (usually, same as this host). It has no effect on non-Unraid OS"
           Type="Variable" Display="always" Required="false" Mask="false"/>
 
-  <Config Name="Local backup path (container)"
-          Target="LOCAL_BACKUP_PATH" Default="/backups"
-          Description="Container path where vm-babysitter and vm-restore will save backups and search for, respectively. The container will fail if does not exist, or if isn't mounted with r/w permissions"
+  <Config Name="Path for Backups (mirror)"
+          Target="RSYNC_BACKUP_PATH" Default=""
+          Description="Usually, a SSH address to a path into another host, where backup chains will be mirrored. Requires r/w permissions at the remote host. If not set, this feature remains disabled and `RSYNC_` env vars have no effect. (Read documentation for advanced usage)"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Rsync Schedule"
+          Target="RSYNC_SCHEDULE" Default=""
+          Description="When a cron expression is set, backup mirrors are updated at this specific schedule, instead of immediately after backups schedule"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Retention Policy (mirror)"
+          Target="RSYNC_BACKUP_CHAINS_TO_KEEP" Default="2"
+          Description="Mirror's retention policy: How many backup chains to keep archived at `RSYNC_BACKUP_PATH`. If set to `0`, disables retention policy on the mirror"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Fix Backup Chains After Interrupted Tasks"
+          Target="VM_ALLOW_BACKUP_CHAIN_FIX" Default=""
+          Description="Attempts to repair backup chains when virtnbdbackup was interrupted in the middle of an operation, by removing the last checkpoint at both backup and domain, avoiding thus a forced rotation and creation of a new backup chain. (Set a non-empty value to enable)"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Allow Automatic Powercycle of Domains"
+          Target="VM_ALLOW_POWERCYCLE" Default=""
+          Description="Performs controlled powercycle of running domains under certain scenarios during container startup. If not set, vm-babysitter will ask the user (via logs and Unraid notifications, when available) to manually shut down domains in need of this action. Read documentation for more info (Set a non-empty string to enable)"
+          Type="Variable" Display="always" Required="false" Mask="false"/>
+
+  <Config Name="Check Backups Data Integrity"
+          Target="CHECK_BACKUPS_INTEGRITY" Default=""
+          Description="Verify data integrity of backups. This operation may take long time, delaying container's full initialization. Only useful under suspect of data corruption (Set a non-empty value to enable)"
           Type="Variable" Display="advanced" Required="false" Mask="false"/>
 
-  <Config Name="Logfile path (container)"
+  <Config Name="Domain Awaiting Timeout"
+          Target="VM_WAIT_TIME" Default="60"
+          Description="Max amount in seconds scripts will await for domains responding to libvirt queries during powercycle operations. Increase this value if you get often warnings about scripts 'giving up' awaiting for slow domains"
+          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="Virtnbdbackup Extra Arguments"
+          Description="Extra arguments passed to virtnbdbackup (only tested with `--start-domain`, `--compress` and `--no-color`. Other combinations usually lead to unexpected results" Target="VIRTNBDBACKUP_ARGS" Default=""
+          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="Rsync Extra Arguments"
+          Target="RSYNC_ARGS" Default="-a"
+          Description="Extra arguments passed to Rsync"
+          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="SSH Options"
+          Target="SSH_OPTIONS" Default="-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
+          Description="Common SSH options for communications with remote, and the unraid hosts (expert use only)"
+          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="Internal Path for Backups"
+          Target="LOCAL_BACKUP_PATH" Default="/backups"
+          Description="Container path where vm-babysitter will save and vm-restore will search for backups. Container will not start if not set, or if not mounted in r/w mode"
+          Type="Variable" Display="advanced" Required="true" Mask="false"/>
+
+  <Config Name="Path for Domain Disk Images"
+          Target="/mnt/user/domains" Default="/mnt/user/domains" Mode="rw"
+          Description="Change only if domain disk images are stored into a different user share than the default"
+          Type="Path" Display="advanced" Required="true" Mask="false"/>
+
+  <Config Name="Main Path for Logs"
+          Target="/logs" Default="/mnt/user/appdata/vm-babysitter/logs" Mode="rw"
+          Description="Persistent bind mount for log files generated by scripts"
+          Type="Path" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="Internal Main Log Path"
           Target="LOGFILE_PATH" Default="/logs/vm-babysitter.log"
           Description="Container path for the main log file"
           Type="Variable" Display="advanced" Required="false" Mask="false"/>
 
-  <Config Name="Schedule logfile path (container)"
+  <Config Name="Internal Schedule Log Path"
           Target="SCHEDULE_LOGFILE_PATH" Default="/logs/scheduled-tasks.log"
           Description="Container path for scheduled tasks log file"
           Type="Variable" Display="advanced" Required="false" Mask="false"/>
 
-  <Config Name="Logrotate config path"
+  <Config Name="Internal Logrotate Config Path"
           Target="LOGROTATE_CONFIG_PATH" Default="/tmp/logrotate.d/vm-babysitter"
           Description="Container path to place and read log rotation config"
           Type="Variable" Display="advanced" Required="false" Mask="false"/>
 
-  <Config Name="Logrotate settings"
+  <Config Name="Logrotate Schedule"
+          Target="LOGROTATE_SCHEDULE" Default="@daily"
+          Description="Cron expression to schedule internal logs rotation"
+          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="Logrotate Settings"
           Target="LOGROTATE_SETTINGS" Default="  compress\n  copytruncate\n  daily\n  dateext\n  dateformat .%Y-%m-%d.%H:%M:%S\n  missingok\n  notifempty\n  rotate 30"
-          Description="Parsed string with *escaped* logrotate config, written in `LOGROTATE_CONFIG_PATH` during container (re)start"
+          Description="Parsed string with *escaped* logrotate config to `LOGROTATE_CONFIG_PATH` during container (re)start"
           Type="Variable" Display="advanced" Required="false" Mask="false"/>
 
-  <Config Name="SSH options"
-          Target="SSH_OPTIONS" Default="-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10"
-          Description="Common SSH options for communications with involved hosts, including docker/unraid host (expert use only)"
-          Type="Variable" Display="advanced" Required="false" Mask="false"/>
-
-  <Config Name="VM Wait time"
-          Target="VM_WAIT_TIME" Default="60"
-          Description="Max amount in seconds scripts will await for domains responding to libvirt queries during powercycle operations (increase this value if you get often warnings about scripts 'giving up' awaiting for slow domains"
-          Type="Variable" Display="advanced" Required="false" Mask="false"/>
-
-  <Config Name="Virtnbdbackup socket"
+  <Config Name="Virtnbdbackup Socket"
           Target="/var/tmp" Default="/var/tmp" Mode="rw"
           Description="Allows Virtnbdbackup to put its socket onto the main host"
           Type="Path" Display="advanced" Required="true" Mask="false"/>
 
-  <Config Name="Libvirt socket API"
-          Target="/run/libvirt" Default="/var/run/libvirt" Mode="rw"
+  <Config Name="Libvirt API Socket"
+          Target="/run/libvirt" Default="/run/libvirt" Mode="rw"
           Description="Allow scripts to read and interact with Libvirt socket from inside the container"
           Type="Path" Display="advanced" Required="true" Mask="false"/>
 
-  <Config Name="Lock folder"
-          Target="/run/lock" Default="/var/run/lock" Mode="rw"
+  <Config Name="Lock Folder"
+          Target="/run/lock" Default="/run/lock" Mode="rw"
           Description="Allow scripts to put locks onto the main host"
           Type="Path" Display="advanced" Required="true" Mask="false"/>
 
-  <Config Name="Nvram path"
+  <Config Name="Path to Nvram Binaries"
           Target="/etc/libvirt/qemu/nvram" Default="/etc/libvirt/qemu/nvram" Mode="rw"
           Description="Allow scripts to read/restore per domain nvram binaries for EFI/UEFI boot"
           Type="Path" Display="advanced" Required="true" Mask="false"/>
 
-  <Config Name="OVMF binaries path"
+  <Config Name="Path to OVMF Binaries"
           Target="/usr/share/qemu/ovmf-x64" Default="/usr/share/qemu/ovmf-x64" Mode="ro"
           Description="Allow scripts to read/copy common nvram binaries for EFI/UEFI boot"
           Type="Path" Display="advanced" Required="true" Mask="false"/>
+
 </Container>
+
