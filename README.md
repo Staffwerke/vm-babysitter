@@ -51,29 +51,29 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime. Here'
 
 | **Variable Name** | **Description** | **Default Value** |
 | --- | --- | --- |
-|`BACKUP_SCHEDULE`|Cron expression to schedule incremental backups (e.g. `* 2 * * *` triggers everyday at 2 am local time)|`@daily`|
-|`CHECK_BACKUPS_INTEGRITY`|Verify data integrity of backups, when checksums are available. This operation may take long time, delaying container's full initialization. Use it only under suspect of data corruption (Set a non-empty value to enable)||
-|`LOCAL_BACKUP_CHAINS_TO_KEEP`|Means for local retention policy: How many old backup chains to keep archived locally at `LOCAL_BACKUP_PATH`, aside from the current one. When set to `0`, disables retention policy and never deletes old backup chains|`1`|
-|`LOCAL_BACKUP_PATH`|Container path where vm-babysitter and vm-restore will save backups and search for, respectively. The container will fail if does not exist, or if isn't mounted with r/w permissions|`/backups`|
+|`BACKUP_SCHEDULE`|Cron expression to schedule incremental backups|`@daily`|
+|`CHECK_BACKUPS_INTEGRITY`|Verify data integrity of backups. This operation may take long time, delaying container's full initialization. Only useful under suspect of data corruption (Set a non-empty value to enable)||
+|`LOCAL_BACKUP_CHAINS_TO_KEEP`|Local retention policy: How many backup chains to keep archived at `LOCAL_BACKUP_PATH`. If set to `0`, disables retention policy on the local endpoint|`1`|
+|`LOCAL_BACKUP_PATH`|Container path where vm-babysitter will save and vm-restore will search for backups. Container will not start if not set, or if not mounted in r/w mode|`/backups`|
 |`LOGROTATE_CONFIG_PATH`|Container path to place and read log rotation config|`/tmp/logrotate.d/vm-babysitter`|
-|`LOGROTATE_SCHEDULE`|Similar to `BACKUP_SCHEDULE` but for triggering internal logs rotation|`@daily`|
-|`LOGROTATE_SETTINGS`|Parsed string with *escaped* logrotate config, written in `LOGROTATE_CONFIG_PATH` during container (re)start|`  compress\n  copytruncate\n  daily\n  dateext\n  dateformat .%Y-%m-%d.%H:%M:%S\n  missingok\n  notifempty\n  rotate 30`|
+|`LOGROTATE_SCHEDULE`|Cron expression to schedule internal logs rotation|`@daily`|
+|`LOGROTATE_SETTINGS`|Parsed string with *escaped* logrotate config to `LOGROTATE_CONFIG_PATH` during container (re)start|`  compress\n  copytruncate\n  daily\n  dateext\n  dateformat .%Y-%m-%d.%H:%M:%S\n  missingok\n  notifempty\n  rotate 30`|
 |`LOGFILE_PATH`|Container path for the main log file|`/logs/vm-babysitter.log`|
-|`MAX_BACKUPS_PER_CHAIN`|Means for backups rotation: Max number of checkpoints to save incrmentaly within a backup chain before to consider its end of lifecycle. When set to `0` the backup chain will grow indefinitely|`30`
-|`RSYNC_ARGS`|Extra arguments passed to rsync when sends incremental backups to `RSYNC_BACKUP_PATH`, e.g. `-aP --bwlimit=1179648`|`-a`|
-|`RSYNC_BACKUP_CHAINS_TO_KEEP`|Similar to `LOCAL_BACKUP_CHAINS_TO_KEEP` but to apply independent retention on mirror. When set to `0`, disables retention policy and never deletes old backup chains|`2`|
-|`RSYNC_BACKUP_PATH`|Either a container path or SSH address to a path located at another host, e.g. `user@host:/absolute/path/to/folder` where backup chains will be mirrored, therefore requires r/w permissions. When not set, none of env vars starting with `RSYNC_` are checked or has any effect||
-|`RSYNC_SCHEDULE`|Similar to `BACKUP_SCHEDULE`. When set as cron expression, backup mirrors are updated at this specific time. (Default action is to run rsync immediately after all backups within current schedule has been performed)||
+|`MAX_BACKUPS_PER_CHAIN`|Backups rotation: Number of checkpoints to save incrmentally into a backup chain before to archive it. If set to `0`, backup chain will grow indefinitely (and no retention policies will be applied)|`30`
+|`RSYNC_ARGS`|Extra arguments passed to Rsync|`-a`|
+|`RSYNC_BACKUP_CHAINS_TO_KEEP`|Mirror's retention policy: How many backup chains to keep archived at `RSYNC_BACKUP_PATH`. If set to `0`, disables retention policy on the mirror|`2`|
+|`RSYNC_BACKUP_PATH`|Usually, a SSH address to a path into another host, where backup chains will be mirrored. Requires r/w permissions at the remote host. If not set, this feature remains disabled and `RSYNC_` env vars have no effect. (Read documentation for advanced usage)||
+|`RSYNC_SCHEDULE`|When a cron expression is set, backup mirrors are updated at this specific schedule, instead of immediately after backups schedule||
 |`SCHEDULE_LOGFILE_PATH`|Container path for scheduled tasks log file|`/logs/scheduled-tasks.log`|
-|`SSH_OPTIONS`|Common SSH options for communications with involved hosts, including docker/unraid host (expert use only)|`-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10`|
-|`TZ`|Local timezone. It's highly advised to set as of docker/unraid host timezone is configured (e.g. `Europe/Berlin`.) If not set, all dates, times and backup timestamps will be shown/created in UTC||
-|`UNRAID_NOTIFY_HOST`|Unraid Host or IP to send notifications (usually, this same Unraid host). Change it when `--network=host` is not possible, or when notifications aren't working (it has no effect on non-Unraid OS)|`localhost`|
-|`VIRTNBDBACKUP_ARGS`|Allows to pass extra arguments to virtnbdbackup (only tested with `--start-domain`, `--compress` and `--no-color`. Other combinations usually lead to unexpected results)||
-|`VM_ALLOW_BACKUP_CHAIN_FIX`|Attempts to fix previously aborted backup tasks by removing partial streams, last checkpoints/bitmaps and other leftovers, trying thus to keep using the current backup folder for more checkpoints. (Set a non-empty value to enable)||
-|`VM_ALLOW_POWERCYCLE`|Performs a controlled powercycle of domains under special cases, such as after fixing backup chains, or when these resulted broken after a server crash. When not set, used is prompted (currently, on Unraid OS only) to manually shut down domains before to recover after these scenarios. (Set a non-empty string to enable)||
-|`VM_AUTOSTART_LIST`|Case Sensitive space separated list of domains that will be started along with the container if found powered off||
-|`VM_IGNORED_LIST`|Case Sensitive space separated list of domains to exclude from backup schedules and other automatic checks (user will still be able to manage backups and other tasks manually, from inside the container)||
-|`VM_WAIT_TIME`|Max amount in seconds scripts will await for domains responding to libvirt queries during powercycle operations (increase this value if you get often warnings about scripts 'giving up' awaiting for slow domains|`60`|
+|`SSH_OPTIONS`|Common SSH options for communications with remote, and the unraid hosts (expert use only)|`-q -o IdentityFile=/private/hostname.key -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=10`|
+|`TZ`|Set container to a desired timezone (usually, same as this host)||
+|`UNRAID_NOTIFY_HOST`|Unraid IP/Hostname to send notifications (usually, same as this host). It has no effect on non-Unraid OS|`localhost`|
+|`VIRTNBDBACKUP_ARGS`|Extra arguments passed to virtnbdbackup (only tested with `--start-domain`, `--compress` and `--no-color`. Other combinations usually lead to unexpected results)||
+|`VM_ALLOW_BACKUP_CHAIN_FIX`|Attempts to repair backup chains when virtnbdbackup was interrupted in the middle of an operation, by removing the last checkpoint at both backup and domain, avoiding thus a forced rotation and creation of a new backup chain. (Set a non-empty value to enable)||
+|`VM_ALLOW_POWERCYCLE`|Performs controlled powercycle of running domains under certain scenarios during container startup. If not set, vm-babysitter will ask the user (via logs and Unraid notifications, when available) to manually shut down domains in need of this action. Read documentation for more info (Set a non-empty string to enable)||
+|`VM_AUTOSTART_LIST`|Space separated list of domains that will be started along with the container if found powered off (case sensitive)||
+|`VM_IGNORED_LIST`|Space separated list of domains to exclude from backup schedule and automatic checks (case sensitive)||
+|`VM_WAIT_TIME`|Max amount in seconds that scripts will await for domains responding to libvirt queries during powercycle operations. Increase this value if you get often warnings about scripts 'giving up' awaiting for slow domains|`60`|
 
 ## Mount points:
 
