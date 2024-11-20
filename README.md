@@ -10,18 +10,18 @@ Although Libvirt offers simpler approaches for backups/snapshots -and its subseq
 
 We paid attention at Michael Ablassmeier's backup utility CLI: [Virtnbdbackup](https://github.com/abbbi/virtnbdbackup), and found it accomplishing our most critical requirements (even at early versions), and potentially all of them if some scripting was done around it. After 3 years of almost uninterrupted usage, the code here has evolved -in part to Virtnbdbackup's constant improvements and new features, and also in part to the need of optimize and extend the initial rudimentary code- into something yet simple, but robust enough to satisfy all our VM backup needs.
 
-This code is intended to work with any GNU/Linux Operating System that has Libvirt, QEMU/KVM, Docker, and little more; however it's necessary to make notice that has been 'field tested' almost exclusively on Unraid OS -which is one the main reason for running inside a container- and some punctual features (Outside container notifications and detection of potential server crash scenarios) only work on Unraid at this moment. We consider it *stable* for its use on Unraid, and *beta* for other Linux Distributions  until it has been tested (and optimized) by other users. Said this, collaborators interested into test and improve this tool for other OSes are welcomed.
+This code is intended to work with any GNU/Linux Operating System that has Libvirt, QEMU/KVM, Docker, and little more; however it's necessary to make notice that has been 'field tested' almost exclusively on Unraid OS -which is one the main reason for running inside a container- and some punctual features (visible out-of-logs notifications and detection of potential server crash scenarios) only work on Unraid at this moment. We consider it *stable* for its use on Unraid, and *beta* for other Linux Distributions  until it has been tested (and optimized) by other users. Said this, collaborators interested into test and improve this tool for other OSes are welcomed.
 
 ## Features:
 
 - Manages a list of *non-transient* domains defined in QEMU to be backed up regularly via internal cron task
 - Checks backup chains integrity of all listed domains, being able to detect inconsistencies and proceed accordingly (e.g. fixing, discarding, creating new ones, etc.)
 - Configurable backup rotation and retention policy
-- Ability to create local or remote mirrors and keep them updated with Rsync right after backup schedule or at configurable one, with independent retention policy
+- Ability to create a mirror and keep it updated with Rsync right after backup schedule or at configurable one, with independent retention policy
 - All main tasks (backup, sync, rotation/retention) can be performed manually by the user from inside the container
 - Pseudo-interactive tools for domain replication (to local and remote endpoints) and recovery from backups on the local host
-- Notifies about backup chain and Rsync start and end of activities, as also when user intervention is required and about errors (Unraid feature)
-- Assumes a different behavior when detects the server has been started recently, assuming the possibility of a previous crash, and therefore a more strict check of backup chains (Unraid feature)
+- Notifiy about backup chain and Rsync start and end of activities, as also when user intervention is required and about errors (Unraid feature)
+- Assume a different behavior when detects the server has been started recently, assuming the possibility of a previous crash, and therefore a more strict check of backup chains (Unraid feature)
 
 ## Requirements
 
@@ -72,15 +72,15 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime. Here'
 
 The thumb rule to make this utility **work correctly**, consists into assume ONE of the following procedures:
 
-- Disable autostart of domains you want to keep backed up periodically, and list them instead into env var `VM_AUTOSTART_LIST` to make them start AFTER the container* when all initial checks and/or fixes has been performed (remommended option)
+- Disable autostart of domains you want to keep backed up periodically, and list them instead into env var `VM_AUTOSTART_LIST` to make them start AFTER the container when all initial checks and/or fixes has been performed (remommended option)
 
-OR
+or
 
 - Set env var `VM_ALLOW_POWERCYCLE` to a not null value, allowing to powercycle domains when required.
 
-This will ensure backup chains will be always checked, and fixed/rotated/discarded on all scenarios, including when server crashed unexpectedly.
+This will ensure backup chains will be always checked, and confirmed/fixed/rotated/discarded under all scenarios, including when server crashed unexpectedly.
 
-Domains that aren't intended to be backed up (and therefore ignored), must be listed into env var `VM_IGNORED_LIST` and indeed can be perfectly set to autostart on boot when required.
+Domains that aren't intended to be backed up (and therefore ignored) must be listed into env var `VM_IGNORED_LIST`. They could be perfectly set to autostart on server's boot if required.
 
 For any operation involving remote connection, and in case of Unraid, to see notifications on the panel; the user must provide (via bind mount) access to an SSH private key, which public counterpart must be installed onto the involved servers (including the Unraid server showing notifications.)
 
@@ -90,11 +90,13 @@ For any operation involving remote connection, and in case of Unraid, to see not
 
 - Provide at least a valid path for local backups, a custom backup schedule, an SSH Key and the Unraid IP/Host
 
+- Start
+
 It's highly recommended to set the local backups path to a user share which primary storage it's a fast cache pool (SSD, NVMe, etc) and secondary storage located at designated array. This will speed up backup process, at the same time the new data will be suddenly transfered to the array (via the 'Move' function, programmed at different schedule than backups.)
 
 ## Basics to configure in Other Operating Systems
 
-As VM-Babysitter runs inside a container, relies entirely on correct bind mounts to find, manage and save all files related with domains.
+As VM-Babysitter runs inside a container, relies entirely on correct bind mounts to find, manage and save all files related with domains, as well to communicate correctly with Libvirt.
 
 ### Backups Directory:
 The main directory where all local backups will be checked and saved is mounted as in this example:
@@ -102,16 +104,17 @@ The main directory where all local backups will be checked and saved is mounted 
 ```
     -v /data/vm-backups:/backups
 ```
-Note container's path always must  match `LOCAL_BACKUP_PATH`.
+Container's path always must match `LOCAL_BACKUP_PATH`.
 
 ### Disk images:
-The service needs full access to ALL domains's disk images to be backed up, from inside the container. There is no canonical rule about this, and indeed it may happen that disk images are spread across different (and unrelated) places. Assuming all disk images are stored into a main directory at '/data/domains' the correct bind mount should be:
+The service needs full access to ALL domains's disk images, from inside the container. There is no canonical rule about this, and indeed it may happen that disk images are spread across different (and unrelated) places, requiring more than one bind mound for this.
+
+Assuming all disk images are stored into a main directory at '/data/domains' the correct bind mount should be:
 
 ```
     -v /data/domains:/data/domains
 ```
-Replicating host path inside the container as is.
-During container's start, if any disk image isn't found or r/w issues are detected, the container will fail.
+Replicating host path inside the container as is. During container's start, if any disk image isn't found or r/w issues are detected, the container will fail.
 
 ### System, libvirt, and virtnbdbackup sockets:
 VM-Babysitter uses self provisioned tools for all operations, however it needs access to sockets on the host where it's running (specially for libvirt's API) or it won't be able to work at all. Therefore, the following mount points are needed:
@@ -138,7 +141,7 @@ Required to access host libvirt's socket:
     -v /var/run/lock:/run/lock
 ```
 
-Another thumb rule it's to find out where your Libvirt implementation puts both sockets and lock files onto the root filesystem,
+Another thumb rule it's to find out where your Libvirt implementation puts both sockets and lock files onto the root filesystem.
 
 ### Domains with EFI/UEFI Boot:
 Unless your scenario involves domains booting with emulated BIOS only, it's necessary to provide a couple of additional bind mounts:
@@ -166,7 +169,7 @@ Allow scripts to read/copy common nvram binaries for EFI/UEFI boot:
 *We welcome contributions about corresponding bind mounts for other GNU/Linux distributions*
 
 ### SSH key:
-Assuming you have, or can create a pair of RSA keys (3072 bits or above is recommended) you can install the public key onto the involved hosts (as the user you want to connect) and make the private key available for VM-Babysitter into a specific folder, just like this:
+Assuming you have, or can create a pair of RSA or any SSH compatible keys, you can install the public key onto the involved hosts (as the user you want to connect) and make the private key available for VM-Babysitter into a specific folder, just like this:
 
 ```
     -v /data/docker/apps/vm-baybysitter/private/<name-of-your-private-ssh-key>:/private/hostname.key:ro
@@ -191,45 +194,48 @@ The simplest user case example:
     docker run -d --rm --network host --name docker.staffwerke.de/vm-babysitter:latest \
     -e BACKUP_SCHEDULE="* 2 * * *" \
     -e TZ="Europe/Berlin" \
-    -e VM_ALLOW_POWERCYCLE="y"
+    -e VM_ALLOW_POWERCYCLE="y" \
     -v /etc/libvirt/qemu/nvram:/etc/libvirt/qemu/nvram \
     -v /data/docker/apps/vm-babysitter/logs:/logs \
     -v /data/domains:/data/domains \
     -v /data/vm-backups:/backups \
-    -v /run/libvirt:/run/libvirt\
+    -v /run/libvirt:/run/libvirt \
     -v /run/lock:/run/lock \
     -v /usr/share/OVMF:/usr/share/OVMF:ro \
     -v /var/tmp:/var/tmp \
-    --restart=unless-stopped
+    --restart=unless-stopped \
     vm-babysitter
 ```
+
 The command above involves local backups only, and most options set to default.
 
 A more complex example, closer to a production environment:
+
 ```
     docker run -d --rm --network host --device /dev/fuse --cap-add SYS_ADMIN --name docker.staffwerke.de/vm-babysitter:latest \
     -e BACKUP_SCHEDULE="* */12 * * *" \
     -e LOCAL_BACKUP_CHAINS_TO_KEEP="2" \
-    -e MAX_BACKUPS_PER_CHAIN="60"
+    -e MAX_BACKUPS_PER_CHAIN="60" \
     -e RSYNC_ARGS="-aP --bwlimit=1179648" \
     -e RSYNC_BACKUP_PATH="root@192.168.0.2:/data/vm-backups-mirror" \
     -e RSYNC_BACKUP_CHAINS_TO_KEEP="4" \
     -e TZ="Europe/Berlin" \
-    -e VIRTNBDBACKUP_ARGS="--compressed"
-    -e VM_AUTOSTART_LIST="domain1 domain2"
-    -e VM_IGNORED_LIST="domain3"
+    -e VIRTNBDBACKUP_ARGS="--compressed" \
+    -e VM_AUTOSTART_LIST="domain1 domain2" \
+    -e VM_IGNORED_LIST="domain3" \
     -v /etc/libvirt/qemu/nvram:/etc/libvirt/qemu/nvram \
     -v /data/docker/apps/vm-babysitter/logs:/logs \
     -v /data/docker/apps/vm-baybysitter/private/your-ssh-key.key:/private/hostname.key:ro \
     -v /data/domains:/data/domains \
     -v /data/vm-backups:/backups \
-    -v /run/libvirt:/run/libvirt\
+    -v /run/libvirt:/run/libvirt \
     -v /run/lock:/run/lock \
     -v /usr/share/OVMF:/usr/share/OVMF:ro \
     -v /var/tmp:/var/tmp \
-    --restart=unless-stopped
+    --restart=unless-stopped \
     vm-babysitter
 ```
+
 The command above involves, to autostart some domains and ignore others, the ability to replicate domains onto remote endpoints, backups compression, a mirror at the local network, and specific rentention policies for each endpoint.
 
 ## Backups Rotation and Retention Policy:
@@ -240,7 +246,7 @@ Everytime virtnbdbackup runs, a new checkpoint is added to the backup chain. Thi
 
 Retention policy is managed by env vars `LOCAL_BACKUP_CHAINS_TO_KEEP` for backups archived locally and `RSYNC_BACKUP_CHAINS_TO_KEEP` for their mirror counterparts, when set.
 
-Everytime a backup chain is rotated, folder becomes renamed with a (very specific) timestamp corresponding to the oldest modified file into the entire backup sub-folder. The number of archived backup chains per domain will be kept up to the value set on these variables, deleting the older ones.
+Everytime a backup chain is rotated, its folder becomes renamed with a (very specific) local timestamp corresponding to the oldest modified file into the entire backup sub-folder. The number of archived backup chains per domain will be kept up to the value set on these variables, deleting the older ones.
 
 Then, a mirror can contain (ideally) more archived backups than the local pool.
 
@@ -250,11 +256,13 @@ Both rotation and retention policy are automatically checked (and executed, if a
 - At each backup schedule, checking if has reached the limit imposed by `MAX_BACKUPS_PER_CHAIN`
 
 ### Rotation/Retention Special scenario:
-If when a backup chain is being created and the process it interrupted (e.g. container stop or server crash), the partial backup chain is deleted locally at next container's start instead of being rotated (because the only checkpoint is faulty). If a mirror is set and a non-archived backup chain for that domain is found, it becomes rotated, but no retention policy is applied on the mirror.
+While a backup chain is being created and the process is interrupted (e.g. container stop or server crash), the partial backup chain is deleted locally at next container's start instead of being rotated (because the only checkpoint is faulty, and this cannot be fixed).
+
+If a mirror is set and a non-archived backup chain for that domain is found, it becomes rotated, but no retention policy is applied on the mirror.
 
 ### Calculating Rotation and Retention Times:
 
-When nothing is set, VM-Babysitter works with these defaults:
+When no schedule/rotation/retention settings are set, VM-Babysitter works with the following defaults:
 
 ```
 BACKUP_SCHEDULE="@daily"
@@ -262,28 +270,29 @@ MAX_BACKUPS_PER_CHAIN=30
 LOCAL_BACKUP_CHAINS_TO_KEEP=1
 RSYNC_BACKUP_CHAINS_TO_KEEP=2
 ```
-By default, it will perform one backup per day, allowing 30 checkpoints before to rotate. Which means that rotation will occur roughly each 30 days.
+By default, it will perform one backup per day, allowing 30 checkpoints before to rotate. Which means that rotation will occur each 30 days, starting from backup chain's creation day.
 
-The locally archived backup chain will remain for roughly another 30 days more, being deleted when the current one becomes rotated.
+The locally archived backup chain will remain for another 30 days more, being deleted when the current one becomes rotated.
 
-If a local mirror is set, the copy of the archived backup chain won't be deleted, but kept during roughly 60 days, before to be deleted.
+If a local mirror is set, the copy of the archived backup chain won't be deleted, but kept during 60 days counting from its archiving day before to be deleted.
+
+Summarizing, with default settings, a backup chain will remain 60 days on local backup pool, and 90 days on mirror (when set) counting from the day of its creation.
 
 You can use this example to extrapolate, and set rotation and retention policies according with your actual needs.
 
 ### Forcing Backup Rotation on Domains that remain Shut Down:
-
 There will be cases when a domain is kept shut off most of the time, being just used ocassionally.
 
-Although this domain will be backed up as any other, the number of checkpoints made by virtnbdbackup won't grow if the server has been down between 2 backup schedules, therefore backup rotation (hence retention policy) won't be triggered during long periods.
+Although this domain will be backed up as any other, the number of checkpoints made by virtnbdbackup won't grow if the server has been down between 2 backup schedules, therefore backup rotation (hence retention policy) won't be triggered as in the past example.
 
-To force backup rotation on servers as in this example, set env var `VIRTNBDBACKUP_ARGS=--start-server`, forcing the domain to get started (actually, it will start in paused mode, no even boot is performed) and virtnbdbackup will create a new checkpoint.
+To force backup rotation on domains as in this example, set env var `VIRTNBDBACKUP_ARGS="--start-server"`, indicating virtnbdbackup to start the domain if it's shut off (actually, it will start it in paused mode, so no boot is even performed) and thus it will create a new checkpoint and backup rotation will occur just as expected.
 
-### Saving Historical/Important Backup Chain Permanently within Backups Path(s):*
-As alternative to move them outside of the path(s) set in `LOCAL_BACKUP_PATH` and/or `RSYNC_BACKUP_PATH`, you can append some custom tag before or after the current folder name. VM-Babysitter processes only EXACT matches of the syntax `<sensitive-case-domain-name>+<yyyy-mm-dd.hh:mm:ss.ssssssssss>` and therefore other naming structure is ignored for retention policy apply.
+### Saving Important Backup Chains Permanently within Backups Paths:
+As alternative to move them off the paths set in `LOCAL_BACKUP_PATH` and/or `RSYNC_BACKUP_PATH`, you can append some custom tag before or after the current folder name. VM-Babysitter processes only EXACT matches of the syntax `<sensitive-case-domain-name>+<yyyy-mm-dd.hh:mm:ss.ssssssssss>` and therefore other naming structure is ignored for retention policy apply.
 
 ## Restoring from Backups:
 
-Eventually, any user will be in need to restore a domain from its backups, or even will need to restore a previously deleted domain, which backups still exist. The simplest way to perform this task it's via a built-in script called [vm-restore](scripts/vm-restore).
+Eventually, any user will be in need to restore a domain from its backups, or even to restore a previously deleted domain, which backups still exists somewhere. The simplest way to perform this task it's via a built-in script called [vm-restore](scripts/vm-restore).
 
 Assuming the container is up and running, open a shell invoke the script with the following command:
 
@@ -301,7 +310,7 @@ And do the following:
 The script will ask for authorization to proceed, and restoration will be performed automatically.
 If the domain already exists and it's currently running, it must be shut down before to proceed (and vm-restore can detect and do this automatically under your authorization.)
 
-At this moment, vm-restore only works with backups stored locally. Use `--help` option for more details about its usage.
+At this moment, vm-restore only works with backups stored locally (read rsync section below for alternatives.)
 
 If the restoration scenario you face cannot be managed by vm-restore use [Virtnbdrestore](https://github.com/abbbi/virtnbdbackup/tree/master?tab=readme-ov-file#restore-examples) instead (included within the container), to perform a custom restoration of, e.g. image disk(s) on backup not matching with an existing target domain.
 
@@ -358,22 +367,26 @@ In case of needing to restore a backup located at another server, this workaroun
 
 *Please note, that this has not been field tested with actual remote mounts. There might be additional configs to perform on `docker run`. Scripts are only able to work under this possibility, so any contribution about this topic is welcomed.*
 
-## Known Issues/bugs:
+## Known Issues and Caveats:
 
-- VM-Babysitter has been tested on Unraid v7 (currently beta). It has been determined that is not possible to make snapshots of domains being backed up with VM-Babysitter. It seems possible, instead to make backups of domains with snapshots and restore them, however this hasn't been tested thoughtfully yet. For now, **do not mix snapshots with checkpoint based backups, or use them together at your own risk!**
+- VM-Babysitter only uses a subset of features of Virtnbdbackup. The env var `VIRTNBDBACKUP_ARGS` has been tested only with flags `--start-server`, `--compress` and `--no-color` and other options usually lead to unexpected results. However, it's still possible to create custom backups and even templates by using virtnbdbackup command from inside the container. It applies the same with other commands, but those aren't been even tested or used, so do it at your own risk.
+
+- VM-Babysitter has been tested on Unraid v7. It has been determined that is not possible to make snapshots of domains being backed up with VM-Babysitter. By the other hand, making backups of domains with snapshots it's possible, and when restored, they seem to be OK. Nevertheless, and considering both approaches part from different strategies, it's highly encouraged to **use only one at the same time for a given domain, and do not mix snapshots with checkpoint based backups together**.
 
 - When tryng to delete a domain with checkpoints, Libvirt will warn you with the following message:
 
 ```
-    Execution error
-    Requested operation is not valid: cannot delete inactive domain with xx checkpoints
+Execution error
+Requested operation is not valid: cannot delete inactive domain with xx checkpoints
 ```
-    If you want to delete a domain that gives you the above message, the easiest way is running the following command from a shell (would work the same from inside the container):
+
+If you want to delete a domain that gives you the above message, the easiest way is running the following command from a shell (would work the same from inside the container):
+
 ```
     virsh checkpoint-delete <domain-name> virtnbdbackup.0 --children --metadata
 ```
-    This deletes all checkpoints metadata created by virtnbdbackup on the main host, allowing you to delete the domain (and optionally, image disks) without warnings.
+This deletes all checkpoints metadata created by virtnbdbackup on the main host, allowing you to delete the domain (and optionally, image disks) without warnings.
 
-- Stopping or killing the container while virtnbdbackup is performing a backup operation may lead to persistent failed status during next runs. This is due to 'dead' sockets in `/var/tmp`, `/run/libvirt` and `/run/lock` stuck after the crash, therefore unable to be accessed by virtnbdbackup. Deleting such dead sockets (or waiting a few hours) has been proved to be helpful, but the best practice is **DO NOT STOP the container while is performing backup tasks!** Read [this](https://github.com/abbbi/virtnbdbackup/tree/master?tab=readme-ov-file#backup-fails-with-timed-out-during-operation-cannot-acquire-state-change-lock) for more info and workaround
+- Stopping or killing the container while virtnbdbackup is performing a backup operation may lead to persistent failed status during next runs. This is due to 'dead' sockets in `/var/tmp`, `/run/libvirt` and `/run/lock`, stuck after the interruption. To solve the situation, read [this](https://github.com/abbbi/virtnbdbackup/tree/master?tab=readme-ov-file#backup-fails-with-timed-out-during-operation-cannot-acquire-state-change-lock).
 
 #### Maintainer: Adrián Parilli <adrian.parilli@staffwerke.de>
