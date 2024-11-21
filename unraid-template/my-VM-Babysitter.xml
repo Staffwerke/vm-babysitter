@@ -9,8 +9,9 @@
   <Privileged>false</Privileged>
   <Support/>
   <Project/>
-  <Overview/>
-  <Category/>
+  <GitHub></GitHub>
+  <Overview>Automatic Backup &amp; Monitoring utility for QEMU/KVM Virtual Machines (powered by Virtnbdbackup)<Overview/>
+  <Category>Backup<Category/>
   <WebUI/>
   <TemplateURL/>
   <Icon/>
@@ -103,7 +104,8 @@
           Type="Variable" Display="advanced" Required="false" Mask="false"/>
 
   <Config Name="Virtnbdbackup Extra Arguments"
-          Description="Extra arguments passed to virtnbdbackup (only tested with `--start-domain`, `--compress` and `--no-color`. Other combinations usually lead to unexpected results" Target="VIRTNBDBACKUP_ARGS" Default=""
+          Target="VIRTNBDBACKUP_ARGS" Default=""
+          Description="Extra arguments passed to virtnbdbackup (only tested with `--start-domain`, `--compress` and `--no-color`. Other combinations usually lead to unexpected results"
           Type="Variable" Display="advanced" Required="false" Mask="false"/>
 
   <Config Name="Rsync Extra Arguments"
