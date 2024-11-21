@@ -285,7 +285,7 @@ There will be cases when a domain is kept shut off most of the time, being just 
 
 Although this domain will be backed up as any other, the number of checkpoints made by virtnbdbackup won't grow if the server has been down between 2 backup schedules, therefore backup rotation (hence retention policy) won't be triggered as in the past example.
 
-To force backup rotation on domains as in this example, set env var `VIRTNBDBACKUP_ARGS="--start-server"`, indicating virtnbdbackup to start the domain if it's shut off (actually, it will start it in paused mode, so no boot is even performed) and thus it will create a new checkpoint and backup rotation will occur just as expected.
+To force backup rotation on domains as in this example, set env var `VIRTNBDBACKUP_ARGS="--start-domain"`, indicating virtnbdbackup to start the domain if it's shut off (actually, it will start it in paused mode, so no boot is even performed) and thus it will create a new checkpoint and backup rotation will occur just as expected.
 
 ### Saving Important Backup Chains Permanently within Backups Paths:
 As alternative to move them off the paths set in `LOCAL_BACKUP_PATH` and/or `RSYNC_BACKUP_PATH`, you can append some custom tag before or after the current folder name. VM-Babysitter processes only EXACT matches of the syntax `<sensitive-case-domain-name>+<yyyy-mm-dd.hh:mm:ss.ssssssssss>` and therefore other naming structure is ignored for retention policy apply.
@@ -369,7 +369,7 @@ In case of needing to restore a backup located at another server, this workaroun
 
 ## Known Issues and Caveats:
 
-- VM-Babysitter only uses a subset of features of Virtnbdbackup. The env var `VIRTNBDBACKUP_ARGS` has been tested only with flags `--start-server`, `--compress` and `--no-color` and other options usually lead to unexpected results. However, it's still possible to create custom backups and even templates by using virtnbdbackup command from inside the container. It applies the same with other commands, but those aren't been even tested or used, so do it at your own risk.
+- VM-Babysitter only uses a subset of features of Virtnbdbackup. The env var `VIRTNBDBACKUP_ARGS` has been tested only with flags `--start-domain`, `--compress` and `--no-color` and other options usually lead to unexpected results. However, it's still possible to create custom backups and even templates by using virtnbdbackup command from inside the container. It applies the same with other commands, but those aren't been even tested or used, so do it at your own risk.
 
 - VM-Babysitter has been tested on Unraid v7. It has been determined that is not possible to make snapshots of domains being backed up with VM-Babysitter. By the other hand, making backups of domains with snapshots it's possible, and when restored, they seem to be OK. Nevertheless, and considering both approaches part from different strategies, it's highly encouraged to **use only one at the same time for a given domain, and do not mix snapshots with checkpoint based backups together**.
 
