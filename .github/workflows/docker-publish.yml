@@ -1,4 +1,4 @@
-name: Docker
+name: Generate VM-Babysitter Docker Image
 
 # This workflow uses actions that are not certified by GitHub.
 # They are provided by a third-party and are governed by
@@ -9,11 +9,13 @@ on:
   #schedule:
     #- cron: '23 3 * * *'
   push:
-    branches: [ "master" ]
+    #branches: [ "master" ]
+    branches: [ "unraid" ]
     # Publish semver tags as releases.
     #tags: [ 'v*.*.*' ]
   pull_request:
-    branches: [ "master" ]
+    #branches: [ "master" ]
+    branches: [ "unraid" ]
 
 env:
   # Use docker.io for Docker Hub if empty
