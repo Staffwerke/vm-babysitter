@@ -998,6 +998,7 @@ screen_header()
     local pattern="$1"
     local trailing_char="$2"
 
+    local iteration
     local header
     local width
 
@@ -1005,7 +1006,7 @@ screen_header()
     [[ $TERM == dumb ]] && width=130 || width=$(tput cols)
 
     # Create header
-    for i in $(seq 1 $width); do
+    for iteration in $(seq 1 $width); do
         header+="$pattern"
     done
 
