@@ -367,7 +367,7 @@ In case of needing to restore a backup located at another server, this workaroun
 
 *Please note, that this has not been field tested with actual remote mounts. There might be additional configs to perform on `docker run`. Scripts are only able to work under this possibility, so any contribution about this topic is welcomed.*
 
-## Known Issues and Caveats:
+## Known Issues Caveats & Troubleshooting:
 
 - VM-Babysitter only uses a subset of features of Virtnbdbackup. The env var `VIRTNBDBACKUP_ARGS` has been tested only with flags `--start-domain`, `--compress` and `--no-color` and other options usually lead to unexpected results. However, it's still possible to create custom backups and even templates by using virtnbdbackup command from inside the container. It applies the same with other commands, but those aren't been even tested or used, so do it at your own risk.
 
