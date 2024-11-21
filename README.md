@@ -1,6 +1,6 @@
 # VM-Babysitter
 
-Automated backup system for QEMU/KVM Virtual Machines
+Automatic Backup & Monitoring utility for QEMU/KVM Virtual Machines (powered by Virtnbdbackup)
 
 ## Abstract:
 
