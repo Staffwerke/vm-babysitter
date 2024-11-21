@@ -90,7 +90,7 @@ For any operation involving remote connection, and in case of Unraid, to see not
 
 - Provide at least a valid path for local backups, a custom backup schedule, an SSH Key and the Unraid IP/Host
 
-- Start
+- If you use shares different than Unraid defaults for Docker (/mnt/user/appdata) and Libvirt (/mnt/user/domains) review all options (general & advanced) and replace the host paths according with your custom setup
 
 It's highly recommended to set the local backups path to a user share which primary storage it's a fast cache pool (SSD, NVMe, etc) and secondary storage located at designated array. This will speed up backup process, at the same time the new data will be suddenly transfered to the array (via the 'Move' function, programmed at different schedule than backups.)
 
