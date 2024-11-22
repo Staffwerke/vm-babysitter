@@ -9,13 +9,11 @@ on:
   #schedule:
     #- cron: '23 3 * * *'
   push:
-    #branches: [ "master" ]
-    branches: [ "unraid" ]
+    branches: [ "master" ]
     # Publish semver tags as releases.
-    #tags: [ 'v*.*.*' ]
+    tags: [ 'v*.*.*' ]
   pull_request:
-    #branches: [ "master" ]
-    branches: [ "unraid" ]
+    branches: [ "master" ]
 
 env:
   # Use docker.io for Docker Hub if empty
@@ -26,7 +24,6 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -81,7 +78,9 @@ jobs:
           file: ./docker/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/amd64
-          tags: ${{ steps.meta.outputs.tags }}
+          tags:
+            - ${{ steps.meta.outputs.tags }}
+            - latest
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
