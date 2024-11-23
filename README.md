@@ -98,6 +98,36 @@ It's highly recommended to set the local backups path to a user share which prim
 
 As VM-Babysitter runs inside a container, relies entirely on correct bind mounts to find, manage and save all files related with domains, as well to communicate correctly with Libvirt.
 
+### Downloading VM-Babysitter Image:
+
+Pull the latest image build with the following command:
+
+```
+docker pull ghcr.io/staffwerke/staffwerke/vm-babysitter
+```
+
+If you need a specific version, append the corresponding major / minor /patch version to the tag. Examples:
+
+```
+docker pull ghcr.io/staffwerke/staffwerke/vm-babysitter:2
+```
+
+Will download the latest major version. If you need a more specific version, you can use:
+
+```
+docker pull ghcr.io/staffwerke/staffwerke/vm-babysitter:2.x.x
+```
+Where 'x.x' correspond to minor and patch version, respectively.
+
+### Building VM-Babysitter from Sources:
+
+Clone and build with Docker:
+```
+git clone https://github.com/Staffwerke/vm-babysitter.git
+cd vm-babysitter
+docker build --pull -f docker/Dockerfile . -t vm-babysitter:dev
+```
+
 ### Backups Directory:
 The main directory where all local backups will be checked and saved is mounted as in this example:
 
@@ -106,7 +136,7 @@ The main directory where all local backups will be checked and saved is mounted 
 ```
 Container's path always must match `LOCAL_BACKUP_PATH`.
 
-### Disk images:
+### Disk Images:
 The service needs full access to ALL domain's disk images, from inside the container. There is no canonical rule about this, and indeed it may happen that disk images are spread across different (and unrelated) places, requiring more than one bind mound for this.
 
 Assuming all disk images are stored into a main directory at '/data/domains' the correct bind mount should be:
@@ -141,7 +171,9 @@ Required to access host libvirt's socket:
     -v /var/run/lock:/run/lock
 ```
 
-Another thumb rule it's to find out where your Libvirt implementation puts both sockets and lock files onto the root file system.
+If none of these work, you must find out where your Libvirt implementation place both sockets and lock files onto the root file system.
+
+*We welcome contributions about corresponding bind mounts for Libvirt implementations not following the above references*
 
 ### Domains with EFI/UEFI Boot:
 Unless your scenario involves domains booting with emulated BIOS only, it's necessary to provide a couple of additional bind mounts:
@@ -191,7 +223,7 @@ Finally, to have persistent logs of what is happening with VM-Babysitter and all
 The simplest user case example:
 
 ```
-    docker run -d --rm --network host --name docker.staffwerke.de/vm-babysitter:latest \
+    docker run -d --rm --network host --name ghcr.io/staffwerke/staffwerke/vm-babysitter \
     -e BACKUP_SCHEDULE="* 2 * * *" \
     -e TZ="Europe/Berlin" \
     -e VM_ALLOW_POWERCYCLE="y" \
@@ -212,7 +244,7 @@ The command above involves local backups only, and most options set to default.
 A more complex example, closer to a production environment:
 
 ```
-    docker run -d --rm --network host --device /dev/fuse --cap-add SYS_ADMIN --name docker.staffwerke.de/vm-babysitter:latest \
+    docker run -d --rm --network host --device /dev/fuse --cap-add SYS_ADMIN --name ghcr.io/staffwerke/staffwerke/vm-babysitter \
     -e BACKUP_SCHEDULE="* */12 * * *" \
     -e LOCAL_BACKUP_CHAINS_TO_KEEP="2" \
     -e MAX_BACKUPS_PER_CHAIN="60" \
@@ -261,7 +293,6 @@ While a backup chain is being created and the process is interrupted (e.g. conta
 If a mirror is set and a non-archived backup chain for that domain is found, it becomes rotated, but no retention policy is applied on the mirror.
 
 ### Calculating Rotation and Retention Times:
-
 When no schedule/rotation/retention settings are set, VM-Babysitter works with the following defaults:
 
 ```
@@ -310,7 +341,7 @@ And do the following:
 The script will ask for authorization to proceed, and restoration will be performed automatically.
 If the domain already exists and it's currently running, it must be shut down before to proceed (and vm-restore can detect and do this automatically under your authorization.)
 
-At this moment, vm-restore only works with backups stored locally (read rsync section below for alternatives.)
+At this moment, vm-restore only works with backups stored locally (read rsync section [below](#Rsync Mirror in a Directory Mounted Locally) for alternatives.)
 
 If the restoration scenario you face cannot be managed by vm-restore use [Virtnbdrestore](https://github.com/abbbi/virtnbdbackup/tree/master?tab=readme-ov-file#restore-examples) instead (included within the container), to perform a custom restoration of, e.g. image disk(s) on backup not matching with an existing target domain.
 
@@ -318,36 +349,34 @@ If the restoration scenario you face cannot be managed by vm-restore use [Virtnb
 
 VM-Babysitter is not limited to perform backups automatically or allow a manual restoration. It has been developed according the use and needs we have had during years of managing several (non-clustered) pools of Virtual Machines.
 
-### vm-backup vm-rsync and vm-retention-policy:
-These scripts are responsible of main backup tasks, as their names suggest. Although are primarily invoked by VM-Babysitter, the user can invoke them separately to, e.g. perform backups, trigger sync mirroring and even trigger rotation / retention policy outside of schedule. This is possible for any domain, even if included into `VM_IGNORED_LIST`.
+### Triggering Backups, Rsync and/or Rotation/Retention Policy Manually:
+[vm-backup](scripts/vm-backup), [vm-rsync](scripts/vm-rsync), and [vm-retention-policy](scripts/vm-retention-policy) scripts are responsible of main backup tasks, as their names suggest. Although are primarily invoked by VM-Babysitter, the user can invoke them separately to, e.g. perform backups, trigger sync mirroring and even trigger rotation / retention policy outside of schedule. This is possible for any domain, even if included into `VM_IGNORED_LIST`.
 
-The use of these commands it's considered an expert feature, and must be done with care, since literally *override* VM-Babysitter's schedules and may cause alterations on planned schemes, such as backup rotation /retention policy outside planned timetables.
-
-For more details, Use `--help` option on each script to understand more about its usage. Example:
+The use of these commands it's considered an expert feature, and must be done with care, since literally *override* VM-Babysitter's schedules, causing for example early backup rotation and forcing to create backup chains, which on large assets of VMs, consumes computational resources and/or network bandwidth at times when wouldn't be convenient. For more details, Use `--help` option on each script to understand more about its usage. Example:
 
 ```
     docker exec -it vm-babysitter vm-backup --help
 ```
 
-### vm-replicate:
-Replicates a given domain onto a local or remote endpoint.
+### Replicating Domains, Locally or Remotely:
+[vm-replicate](scripts/vm-replicate) is very similar in functioning with QEMU's [virt-clone](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/7/html/virtualization_deployment_and_administration_guide/cloning-a-vm#Cloning_VMs_with_virt-manager) utility, but with a couple of differences:
 
-It's very similar in functioning with QEMU's [virt-clone](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/7/html/virtualization_deployment_and_administration_guide/cloning-a-vm#Cloning_VMs_with_virt-manager) utility, except it can also replicate virtual machines onto remote hosts running libvirt without the need of a GUI.
+- It can also replicate virtual machines onto remote hosts (running libvirt)
+- Doesn't need a Desktop environment or GUI
 
 *To correctly replicate disk images remotely, docker parameters `--device /dev/fuse` and `--cap-add SYS_ADMIN` must be added to the run command*
 
-Similar to vm-restore, it shows a series of options:
+Similar to `vm-restore`, it shows a series of options:
 
-- Select the domain on the list to be replicated
+- Select a domain on the list to be replicated
 - Indicate where to replicate, either on the same or at another host (in which case, the other endpoint needs to have installed the public counterpart of private key in use)
-- Select and action to perform with MAC address(es) (either insert custom one, randomize or keep)
-- Choose if replicate disk images or not
-- And select which disk image(s) to replicate, and where (or configure the destination domain with such paths)
+- Select and action to perform with MAC address(es) (either insert custom one, randomize or keep same MAC)
+- Choose if replicate disk images or not (you can still define where the replicated domain will search for disk images)
+- And select which disk image(s) to replicate, and where
 
 Finally, authorize vm-replicate to start the process. Replication will take place automatically.
 
-At this moment, vm-replicate only can copy disk images when source domain is shut off. Note that if it finds the domain running, it will shut it down before to proceed, and will start it again once the disk image copy finishes.
-
+At this moment, vm-replicate only can copy disk images when source domain is shut off. Note that if it finds the domain running, it will shut down before to proceed, and re-started once the disk image copy finishes. The script will anyway ask you for confirmation if you choose to replicate disk images.
 
 ### Rsync Mirror in a Directory Mounted Locally:
 The backup mirror can be set into a container's path folder (ideally, a host's directory bind mounted to this location), and let Rsync work 'locally' instead of using SSH keys to connect to remote servers. An additional bind mount should be necessary, for example:
@@ -359,7 +388,7 @@ The backup mirror can be set into a container's path folder (ideally, a host's d
 
 Where '/data/shares/backups-mirror' could be a NFS or CIFS/SMB share, mounted from another host. Thus, rsync would transfer changes on backups across servers transparently.
 
-In case of needing to restore a backup located at another server, this workaround might work, invoking vm-restore like this:
+In case of needing to restore a backup located at another server, this workaround *might* work, invoking vm-restore like this:
 
 ```
     docker exec -it vm-babysitter vm-restore --source /backups-mirror
