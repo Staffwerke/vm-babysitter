@@ -246,7 +246,7 @@ Every time virtnbdbackup runs, a new checkpoint is added to the backup chain. Th
 
 Retention policy is managed by env vars `LOCAL_BACKUP_CHAINS_TO_KEEP` for backups archived locally and `RSYNC_BACKUP_CHAINS_TO_KEEP` for their mirror counterparts, when set.
 
-EEvery time a backup chain is rotated, its folder becomes renamed with a (very specific) local timestamp corresponding to the oldest modified file into the entire backup sub-folder. The number of archived backup chains per domain will be kept up to the value set on these variables, deleting the older ones.
+Every time a backup chain is rotated, its folder becomes renamed with a (very specific) local timestamp corresponding to the oldest modified file into the entire backup sub-folder. The number of archived backup chains per domain will be kept up to the value set on these variables, deleting the older ones.
 
 Then, a mirror can contain (ideally) more archived backups than the local pool.
 
