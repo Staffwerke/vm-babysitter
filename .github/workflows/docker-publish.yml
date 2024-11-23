@@ -9,11 +9,11 @@ on:
   #schedule:
     #- cron: '23 3 * * *'
   push:
-    branches: [ "master" ]
+    branches: [ "unraid" ]
     # Publish semver tags as releases.
     tags: [ 'v*.*.*' ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "unraid" ]
 
 env:
   # Use docker.io for Docker Hub if empty
@@ -67,6 +67,9 @@ jobs:
         uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}
+          tags: |
+          # set latest tag for unraid branch
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'unraid') }}
 
       # Build and push Docker image with Buildx (don't push on PR)
       # https://github.com/docker/build-push-action
