@@ -341,7 +341,7 @@ And do the following:
 The script will ask for authorization to proceed, and restoration will be performed automatically.
 If the domain already exists and it's currently running, it must be shut down before to proceed (and vm-restore can detect and do this automatically under your authorization.)
 
-At this moment, vm-restore only works with backups stored locally (read rsync section [below](#Rsync Mirror in a Directory Mounted Locally) for alternatives.)
+At this moment, vm-restore only works with backups stored locally (read advanced rsync section [below](#syncing-a-mirror-locally-mounted) for alternatives.)
 
 If the restoration scenario you face cannot be managed by vm-restore use [Virtnbdrestore](https://github.com/abbbi/virtnbdbackup/tree/master?tab=readme-ov-file#restore-examples) instead (included within the container), to perform a custom restoration of, e.g. image disk(s) on backup not matching with an existing target domain.
 
@@ -378,7 +378,7 @@ Finally, authorize vm-replicate to start the process. Replication will take plac
 
 At this moment, vm-replicate only can copy disk images when source domain is shut off. Note that if it finds the domain running, it will shut down before to proceed, and re-started once the disk image copy finishes. The script will anyway ask you for confirmation if you choose to replicate disk images.
 
-### Rsync Mirror in a Directory Mounted Locally:
+### Syncing a Mirror Locally Mounted:
 The backup mirror can be set into a container's path folder (ideally, a host's directory bind mounted to this location), and let Rsync work 'locally' instead of using SSH keys to connect to remote servers. An additional bind mount should be necessary, for example:
 
 ```
@@ -394,7 +394,7 @@ In case of needing to restore a backup located at another server, this workaroun
     docker exec -it vm-babysitter vm-restore --source /backups-mirror
 ```
 
-*Please note, that this has not been field tested with actual remote mounts. There might be additional settings to perform on `docker run`. Scripts are only able to work under this possibility, so any contribution about this topic is welcomed.*
+*Please note, that this has not been field tested with actual remote mounts. There might be additional settings to perform on `docker run` command and arguments for Rsync. Scripts are only able to work under this possibility, so any contribution about this topic is welcomed.*
 
 ## Known Issues Caveats & Troubleshooting:
 
