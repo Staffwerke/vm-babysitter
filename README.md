@@ -20,7 +20,7 @@ This code is intended to work with any GNU/Linux Operating System that has Libvi
 - Ability to create a mirror and keep it updated with Rsync right after backup schedule or at configurable one, with independent retention policy
 - All main tasks (backup, sync, rotation/retention) can be performed manually by the user from inside the container
 - Pseudo-interactive tools for domain replication (to local and remote endpoints) and recovery from backups on the local host
-- Notifiy about backup chain and Rsync start and end of activities, as also when user intervention is required and about errors (Unraid feature)
+- Notify about backup chain and Rsync start and end of activities, as also when user intervention is required and about errors (Unraid feature)
 - Assume a different behavior when detects the server has been started recently, assuming the possibility of a previous crash, and therefore a more strict check of backup chains (Unraid feature)
 
 ## Requirements
@@ -52,7 +52,7 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime. Here'
 |`LOGROTATE_SCHEDULE`|Cron expression to schedule internal logs rotation|`@daily`|
 |`LOGROTATE_SETTINGS`|Parsed string with *escaped* logrotate config to `LOGROTATE_CONFIG_PATH` during container (re)start|`  compress\n  copytruncate\n  daily\n  dateext\n  dateformat .%Y-%m-%d.%H:%M:%S\n  missingok\n  notifempty\n  rotate 30`|
 |`LOGFILE_PATH`|Container path for the main log file|`/logs/vm-babysitter.log`|
-|`MAX_BACKUPS_PER_CHAIN`|Backups rotation: Number of checkpoints to save incrmentally into a backup chain before to archive it. If set to `0`, backup chain will grow indefinitely (and no retention policies will be applied)|`30`
+|`MAX_BACKUPS_PER_CHAIN`|Backups rotation: Number of checkpoints to save incrementally into a backup chain before to archive it. If set to `0`, backup chain will grow indefinitely (and no retention policies will be applied)|`30`
 |`RSYNC_ARGS`|Extra arguments passed to Rsync|`-a`|
 |`RSYNC_BACKUP_CHAINS_TO_KEEP`|Mirror's retention policy: How many backup chains to keep archived at `RSYNC_BACKUP_PATH`. If set to `0`, disables retention policy on the mirror|`2`|
 |`RSYNC_BACKUP_PATH`|Usually, a SSH address to a path into another host, where backup chains will be mirrored. Requires r/w permissions at the remote host. If not set, this feature remains disabled and `RSYNC_` env vars have no effect. (Read documentation for advanced usage)||
@@ -63,24 +63,24 @@ VM-Babysitter is entirely controlled via ENV variables, passed on runtime. Here'
 |`UNRAID_NOTIFY_HOST`|Unraid IP/Hostname to send notifications (usually, same as this host). It has no effect on non-Unraid OS|`localhost`|
 |`VIRTNBDBACKUP_ARGS`|Extra arguments passed to virtnbdbackup (only tested with `--start-domain`, `--compress` and `--no-color`. Other combinations usually lead to unexpected results)||
 |`VM_ALLOW_BACKUP_CHAIN_FIX`|Attempts to repair backup chains when virtnbdbackup was interrupted in the middle of an operation, by removing the last checkpoint at both backup and domain, avoiding thus a forced rotation and creation of a new backup chain. (Set a non-empty value to enable)||
-|`VM_ALLOW_POWERCYCLE`|Performs controlled powercycle of running domains under certain scenarios during container startup. If not set, vm-babysitter will ask the user (via logs and Unraid notifications, when available) to manually shut down domains in need of this action. Read documentation for more info (Set a non-empty string to enable)||
+|`VM_ALLOW_POWERCYCLE`|Performs controlled power cycle of running domains under certain scenarios during container startup. If not set, vm-babysitter will ask the user (via logs and Unraid notifications, when available) to manually shut down domains in need of this action. Read documentation for more info (Set a non-empty string to enable)||
 |`VM_AUTOSTART_LIST`|Space separated list of domains that will be started along with the container if found powered off (case sensitive)||
 |`VM_IGNORED_LIST`|Space separated list of domains to exclude from backup schedule and automatic checks (case sensitive)||
-|`VM_WAIT_TIME`|Max amount in seconds that scripts will await for domains responding to libvirt queries during powercycle operations. Increase this value if you get often warnings about scripts 'giving up' awaiting for slow domains|`60`|
+|`VM_WAIT_TIME`|Max amount in seconds that scripts will await for domains responding to libvirt queries during power cycle operations. Increase this value if you get often warnings about scripts 'giving up' awaiting for slow domains|`60`|
 
 ## Important Notes:
 
 The thumb rule to make this utility **work correctly**, consists into assume ONE of the following procedures:
 
-- Disable autostart of domains you want to keep backed up periodically, and list them instead into env var `VM_AUTOSTART_LIST` to make them start AFTER the container when all initial checks and/or fixes has been performed (remommended option)
+- Disable auto start of domains you want to keep backed up periodically, and list them instead into env var `VM_AUTOSTART_LIST` to make them start AFTER the container when all initial checks and/or fixes has been performed (recommended option)
 
 or
 
-- Set env var `VM_ALLOW_POWERCYCLE` to a not null value, allowing to powercycle domains when required.
+- Set env var `VM_ALLOW_POWERCYCLE` to a not null value, allowing to power cycle domains when required.
 
 This will ensure backup chains will be always checked, and confirmed/fixed/rotated/discarded under all scenarios, including when server crashed unexpectedly.
 
-Domains that aren't intended to be backed up (and therefore ignored) must be listed into env var `VM_IGNORED_LIST`. They could be perfectly set to autostart on server's boot if required.
+Domains that aren't intended to be backed up (and therefore ignored) must be listed into env var `VM_IGNORED_LIST`. They could be perfectly set to auto start on server's boot if required.
 
 For any operation involving remote connection, and in case of Unraid, to see notifications on the panel; the user must provide (via bind mount) access to an SSH private key, which public counterpart must be installed onto the involved servers (including the Unraid server showing notifications.)
 
@@ -92,7 +92,7 @@ For any operation involving remote connection, and in case of Unraid, to see not
 
 - If you use shares different than Unraid defaults for Docker (/mnt/user/appdata) and Libvirt (/mnt/user/domains) review all options (general & advanced) and replace the host paths according with your custom setup
 
-It's highly recommended to set the local backups path to a user share which primary storage it's a fast cache pool (SSD, NVMe, etc) and secondary storage located at designated array. This will speed up backup process, at the same time the new data will be suddenly transfered to the array (via the 'Move' function, programmed at different schedule than backups.)
+It's highly recommended to set the local backups path to a user share which primary storage it's a fast cache pool (SSD, NVMe, etc) and secondary storage located at designated array. This will speed up backup process, at the same time the new data will be suddenly transferred to the array (via the 'Move' function, programmed at different schedule than backups.)
 
 ## Basics to configure in Other Operating Systems
 
@@ -107,7 +107,7 @@ The main directory where all local backups will be checked and saved is mounted 
 Container's path always must match `LOCAL_BACKUP_PATH`.
 
 ### Disk images:
-The service needs full access to ALL domains's disk images, from inside the container. There is no canonical rule about this, and indeed it may happen that disk images are spread across different (and unrelated) places, requiring more than one bind mound for this.
+The service needs full access to ALL domain's disk images, from inside the container. There is no canonical rule about this, and indeed it may happen that disk images are spread across different (and unrelated) places, requiring more than one bind mound for this.
 
 Assuming all disk images are stored into a main directory at '/data/domains' the correct bind mount should be:
 
@@ -141,7 +141,7 @@ Required to access host libvirt's socket:
     -v /var/run/lock:/run/lock
 ```
 
-Another thumb rule it's to find out where your Libvirt implementation puts both sockets and lock files onto the root filesystem.
+Another thumb rule it's to find out where your Libvirt implementation puts both sockets and lock files onto the root file system.
 
 ### Domains with EFI/UEFI Boot:
 Unless your scenario involves domains booting with emulated BIOS only, it's necessary to provide a couple of additional bind mounts:
@@ -236,17 +236,17 @@ A more complex example, closer to a production environment:
     vm-babysitter
 ```
 
-The command above involves, to autostart some domains and ignore others, the ability to replicate domains onto remote endpoints, backups compression, a mirror at the local network, and specific rentention policies for each endpoint.
+The command above involves, to auto start some domains and ignore others, the ability to replicate domains onto remote endpoints, backups compression, a mirror at the local network, and specific retention policies for each endpoint.
 
 ## Backups Rotation and Retention Policy:
 
 Backup rotation is managed via env var `MAX_BACKUPS_PER_CHAIN` and has effect on both the local backup and the mirror, if set.
 
-Everytime virtnbdbackup runs, a new checkpoint is added to the backup chain. This variable allows to set an upper limit so the backup chain can be archived and replaced by a new one. It can be tunned according to your actual needs, and depending on how often is the backup schedule (ideally, the more often, the more checkpoints should be allowed.)
+Every time virtnbdbackup runs, a new checkpoint is added to the backup chain. This variable allows to set an upper limit so the backup chain can be archived and replaced by a new one. It can be tuned according to your actual needs, and depending on how often is the backup schedule (ideally, the more often, the more checkpoints should be allowed.)
 
 Retention policy is managed by env vars `LOCAL_BACKUP_CHAINS_TO_KEEP` for backups archived locally and `RSYNC_BACKUP_CHAINS_TO_KEEP` for their mirror counterparts, when set.
 
-Everytime a backup chain is rotated, its folder becomes renamed with a (very specific) local timestamp corresponding to the oldest modified file into the entire backup sub-folder. The number of archived backup chains per domain will be kept up to the value set on these variables, deleting the older ones.
+EEvery time a backup chain is rotated, its folder becomes renamed with a (very specific) local timestamp corresponding to the oldest modified file into the entire backup sub-folder. The number of archived backup chains per domain will be kept up to the value set on these variables, deleting the older ones.
 
 Then, a mirror can contain (ideally) more archived backups than the local pool.
 
@@ -281,7 +281,7 @@ Summarizing, with default settings, a backup chain will remain 60 days on local 
 You can use this example to extrapolate, and set rotation and retention policies according with your actual needs.
 
 ### Forcing Backup Rotation on Domains that remain Shut Down:
-There will be cases when a domain is kept shut off most of the time, being just used ocassionally.
+There will be cases when a domain is kept shut off most of the time, being just used occasionally.
 
 Although this domain will be backed up as any other, the number of checkpoints made by virtnbdbackup won't grow if the server has been down between 2 backup schedules, therefore backup rotation (hence retention policy) won't be triggered as in the past example.
 
@@ -339,7 +339,7 @@ It's very similar in functioning with QEMU's [virt-clone](https://docs.redhat.co
 Similar to vm-restore, it shows a series of options:
 
 - Select the domain on the list to be replicated
-- Indicate where to replicate, either on the same or at another host (in which case, the other endpoint needs to have instellad the public conterpart of private key in use)
+- Indicate where to replicate, either on the same or at another host (in which case, the other endpoint needs to have installed the public counterpart of private key in use)
 - Select and action to perform with MAC address(es) (either insert custom one, randomize or keep)
 - Choose if replicate disk images or not
 - And select which disk image(s) to replicate, and where (or configure the destination domain with such paths)
@@ -365,7 +365,7 @@ In case of needing to restore a backup located at another server, this workaroun
     docker exec -it vm-babysitter vm-restore --source /backups-mirror
 ```
 
-*Please note, that this has not been field tested with actual remote mounts. There might be additional configs to perform on `docker run`. Scripts are only able to work under this possibility, so any contribution about this topic is welcomed.*
+*Please note, that this has not been field tested with actual remote mounts. There might be additional settings to perform on `docker run`. Scripts are only able to work under this possibility, so any contribution about this topic is welcomed.*
 
 ## Known Issues Caveats & Troubleshooting:
 
@@ -373,7 +373,7 @@ In case of needing to restore a backup located at another server, this workaroun
 
 - VM-Babysitter has been tested on Unraid v7. It has been determined that is not possible to make snapshots of domains being backed up with VM-Babysitter. By the other hand, making backups of domains with snapshots it's possible, and when restored, they seem to be OK. Nevertheless, and considering both approaches part from different strategies, it's highly encouraged to **use only one at the same time for a given domain, and do not mix snapshots with checkpoint based backups together**.
 
-- When tryng to delete a domain with checkpoints, Libvirt will warn you with the following message:
+- When trying to delete a domain with checkpoints, Libvirt will warn you with the following message:
 
 ```
 Execution error
