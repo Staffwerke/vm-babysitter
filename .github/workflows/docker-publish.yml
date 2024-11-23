@@ -68,7 +68,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}
           tags: |
-          # set latest tag for unraid branch
+            # set latest tag for unraid branch
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'unraid') }}
 
       # Build and push Docker image with Buildx (don't push on PR)
