@@ -136,7 +136,7 @@ check_variables()
                 fi
 
             else
-                echo "WARNING: Connection to $ssh_login failed (SSH exit code: $ssh_exit_code)"
+                echo "WARNING: Connection to $ssh_login failed (SSH exit code: $ssh_server_exit_code)"
             fi
         ;;
 
