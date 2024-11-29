@@ -341,9 +341,50 @@ And do the following:
 The script will ask for authorization to proceed, and restoration will be performed automatically.
 If the domain already exists and it's currently running, it must be shut down before to proceed (and vm-restore can detect and do this automatically under your authorization.)
 
-At this moment, vm-restore only works with backups stored locally (read advanced rsync section [below](#syncing-a-mirror-locally-mounted) for alternatives.)
-
 If the restoration scenario you face cannot be managed by vm-restore use [Virtnbdrestore](https://github.com/abbbi/virtnbdbackup/tree/master?tab=readme-ov-file#restore-examples) instead (included within the container), to perform a custom restoration of, e.g. image disk(s) on backup not matching with an existing target domain.
+
+### Restoring Network Located Backups via SSHFS:
+At this moment, vm-restore only works with backups stored locally.
+
+If you need to quickly restore a backup located at a another host in your local network, and such host is reachable via SSH, you can proceed as follows:
+
+- Enter inside the container:
+
+```
+    docker exec -it vm-babysitter bash
+```
+
+- Create a folder inside. E.g.: `mkdir /templates`
+- Mount a remote endpoint vis SSHFS:
+
+```
+    sshfs user@host:/path/to/backups /templates
+```
+
+  If SSH keys are needed, you can provide it via bind mounting it as this container is configured, and parse `SSH_OPTIONS` in this way:
+
+```
+    sshfs ${SSH_OPTIONS//-q/} user@host:/path/to/backups /templates
+```
+
+  Or you can also provide another key by bind mounting it somewhere inside the container, and reference it instead of using `SSH_OPTIONS`:
+
+```
+    sshfs -o IdentityFile=/some-path-to/private.key user@host:/path/to/backups /templates
+```
+
+  This should mount the remote folder transparently inside the container.
+
+- Finally, run `vm-restore` indicating a different source folder (using flag `--source`
+
+```
+    vm-restore --source /templates
+```
+
+- Then proceed with restoration
+
+
+For other possible network alternatives, read advanced rsync section [below](#syncing-a-mirror-locally-mounted).
 
 ## Advanced Features:
 
