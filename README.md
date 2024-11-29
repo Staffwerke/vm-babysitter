@@ -132,7 +132,7 @@ docker build --pull -f docker/Dockerfile . -t vm-babysitter:dev
 The main directory where all local backups will be checked and saved is mounted as in this example:
 
 ```
-    -v /data/vm-backups:/backups
+-v /data/vm-backups:/backups
 ```
 Container's path always must match `LOCAL_BACKUP_PATH`.
 
@@ -142,7 +142,7 @@ The service needs full access to ALL domain's disk images, from inside the conta
 Assuming all disk images are stored into a main directory at '/data/domains' the correct bind mount should be:
 
 ```
-    -v /data/domains:/data/domains
+-v /data/domains:/data/domains
 ```
 Replicating host path inside the container as is. During container's start, if any disk image isn't found or r/w issues are detected, the container will fail.
 
@@ -152,7 +152,7 @@ VM-Babysitter uses self provisioned tools for all operations, however it needs a
 Required for Virtnbdbackup (all operating systems):
 
 ```
-    -v /var/tmp:/var/tmp
+-v /var/tmp:/var/tmp
 ```
 
 Required to access host libvirt's socket:
@@ -160,15 +160,15 @@ Required to access host libvirt's socket:
 - On most modern operating systems:
 
 ```
-    -v /run/libvirt:/run/libvirt
-    -v /run/lock:/run/lock
+-v /run/libvirt:/run/libvirt
+-v /run/lock:/run/lock
 ```
 
 - On older or less common operating systems you might try:
 
 ```
-    -v var/run/libvirt:/run/libvirt
-    -v /var/run/lock:/run/lock
+-v var/run/libvirt:/run/libvirt
+-v /var/run/lock:/run/lock
 ```
 
 If none of these work, you must find out where your Libvirt implementation place both sockets and lock files onto the root file system.
@@ -181,7 +181,7 @@ Unless your scenario involves domains booting with emulated BIOS only, it's nece
 Allow scripts to read/restore per domain nvram binaries for EFI/UEFI boot:
 
 ```
-    -v /etc/libvirt/qemu/nvram:/etc/libvirt/qemu/nvram
+-v /etc/libvirt/qemu/nvram:/etc/libvirt/qemu/nvram
 ```
 
 Allow scripts to read/copy common nvram binaries for EFI/UEFI boot:
@@ -189,13 +189,13 @@ Allow scripts to read/copy common nvram binaries for EFI/UEFI boot:
 - Unraid:
 
 ```
-    -v /usr/share/qemu/ovmf-x64:/usr/share/qemu/ovmf-x64:ro
+-v /usr/share/qemu/ovmf-x64:/usr/share/qemu/ovmf-x64:ro
 ```
 
 - Debian & based distros:
 
 ```
-    -v /usr/share/OVMF:/usr/share/OVMF:ro
+-v /usr/share/OVMF:/usr/share/OVMF:ro
 ```
 
 *We welcome contributions about corresponding bind mounts for other GNU/Linux distributions*
@@ -204,7 +204,7 @@ Allow scripts to read/copy common nvram binaries for EFI/UEFI boot:
 Assuming you have, or can create a pair of RSA or any SSH compatible keys, you can install the public key onto the involved hosts (as the user you want to connect) and make the private key available for VM-Babysitter into a specific folder, just like this:
 
 ```
-    -v /data/docker/apps/vm-baybysitter/private/<name-of-your-private-ssh-key>:/private/hostname.key:ro
+-v /data/docker/apps/vm-baybysitter/private/<name-of-your-private-ssh-key>:/private/hostname.key:ro
 ```
 
 Note that instead of the folder, the private key file is bind mounted instead (as read-only), at container's path and file name stated in env var `SSH_OPTIONS`.
@@ -215,7 +215,7 @@ In addition, the private key must be owned by 'root' (both user & group) and mus
 Finally, to have persistent logs of what is happening with VM-Babysitter and all scheduled tasks, create a mount point like this:
 
 ```
-    -v /data/docker/apps/vm-babysitter/logs:/logs
+-v /data/docker/apps/vm-babysitter/logs:/logs
 ```
 
 ## Deploying and Running:
@@ -223,20 +223,20 @@ Finally, to have persistent logs of what is happening with VM-Babysitter and all
 The simplest user case example:
 
 ```
-    docker run -d --rm --network host --name ghcr.io/staffwerke/staffwerke/vm-babysitter \
-    -e BACKUP_SCHEDULE="* 2 * * *" \
-    -e TZ="Europe/Berlin" \
-    -e VM_ALLOW_POWERCYCLE="y" \
-    -v /etc/libvirt/qemu/nvram:/etc/libvirt/qemu/nvram \
-    -v /data/docker/apps/vm-babysitter/logs:/logs \
-    -v /data/domains:/data/domains \
-    -v /data/vm-backups:/backups \
-    -v /run/libvirt:/run/libvirt \
-    -v /run/lock:/run/lock \
-    -v /usr/share/OVMF:/usr/share/OVMF:ro \
-    -v /var/tmp:/var/tmp \
-    --restart=unless-stopped \
-    vm-babysitter
+docker run -d --rm --network host --name vm-babysitter \
+-e BACKUP_SCHEDULE="* 2 * * *" \
+-e TZ="Europe/Berlin" \
+-e VM_ALLOW_POWERCYCLE="y" \
+-v /etc/libvirt/qemu/nvram:/etc/libvirt/qemu/nvram \
+-v /data/docker/apps/vm-babysitter/logs:/logs \
+-v /data/domains:/data/domains \
+-v /data/vm-backups:/backups \
+-v /run/libvirt:/run/libvirt \
+-v /run/lock:/run/lock \
+-v /usr/share/OVMF:/usr/share/OVMF:ro \
+-v /var/tmp:/var/tmp \
+--restart=unless-stopped \
+ghcr.io/staffwerke/vm-babysitter
 ```
 
 The command above involves local backups only, and most options set to default.
@@ -244,28 +244,28 @@ The command above involves local backups only, and most options set to default.
 A more complex example, closer to a production environment:
 
 ```
-    docker run -d --rm --network host --device /dev/fuse --cap-add SYS_ADMIN --name ghcr.io/staffwerke/staffwerke/vm-babysitter \
-    -e BACKUP_SCHEDULE="* */12 * * *" \
-    -e LOCAL_BACKUP_CHAINS_TO_KEEP="2" \
-    -e MAX_BACKUPS_PER_CHAIN="60" \
-    -e RSYNC_ARGS="-aP --bwlimit=1179648" \
-    -e RSYNC_BACKUP_PATH="root@192.168.0.2:/data/vm-backups-mirror" \
-    -e RSYNC_BACKUP_CHAINS_TO_KEEP="4" \
-    -e TZ="Europe/Berlin" \
-    -e VIRTNBDBACKUP_ARGS="--compressed" \
-    -e VM_AUTOSTART_LIST="domain1 domain2" \
-    -e VM_IGNORED_LIST="domain3" \
-    -v /etc/libvirt/qemu/nvram:/etc/libvirt/qemu/nvram \
-    -v /data/docker/apps/vm-babysitter/logs:/logs \
-    -v /data/docker/apps/vm-baybysitter/private/your-ssh-key.key:/private/hostname.key:ro \
-    -v /data/domains:/data/domains \
-    -v /data/vm-backups:/backups \
-    -v /run/libvirt:/run/libvirt \
-    -v /run/lock:/run/lock \
-    -v /usr/share/OVMF:/usr/share/OVMF:ro \
-    -v /var/tmp:/var/tmp \
-    --restart=unless-stopped \
-    vm-babysitter
+docker run -d --rm --network host --device /dev/fuse --cap-add SYS_ADMIN --name vm-babysitter \
+-e BACKUP_SCHEDULE="* */12 * * *" \
+-e LOCAL_BACKUP_CHAINS_TO_KEEP="2" \
+-e MAX_BACKUPS_PER_CHAIN="60" \
+-e RSYNC_ARGS="-aP --bwlimit=1179648" \
+-e RSYNC_BACKUP_PATH="root@192.168.0.2:/data/vm-backups-mirror" \
+-e RSYNC_BACKUP_CHAINS_TO_KEEP="4" \
+-e TZ="Europe/Berlin" \
+-e VIRTNBDBACKUP_ARGS="--compressed" \
+-e VM_AUTOSTART_LIST="domain1 domain2" \
+-e VM_IGNORED_LIST="domain3" \
+-v /etc/libvirt/qemu/nvram:/etc/libvirt/qemu/nvram \
+-v /data/docker/apps/vm-babysitter/logs:/logs \
+-v /data/docker/apps/vm-baybysitter/private/your-ssh-key.key:/private/hostname.key:ro \
+-v /data/domains:/data/domains \
+-v /data/vm-backups:/backups \
+-v /run/libvirt:/run/libvirt \
+-v /run/lock:/run/lock \
+-v /usr/share/OVMF:/usr/share/OVMF:ro \
+-v /var/tmp:/var/tmp \
+--restart=unless-stopped \
+ghcr.io/staffwerke/vm-babysitter
 ```
 
 The command above involves, to auto start some domains and ignore others, the ability to replicate domains onto remote endpoints, backups compression, a mirror at the local network, and specific retention policies for each endpoint.
@@ -328,7 +328,7 @@ Eventually, any user will be in need to restore a domain from its backups, or ev
 Assuming the container is up and running, open a shell invoke the script with the following command:
 
 ```
-    docker exec -it vm-babysitter vm-restore
+docker exec -it vm-babysitter vm-restore
 ```
 
 And do the following:
@@ -351,26 +351,26 @@ If you need to quickly restore a backup located at a another host in your local 
 - Enter inside the container:
 
 ```
-    docker exec -it vm-babysitter bash
+docker exec -it vm-babysitter bash
 ```
 
 - Create a folder inside. E.g.: `mkdir /templates`
 - Mount a remote endpoint vis SSHFS:
 
 ```
-    sshfs user@host:/path/to/backups /templates
+sshfs user@host:/path/to/backups /templates
 ```
 
   If SSH keys are needed, you can provide it via bind mounting it as this container is configured, and parse `SSH_OPTIONS` in this way:
 
 ```
-    sshfs ${SSH_OPTIONS//-q/} user@host:/path/to/backups /templates
+sshfs ${SSH_OPTIONS//-q/} user@host:/path/to/backups /templates
 ```
 
   Or you can also provide another key by bind mounting it somewhere inside the container, and reference it instead of using `SSH_OPTIONS`:
 
 ```
-    sshfs -o IdentityFile=/some-path-to/private.key user@host:/path/to/backups /templates
+sshfs -o IdentityFile=/some-path-to/private.key user@host:/path/to/backups /templates
 ```
 
   This should mount the remote folder transparently inside the container.
@@ -378,7 +378,7 @@ If you need to quickly restore a backup located at a another host in your local 
 - Finally, run `vm-restore` indicating a different source folder (using flag `--source`
 
 ```
-    vm-restore --source /templates
+vm-restore --source /templates
 ```
 
 - Then proceed with restoration
@@ -396,7 +396,7 @@ VM-Babysitter is not limited to perform backups automatically or allow a manual 
 The use of these commands it's considered an expert feature, and must be done with care, since literally *override* VM-Babysitter's schedules, causing for example early backup rotation and forcing to create backup chains, which on large assets of VMs, consumes computational resources and/or network bandwidth at times when wouldn't be convenient. For more details, Use `--help` option on each script to understand more about its usage. Example:
 
 ```
-    docker exec -it vm-babysitter vm-backup --help
+docker exec -it vm-babysitter vm-backup --help
 ```
 
 ### Replicating Domains, Locally or Remotely:
@@ -432,7 +432,7 @@ Where '/data/shares/backups-mirror' could be a NFS or CIFS/SMB share, mounted fr
 In case of needing to restore a backup located at another server, this workaround *might* work, invoking vm-restore like this:
 
 ```
-    docker exec -it vm-babysitter vm-restore --source /backups-mirror
+docker exec -it vm-babysitter vm-restore --source /backups-mirror
 ```
 
 *Please note, that this has not been field tested with actual remote mounts. There might be additional settings to perform on `docker run` command and arguments for Rsync. Scripts are only able to work under this possibility, so any contribution about this topic is welcomed.*
@@ -453,7 +453,7 @@ Requested operation is not valid: cannot delete inactive domain with xx checkpoi
 If you want to delete a domain that gives you the above message, the easiest way is running the following command from a shell (would work the same from inside the container):
 
 ```
-    virsh checkpoint-delete <domain-name> virtnbdbackup.0 --children --metadata
+virsh checkpoint-delete <domain-name> virtnbdbackup.0 --children --metadata
 ```
 This deletes all checkpoints metadata created by virtnbdbackup on the main host, allowing you to delete the domain (and optionally, image disks) without warnings.
 
