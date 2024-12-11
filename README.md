@@ -439,9 +439,9 @@ docker exec -it vm-babysitter vm-restore --source /backups-mirror
 
 ## Caveats & Troubleshooting:
 
-- VM-Babysitter only uses a subset of features of Virtnbdbackup. The env var `VIRTNBDBACKUP_ARGS` has been tested only with flags `--start-domain`, `--compress` and `--no-color` and other options usually lead to unexpected results. However, it's still possible to create custom backups and even templates by using virtnbdbackup command from inside the container. It applies the same with other commands, but those aren't been even tested or used, so do it at your own risk.
+- VM-Babysitter only uses a subset of features of Virtnbdbackup. The env var `VIRTNBDBACKUP_ARGS` has been tested only with flags `--start-domain`, `--compress` and `--no-color` and other options usually lead to unexpected results. However, it's still possible to create custom backups and even templates by using `virtnbdbackup` command from inside the container. It applies the same with other commands, but those aren't been even tested or used, so do it at your own risk.
 
-- VM-Babysitter has been tested on Unraid v7. It has been determined that is not possible to make snapshots of domains being backed up with VM-Babysitter. By the other hand, making backups of domains with snapshots it's possible, and when restored, they seem to be OK. Nevertheless, and considering both approaches part from different strategies, it's highly encouraged to **use only one at the same time for a given domain, and do not mix snapshots with checkpoint based backups together**.
+- VM-Babysitter has been tested on Unraid v7. It has been determined that is not possible to make snapshots of domains being backed up with VM-Babysitter. By the other hand, making backups of domains with snapshots it's possible, and when restored, they seem to be OK. Nevertheless, and considering both approaches parting from completely different strategies, it's highly encouraged to **use only one at the same time for a given domain, and do not mix snapshots with checkpoint based backups together**.
 
 - When trying to delete a domain with checkpoints, Libvirt will warn you with the following message:
 
@@ -458,5 +458,7 @@ virsh checkpoint-delete <domain-name> virtnbdbackup.0 --children --metadata
 This deletes all checkpoints metadata created by virtnbdbackup on the main host, allowing you to delete the domain (and optionally, image disks) without warnings.
 
 - Stopping or killing the container while virtnbdbackup is performing a backup operation may lead to persistent failed status during next runs. This is due to 'dead' sockets in `/var/tmp`, `/run/libvirt` and `/run/lock`, stuck after the interruption. To solve the situation, read [this](https://github.com/abbbi/virtnbdbackup/tree/master?tab=readme-ov-file#backup-fails-with-timed-out-during-operation-cannot-acquire-state-change-lock).
+
+- Domain names and their respective paths to image disks (including file names) **must not contain spaces**. Otherwise, scripts will fail by fetching unexistent domain names and paths (See issue [#1](https://github.com/Staffwerke/vm-babysitter/issues/1#issuecomment-2533379344)). We hope this limitation can be fixed (partial or totally) in future versions.
 
 #### Maintainer: Adrián Parilli <adrian.parilli@staffwerke.de>
